@@ -1,7 +1,9 @@
 import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
 import {createRoot} from "react-dom/client";
-import {choose,defaultPlayChoice,doAction,doLifeActivity,encodeSave,getPersonActivities,giveUp,hasStartedLife,newProfileLife,playYear,type City,type GameState,type LifeActivityCategory,type LifeActivityOption} from "./engine.ts";
+import {choose,defaultPlayChoice,doAction,doLifeActivity,encodeSave,getPersonActivities,giveUp,nameNewborns,hasStartedLife,newProfileLife,playYear,type City,type GameState,type LifeActivityCategory,type LifeActivityOption} from "./engine.ts";
 import {Album,Places} from "./Views.tsx";
+import {BirthNamingDialog} from "./BirthNamingDialog.tsx";
+import type {SurnameSource} from "./reproduction.ts";
 import {People} from "./People.tsx";
 import {BgLifeMark,PersonActionDialog,type PersonActionFlow} from "./PersonActionDialog.tsx";
 import {personRelationship,type PeopleId} from "./peopleIdentity.ts";
@@ -239,6 +241,14 @@ function App(){
     commit({...current,life:next});
     setTab("journal");
   }
+  function saveBabyNames(names:string[],surname:SurnameSource){
+    const current=live.current;
+    if(current.life!==s)return;
+    const updated=nameNewborns(s,names,surname,s.age);
+    if(updated===s)return;
+    commit({...current,life:updated});
+    openJournal(updated,true);
+  }
   function relocate(city: City) {
     const current = live.current;
     if (current.life !== s) return;
@@ -338,6 +348,8 @@ function App(){
         {navItem("places")}{navItem("more")}
       </div>
     </nav><StatsBars life={s} l={l}/></footer>}
+    {screen==="game"&&!dialog&&!personAction&&s.lifeSystems.reproduction.naming&&
+      <BirthNamingDialog key={s.seed+"-"+s.age} life={s} birth={s.lifeSystems.reproduction.naming} l={l} onSave={saveBabyNames}/>}
     {personAction&&<PersonActionDialog flow={personAction} life={s} l={l} onClose={closePersonAction}
       onSelect={selected=>setPersonAction({...personAction,selected})} onConfirm={confirmPersonAction}/>}
     {dialog&&<dialog key={dialog} ref={dialogRef} className={menuDialog?"modal-card game-menu-dialog":"modal-card"} onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}>

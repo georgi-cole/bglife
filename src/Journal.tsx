@@ -8,6 +8,7 @@ import {conditionLabel} from "./lifeHealth.ts";
 import {annualBudget, commitmentsLeft, defaultPlayChoice, getActions, getChoices, getEstate, getScene, lifeHeirLabel, type GameState, type LifeActivityCategory} from "./engine.ts";
 import {LifeTimeline} from "./LifeTimeline.tsx";
 import {endingCopy} from "./story.ts";
+import {adoptionStatus, pregnancyStatus} from "./reproduction.ts";
 import type {Language} from "./session.ts";
 import {Icon,PlaySymbol,copy,lifeName,lifeOccupation,money,town} from "./ui.tsx";
 
@@ -46,6 +47,8 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onWallet, 
   const artId = cityArt(s.city);
   const { healthCondition } = s.lifeSystems;
   const estate = s.finished ? getEstate(s) : null;
+  const pregnancy = s.finished ? null : pregnancyStatus(s);
+  const adoptionOffer = !s.finished && s.lifeSystems.reproduction.adoption?.stage === "offer" ? adoptionStatus(s) : null;
   const time = commitmentsLeft(s);
 
   return <>
@@ -90,6 +93,14 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onWallet, 
         ? copy(l,"Спешен случай в историята","In-game emergency") : copy(l,"Здравословен проблем","Health concern")}</strong>
       <small>{s.lifeSystems.medicalIssue==="urgent" ? copy(l,"Спешната помощ в играта не отнема свободно време.","In-game emergency help uses no free time.") : copy(l,"В „Болница“ можеш да избереш преглед.","You can arrange a checkup in Hospital.")}</small></span>
       <button className="secondary-button" onClick={()=>onMore("hospital")}>{copy(l,"Болница","Hospital")}<Icon name="next" size={15}/></button>
+    </div>}
+    {pregnancy && <div className="journal-health-alert journal-family-alert">
+      <span><strong>{copy(l,"Бременност","Pregnancy")}</strong><small>{pregnancy[l]}</small></span>
+      <button className="secondary-button" onClick={()=>onMore("family")}>{copy(l,"Семейство","Family")}<Icon name="next" size={15}/></button>
+    </div>}
+    {adoptionOffer && <div className="journal-health-alert journal-family-alert">
+      <span><strong>{copy(l,"Предложение за осиновяване","Adoption match")}</strong><small>{adoptionOffer[l]}</small></span>
+      <button className="secondary-button" onClick={()=>onMore("adoption")}>{copy(l,"Виж","View")}<Icon name="next" size={15}/></button>
     </div>}
     <LifeTimeline s={s} l={l}>
       {s.finished ? (

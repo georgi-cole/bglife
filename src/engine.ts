@@ -1,3 +1,6 @@
+import { cleanFirstName } from "./babyNames.ts";
+import { getPeopleActivityDefinitions } from "./peopleActivities.ts";
+import { applyNewbornNames, settleReproductionYear, updateReproduction, type SurnameSource } from "./reproduction.ts";
 import { cities, inCityBg, isCity, type City } from "./cities.ts";
 import { generateBirthFamily, isKin, type BirthFamily } from "./birthFamily.ts";
 import { cityPaths, jobTypes, studyFields, type Enrollment, type JobId, type SchoolLevel } from "./cityPaths.ts";
@@ -58,11 +61,14 @@ export type Scene = {
 };
 export type Action = Option & { minAge?: number; maxAge?: number };
 
-export type Command = { age: number; kind: "choice" | "action"; id: string } | { age: number; kind: "year" | "end" };
+export type Command =
+  | { age: number; kind: "choice" | "action"; id: string }
+  | { age: number; kind: "year" | "end" }
+  | { age: number; kind: "name-children"; names: string[]; surname: SurnameSource };
 export type Memory = {
   age: number;
   city: City;
-  kind: Command["kind"] | "event";
+  kind: "choice" | "action" | "year" | "end" | "event";
   id: string;
   title: Text;
   text: Text;
@@ -118,9 +124,9 @@ const ORIGINAL_CONTENT = "tryavna-sofia-1";
 const LIFESPAN_CONTENT = "bulgarian-lifespan-1";
 const FAMILY_CONTENT = "bulgarian-family-1";
 const YEARLY_TIME = 2;
-// One scene choice, up to two discretionary activities, one emergency and one year close.
-const MAX_CHAPTER_COMMANDS = (CHAPTER_END - CHAPTER_START + 1) * (YEARLY_TIME + 3) + 1;
-const MAX_LIFE_COMMANDS = (MAX_AGE + 1) * (YEARLY_TIME + 3) + 1;
+// Include room for newborn names and time-free activities during a year.
+const MAX_CHAPTER_COMMANDS = (CHAPTER_END - CHAPTER_START + 1) * (YEARLY_TIME + 7) + 1;
+const MAX_LIFE_COMMANDS = (MAX_AGE + 1) * (YEARLY_TIME + 7) + 1;
 
 function eligible(s: GameState, filter?: Condition): boolean {
   if (!filter) return true;
@@ -193,7 +199,7 @@ export function continueLife(s: GameState): GameState {
   if (s.endReason !== "chapter") return life;
   const next: GameState = { ...life, age: CHAPTER_END + 1, finished: false, endReason: null };
   const moment = yearlyMoment(next);
-  return moment ? { ...next, history: [...next.history, moment] } : next;
+  return settleReproductionYear(moment ? { ...next, history: [...next.history, moment] } : next);
 }
 
 export function getScene(s: GameState): Scene | null {
@@ -210,7 +216,7 @@ function available(s: GameState, option: Option): boolean {
 }
 
 export function getChoices(s: GameState): Option[] {
-  if (s.finished || s.choiceId !== null) return [];
+  if (s.finished || s.choiceId !== null || s.lifeSystems.reproduction.naming) return [];
   return getScene(s)?.choices.filter((option) => available(s, option)) ?? [];
 }
 
@@ -225,7 +231,7 @@ export function defaultPlayChoice(s: GameState): Option | undefined {
 }
 
 export function playYear(s: GameState, expectedAge = s.age): GameState {
-  if (s.age !== expectedAge || s.finished) return s;
+  if (s.age !== expectedAge || s.finished || s.lifeSystems.reproduction.naming) return s;
   if (!s.sceneId || s.choiceId !== null) return advance(s, expectedAge);
   const option = defaultPlayChoice(s);
   return option ? advance(choose(s, option.id, expectedAge), expectedAge) : s;
@@ -285,7 +291,7 @@ function workActions(s: GameState): Action[] {
 }
 
 export function getActions(s: GameState): Action[] {
-  if (s.finished || (s.sceneId && s.choiceId === null) || commitmentsLeft(s) === 0) return [];
+  if (s.finished || (s.sceneId && s.choiceId === null) || s.lifeSystems.reproduction.naming || commitmentsLeft(s) === 0) return [];
   const availableActions = s.sceneId ? actions.filter((action) =>
     s.age >= (action.minAge ?? CHAPTER_START) && s.age <= (action.maxAge ?? CHAPTER_END)
     && !s.usedActions.includes(action.id) && available(s, action),
@@ -307,6 +313,7 @@ export function moveBlocker(s: GameState, city: City): Text | null {
     bg: "Можеш да се преместиш самостоятелно от 18 години.",
     en: "You can move independently from age 18.",
   };
+  if (s.lifeSystems.reproduction.naming) return { bg: "Първо запиши името на бебето.", en: "Name the new baby first." };
   if (city === s.city) return { bg: "Вече живееш в този град.", en: "You already live in this city." };
   if (!commitmentsLeft(s) || s.usedActions.some(id => id.startsWith("move."))) {
     return { bg: "Нужно е свободно време за едно преместване годишно.", en: "Moving takes free time and is available once per year." };
@@ -422,21 +429,26 @@ export function doAction(s: GameState, actionId: string, expectedAge = s.age): G
 
 export function getLifeActivities(s: GameState): LifeActivityOption[] {
   const timeLeft = commitmentsLeft(s);
-  return activityDefinitions.filter(definition => !definition.contact && (!definition.visible || definition.visible(s))).map(definition => lifeActivityOption(s, definition, timeLeft));
+  return activityDefinitions.filter(definition => !definition.contact && !definition.replayOnly && (definition.visible?.(s) ?? true))
+    .map(definition => lifeActivityOption(s, definition, timeLeft));
 }
 
 export function getPersonActivities(s: GameState, contact: PeopleId): LifeActivityOption[] {
   if (s.deceased[contact]) return [];
   const timeLeft = commitmentsLeft(s);
   if (isKin(contact)) return kinActivities(s, contact).map(definition => lifeActivityOption(s, definition, timeLeft));
-  return activityDefinitions.filter(definition => definition.contact === contact && definition.visible?.(s))
+  return getPeopleActivityDefinitions(contact).filter(definition => definition.visible?.(s))
     .map(definition => lifeActivityOption(s, definition, timeLeft));
 }
 
 export function doLifeActivity(s: GameState, id: string, expectedAge = s.age): GameState {
+  return applyLifeActivity(s, id, expectedAge);
+}
+
+function applyLifeActivity(s: GameState, id: string, expectedAge: number, replayingLegacyActivity = false): GameState {
   if (s.age !== expectedAge) return s;
   const definition = getLifeActivityDefinition(id) ?? kinActivityById(s, id);
-  if (!definition) return s;
+  if (!definition || (definition.replayOnly && !replayingLegacyActivity)) return s;
   const activity = lifeActivityOption(s, definition, commitmentsLeft(s));
   if (activity.blocked) return s;
 
@@ -460,8 +472,17 @@ export function doLifeActivity(s: GameState, id: string, expectedAge = s.age): G
   return { ...result, lifeSystems: definition.resolvesMedicalIssue ? treatHealth(lifeSystems, s.age) : lifeSystems };
 }
 
+export function nameNewborns(s: GameState, names: string[], surname: SurnameSource, expectedAge = s.age): GameState {
+  const naming = s.lifeSystems.reproduction.naming;
+  if (s.finished || s.age !== expectedAge || !naming || names.length !== naming.newborns.length) return s;
+  const clean = names.map(cleanFirstName).filter((name): name is string => name !== null);
+  if (clean.length !== names.length) return s;
+  const next = applyNewbornNames(s, clean, surname);
+  return next === s ? s : { ...next, commands: [...s.commands, { age: s.age, kind: "name-children", names: clean, surname }] };
+}
+
 export function giveUp(s: GameState, expectedAge = s.age): GameState {
-  if (s.finished || s.age !== expectedAge) return s;
+  if (s.finished || s.age !== expectedAge || s.lifeSystems.reproduction.naming) return s;
   const memory: Memory = {
     age: s.age, city: s.city, kind: "end", id: "end-" + s.age, witnesses: [], cashDelta: 0,
     title: { bg: "Край на историята", en: "End of the story" },
@@ -472,6 +493,7 @@ export function giveUp(s: GameState, expectedAge = s.age): GameState {
   };
   return {
     ...s, finished: true, endReason: "gaveUp", sceneId: "", choiceId: null,
+    lifeSystems: updateReproduction(s, { pregnancy: null, adoption: null }),
     history: [...s.history, memory], commands: [...s.commands, { age: s.age, kind: "end" }],
   };
 }
@@ -483,7 +505,7 @@ function currency(amount: number, locale: keyof typeof formatters): string {
 }
 
 export function advance(s: GameState, expectedAge = s.age): GameState {
-  if (s.finished || s.age !== expectedAge || (s.sceneId && s.choiceId === null)) return s;
+  if (s.finished || s.age !== expectedAge || (s.sceneId && s.choiceId === null) || s.lifeSystems.reproduction.naming) return s;
   const full = s.lifespanStart !== null;
   const death = full ? rollDeath({
     age: s.age, sex: s.avatar?.presentation ?? "female", city: s.city, player: true,
@@ -518,6 +540,7 @@ export function advance(s: GameState, expectedAge = s.age): GameState {
     endReason: death ? "death" : finished ? "chapter" : null,
   };
   if (death) {
+    closed.lifeSystems = updateReproduction(closed, { pregnancy: null, adoption: null });
     const cause = deathCauses[death.cause];
     closed.history.push({
       age: death.age, city: s.city, kind: "end", id: "death", witnesses: [], cashDelta: 0,
@@ -540,12 +563,16 @@ export function advance(s: GameState, expectedAge = s.age): GameState {
       if (moment) next.history.push(moment);
     }
   }
-  return next;
+  return finished ? next : settleReproductionYear(next);
 }
 
 /** Store the portrait's starting traits and replay the commands that shaped the life. */
 export function encodeSave(s: GameState): string {
-  const base = { format: FORMAT, seed: s.seed, ...(s.avatar && { avatar: s.avatar }), commands: s.commands };
+  const { familyEventsFrom } = s.lifeSystems.reproduction;
+  const base = {
+    format: FORMAT, seed: s.seed, ...(s.avatar && { avatar: s.avatar }),
+    ...(familyEventsFrom !== null && { familyEventsFrom }), commands: s.commands,
+  };
   if (s.lifespanStart === null) return JSON.stringify({ ...base, version: 1, content: ORIGINAL_CONTENT });
   if (s.profile) return JSON.stringify({ ...base, version: 3, content: FAMILY_CONTENT, birthCity: s.birthCity, profile: s.profile });
   return JSON.stringify({
@@ -569,6 +596,9 @@ export function decodeSave(raw: string): GameState | null {
     if (!legacy && !full && !family) return null;
     if (typeof saved.seed !== "number" || !Number.isSafeInteger(saved.seed) || saved.seed < 0 || saved.seed > 0xffffffff) return null;
     if (!Array.isArray(saved.commands) || saved.commands.length > (legacy ? MAX_CHAPTER_COMMANDS : MAX_LIFE_COMMANDS)) return null;
+    const familyEventsFrom = saved.familyEventsFrom ?? null;
+    if (familyEventsFrom !== null && (typeof familyEventsFrom !== "number" || !Number.isInteger(familyEventsFrom)
+      || familyEventsFrom < 0 || familyEventsFrom > saved.commands.length)) return null;
     const avatar = "avatar" in saved ? parseAvatar(saved.avatar) : null;
     if ("avatar" in saved && !avatar) return null;
     const upgradeAt = full && "upgradeAt" in saved ? saved.upgradeAt : null;
@@ -580,6 +610,7 @@ export function decodeSave(raw: string): GameState | null {
     let s = legacy || upgradeAt !== null ? newChapterLife(saved.seed, avatar) : profile && avatar
       ? newProfileLife({ seed: saved.seed, city: saved.birthCity as City, presentation: avatar.presentation ?? "female", avatar, profile })
       : newLife(saved.seed, avatar, saved.birthCity as City);
+    s = { ...s, lifeSystems: updateReproduction(s, { familyEventsFrom }) };
     for (const [index, c] of saved.commands.entries()) {
       if (index === upgradeAt) {
         s = continueLife(s);
@@ -590,10 +621,15 @@ export function decodeSave(raw: string): GameState | null {
       if (c.kind === "year" || c.kind === "end") {
         if ("id" in c) return null;
         next = c.kind === "year" ? advance(s, s.age) : giveUp(s, s.age);
+      } else if (c.kind === "name-children") {
+        if (!Array.isArray(c.names) || !c.names.every(name => typeof name === "string")
+          || (c.surname !== "mother" && c.surname !== "father")) return null;
+        next = nameNewborns(s, c.names, c.surname, s.age);
       } else {
         if (typeof c.id !== "string" || c.id.length > 100) return null;
         if (c.kind === "choice") next = choose(s, c.id, s.age);
-        else if (c.kind === "action") next = doAction(s, c.id, s.age);
+        else if (c.kind === "action") next = getLifeActivityDefinition(c.id)?.replayOnly
+          ? applyLifeActivity(s, c.id, s.age, true) : doAction(s, c.id, s.age);
         else return null;
       }
       if (next === s) return null;

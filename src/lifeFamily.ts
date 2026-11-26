@@ -1,6 +1,7 @@
 import type { GameState, Text } from "./engine.ts";
 import type { Heir, LifeActivityDefinition } from "./lifeActivities.ts";
 import { hasLivingChildren, newChildProfile, type PeopleId } from "./peopleIdentity.ts";
+import { isExpecting } from "./reproduction.ts";
 
 type Systems = GameState["lifeSystems"];
 type Family = Systems["family"];
@@ -38,8 +39,8 @@ function stageRequired(stage: Family["stage"], minimumBond: number, prompt: Text
 }
 
 const familyRoom = (s: GameState): Text | null => {
-  const { children, expecting } = s.lifeSystems.family;
-  if (expecting) return t("Вече очакваш дете.", "You are already expecting a child.");
+  const { children } = s.lifeSystems.family;
+  if (isExpecting(s)) return t("Вече очакваш дете.", "You are already expecting a child.");
   if (children >= 2) return t("Вече се грижиш за две деца.", "You are already raising two children.");
   return null;
 };
@@ -63,7 +64,7 @@ const familyActivities: LifeActivityDefinition[] = [
     cost: 3500, stats: { joy: 4, influence: 2 },
     update: s => updateFamily(s, { partner: "serviceMatch", stage: "dating", bond: 37 }),
   }, {
-    id: "family.casual", category: "family", minAge: 18, requires: single,
+    id: "family.casual", category: "family", minAge: 18, requires: single, replayOnly: true,
     label: t("Запознанство за една вечер", "Have a one-night stand"),
     description: t("Запознай се с пълнолетен човек, който също търси неангажираща среща.", "Meet another adult who is also looking for something casual."),
     result: t("И на двама ви е приятно. Имате ясна уговорка, че срещата остава еднократна.", "You both enjoy the evening and agree to leave it as a one-time encounter."),
@@ -109,7 +110,8 @@ const familyActivities: LifeActivityDefinition[] = [
     cost: 90_000, stats: { joy: 10, influence: 5 },
     update: s => updateFamily(s, { stage: "married", bond: Math.min(100, s.lifeSystems.family.bond + 8) }),
   }, {
-    id: "family.baby", category: "family", minAge: 18,
+    // Keep old action IDs so imported journals replay exactly.
+    id: "family.baby", category: "family", minAge: 18, replayOnly: true,
     requires: s => {
       const family = s.lifeSystems.family;
       if (!["committed", "engaged", "married"].includes(family.stage)) {
@@ -124,7 +126,7 @@ const familyActivities: LifeActivityDefinition[] = [
     cost: 28_000, stats: { joy: 8, health: -3 },
     update: s => updateFamily(s, { expecting: true }),
   }, {
-    id: "family.adopt", category: "family", minAge: 21,
+    id: "family.adopt", category: "family", minAge: 21, replayOnly: true,
     requires: s => familyRoom(s) ?? (s.career === "student"
       ? t("Трябва да имаш постоянен доход.", "You need a steady income.") : null),
     label: t("Осинови дете", "Adopt a child"),

@@ -1,5 +1,7 @@
 import { continueLife, decodeSave, encodeSave, newLife, type GameState } from "./engine.ts";
 
+import { startFamilyEvents } from "./reproduction.ts";
+
 export const SAVE_KEY = "bglife.journal.v1";
 export const LANGUAGE_KEY = "bglife.language";
 export const VIP_TRIAL_KEY = "bglife.preview.vip";
@@ -17,7 +19,7 @@ export function deserialize(raw: string | null): Session | null {
     if (value?.version !== 1 || typeof value.life !== "string" || !Array.isArray(value.album)) return null;
     const life = decodeSave(value.life);
     const album = value.album.map((entry: unknown) => typeof entry === "string" ? decodeSave(entry) : null);
-    return life && album.every((entry: GameState | null) => entry !== null) ? {life: continueLife(life), album} : null;
+    return life && album.every((entry: GameState | null) => entry !== null) ? {life: startFamilyEvents(continueLife(life)), album} : null;
   } catch { return null; }
 }
 

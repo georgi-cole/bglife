@@ -4,7 +4,8 @@ import {getRelative,isKin,type KinId} from "./birthFamily.ts";
 import {bilingualName,genderedSurname} from "./lifeProfile.ts";
 import {avatarPalettes,avatarPresets,type AvatarPresentation,type AvatarTraits} from "./avatar.ts";
 
-export type PeopleId = PartnerId | `child-${number}` | KinId;
+export type ContactId = PartnerId | `child-${number}`;
+export type PeopleId = ContactId | KinId;
 export const storyPeople: readonly PersonId[] = ["rumi", "niki", "mentor", "friend"];
 
 export function isKnownPerson(s: GameState, id: PeopleId): boolean {
@@ -60,6 +61,10 @@ const portraitPresets = {
   [Part in "face" | "hair" | "brows" | "lips"]: readonly AvatarTraits[Part][];
 }>;
 
+export function isContactId(id: string | undefined): id is ContactId {
+  return !!id && (Object.hasOwn(identities, id) || /^child-(?:0|[1-9]\d*)$/u.test(id));
+}
+
 export function isChild(id: PeopleId): id is `child-${number}` {
   return id.startsWith("child-");
 }
@@ -91,6 +96,8 @@ export function personGender(s: GameState, id: PeopleId): AvatarPresentation {
 export function personName(s: GameState, id: PeopleId): Text {
   if (isKin(id)) return getRelative(s,id)?.name ?? { bg: "Роднина", en: "Relative" };
   if(!isChild(id))return identities[id].name;
+  const savedName = s.lifeSystems.family.childProfiles[childIndex(id)]?.name;
+  if (savedName) return savedName;
   const gender=personGender(s,id);
   const options=childNames[gender];
   const [bg,en]=options[((personSeed(s.seed,id)>>>9)+childIndex(id))%options.length];
