@@ -3,6 +3,7 @@ import {art} from "../scripts/art";
 import {personProfiles,placeProfiles} from "./story.ts";
 import {lifePartnerLabel,type City,type GameState,type PersonId} from "./engine.ts";
 import type {Language} from "./session.ts";
+import {LifePortrait} from "./AvatarPortrait.tsx";
 import {Icon,MenuTitle,ageLabel,copy,money,town} from "./ui.tsx";
 
 type MenuControls = {onClose:()=>void;closeLabel:string;back?:boolean};
@@ -44,6 +45,6 @@ export function Album({s,archive,l,...menu}:MenuControls & {s:GameState;archive:
   const [selected,setSelected]=useState<number|null>(null);
   const active=selected===null?s:archive[selected]||s;
   return <><header className="page-head"><p className="section-kicker"><Icon name="album"/>{copy(l,"Лични спомени","Personal memories")}</p><MenuTitle {...menu}><h1>{copy(l,"Албумът на Мила","Mila’s album")}</h1></MenuTitle><p>{copy(l,"Решенията, срещите и сметките, които останаха в дневника.","The choices, encounters and bills that made it into the journal.")}</p></header>
-    {archive.length>0&&<div className="runs"><button className={selected===null?"selected":""} onClick={()=>setSelected(null)}>{copy(l,"Текущ живот","Current life")}</button>{archive.map((run,i)=><button className={i===selected?"selected":""} key={i} onClick={()=>setSelected(i)}>{copy(l,"Живот ","Life ")}{i+1} · {town(run.city,l)}</button>)}</div>}
+    {archive.length>0&&<div className="runs"><button className={selected===null?"selected":""} onClick={()=>setSelected(null)}><LifePortrait life={s} region="badge" className="run-portrait"/>{copy(l,"Текущ живот","Current life")}</button>{archive.map((run,i)=><button className={i===selected?"selected":""} key={i} onClick={()=>setSelected(i)}><LifePortrait life={run} region="badge" className="run-portrait"/>{copy(l,"Живот ","Life ")}{i+1} · {town(run.city,l)}</button>)}</div>}
     <Pages key={selected??"current"} s={active} l={l}/></>;
 }

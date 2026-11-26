@@ -141,7 +141,7 @@ export const lifeLeisure: LifeActivityDefinition[] = [
   {
     id: "aesthetics.hair", category: "aesthetics",
     label: text("Отиди на фризьор", "Get your hair done"),
-    description: text("Смени прическата си или освежи сегашната.", "Try a new hairstyle or refresh the one you have."),
+    description: text("Освежи прическата и естествения си цвят.", "Refresh your hairstyle and natural color."),
     result: text("Излезе от салона и се спря да видиш новата си прическа в една витрина.", "You left the salon and stopped at a shop window to see your new hair."),
     cost: 3_000, stats: { looks: 5, joy: 2 },
   },

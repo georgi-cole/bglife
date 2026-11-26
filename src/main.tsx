@@ -1,6 +1,6 @@
 import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
 import {createRoot} from "react-dom/client";
-import {choose,defaultPlayChoice,doAction,doLifeActivity,giveUp,newLife,playYear,type GameState,type LifeActivityCategory} from "./engine.ts";
+import {FIRST_AGE,choose,defaultPlayChoice,doAction,doLifeActivity,giveUp,newLife,playYear,type GameState,type LifeActivityCategory} from "./engine.ts";
 import {Album,People,Places} from "./Views.tsx";
 import {Journal,Wallet} from "./Journal.tsx";
 import {More,StatsBars} from "./More.tsx";
@@ -8,9 +8,12 @@ import {Icon,MenuTitle,PlaySymbol,copy,money,name,occupation,tabLabels,type Tab}
 import {deserialize,initialLanguage,LANGUAGE_KEY,loadSession,persist,SAVE_KEY,serialize,type Session} from "./session.ts";
 import "./style.css";
 import {StartGuide,StartScreen} from "./StartScreen.tsx";
+import {AvatarCreator} from "./AvatarCreator.tsx";
+import {LifePortrait} from "./AvatarPortrait.tsx";
+import type {AvatarTraits} from "./avatar.ts";
 
 type Dialog="wallet"|"settings"|"replay"|"guide"|"give-up"|null;
-type Screen = "home" | "game" | "album";
+type Screen = "home" | "game" | "album" | "avatar";
 type MoreParent = "journal" | "people" | "places" | "wallet";
 type LogPosition = {age: number; focus?: boolean};
 
@@ -25,9 +28,12 @@ function scrollToLog(position: LogPosition) {
   if(position.focus)heading?.focus({preventScroll:true});
 }
 
-function CharacterHeader({ life, l }: { life: GameState; l: Parameters<typeof name>[0] }) {
+function CharacterHeader({ life, l, onAvatar }: { life: GameState; l: Parameters<typeof name>[0]; onAvatar?: () => void }) {
+  const portrait = <LifePortrait life={life} region="badge"/>;
   return <div className="character-header">
-    <span className="character-avatar" aria-hidden="true">👩🏻</span>
+    {onAvatar
+      ? <button type="button" className="character-avatar" aria-label={copy(l,"Визия и грижа","Aesthetics")} onClick={onAvatar}>{portrait}</button>
+      : <span className="character-avatar">{portrait}</span>}
     <div className="character-identity">
       <div className="character-name">
         <span className="character-flag" role="img" aria-label={copy(l,"България","Bulgaria")}/>
@@ -52,6 +58,7 @@ function App(){
   const viewportRef=useRef<HTMLDivElement>(null);
   const mainRef=useRef<HTMLElement>(null);
   const focusScreen=useRef(false);
+  const avatarOrigin=useRef<"home"|"game">("home");
   const endTarget=useRef<GameState|null>(null);
   const nextLogPosition=useRef<LogPosition|null>(null);
   const s=session.life,t=(bg:string,en:string)=>copy(l,bg,en);
@@ -75,6 +82,7 @@ function App(){
     document.documentElement.lang=l;
     if(screen==="game")document.title="BgLife · "+t("Животът на Мила","Mila’s life");
     else if(screen==="album")document.title="BgLife · "+t("Албум","Album");
+    else if(screen==="avatar")document.title="BgLife · "+t("Създай аватар","Create avatar");
     else document.title="BgLife";
   },[l,screen]);
   useLayoutEffect(()=>{
@@ -113,7 +121,22 @@ function App(){
   }
   function startLife(){
     if(live.current.life.commands.length>0)setDialog("replay");
-    else openJournal(live.current.life);
+    else openAvatarCreator();
+  }
+  function openAvatarCreator(){
+    avatarOrigin.current=screen==="game"?"game":"home";
+    nextLogPosition.current=null;
+    focusScreen.current=true;
+    close();
+    setScreen("avatar");
+  }
+  function cancelAvatarCreator(){
+    if(avatarOrigin.current==="game"&&tab==="journal"){
+      openJournal(live.current.life);
+      return;
+    }
+    focusScreen.current=true;
+    setScreen(avatarOrigin.current);
   }
   function route(which:Tab){
     const position=which==="journal"?lastLogPosition(live.current.life):null;
@@ -175,11 +198,10 @@ function App(){
     commit({...current,life:next});
     setTab("journal");
   }
-  function replay(){
+  function startWithAvatar(avatar:AvatarTraits){
     const current=live.current;
-    const life=newLife();
+    const life=newLife(undefined,avatar);
     commit({life,album:current.life.history.length?[...current.album,current.life]:current.album});
-    close();
     openJournal(life);
   }
   function exportSave(){
@@ -228,16 +250,18 @@ function App(){
     <button className="icon-button" data-testid="settings" onClick={()=>setDialog("settings")} aria-label={t("Настройки","Settings")}><Icon name="settings"/></button>
   </div>;
   return <div className={screen==="home"?"app-shell app-shell--home":"app-shell"}>
-    {screen!=="home"&&<header className="masthead"><CharacterHeader life={s} l={l}/></header>}
+    {(screen==="game"||screen==="album")&&<header className="masthead"><CharacterHeader life={s} l={l}
+      onAvatar={showJournal&&!s.finished?()=>openMore("aesthetics"):undefined}/></header>}
     {notice&&<div className="save-notice" role="status"><span>{notice==="temporary"?t("Браузърът не запази играта. Можеш да изтеглиш копие от Настройки.","This browser couldn’t save your game. Download a backup in Settings."):notice==="recovered"?t("Дневникът е възстановен от предишния запис.","Your journal was restored from its previous save."):t("Предишният запис е повреден. Започваш нова глава.","The previous save was damaged. A new chapter has begun.")}</span><button aria-label={t("Затвори","Dismiss")} onClick={()=>setNotice(null)}><Icon name="close" size={16}/></button></div>}
-    <div className={screen==="game"?(tab==="more"?"game-layout more-layout":"game-layout"):"game-layout start-layout"} ref={viewportRef}>
-      <main className={screen==="home"?"main-column start-column":(screen==="album"||(!showJournal&&tab!=="more"))?"main-column menu-enter":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
+    <div className={screen==="avatar"?"game-layout avatar-layout":screen==="game"?(tab==="more"?"game-layout more-layout":"game-layout"):"game-layout start-layout"} ref={viewportRef}>
+      <main className={screen==="home"?"main-column start-column":(screen==="album"||screen==="avatar"||(!showJournal&&tab!=="more"))?"main-column menu-enter":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
       {showJournal&&<div className="life-tools">
         <button className="icon-button menu-button" onClick={()=>openMenuScreen("home")}><Icon name="menu" size={18}/>{t("Меню","Menu")}</button>
         {toolbar}
       </div>}
       {screen==="home"?<StartScreen life={s} l={l} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
         onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</StartScreen>:
+       screen==="avatar"?<AvatarCreator l={l} startAge={FIRST_AGE} onClose={cancelAvatarCreator} onStart={startWithAvatar}/>:
        screen==="album"?<Album {...menuProps} back s={s} archive={session.album} l={l}/>:
        tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>setDialog("wallet")} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore}/>:
        tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family","people")}/>:tab==="places"?<Places {...menuProps} s={s} l={l} onHolidays={()=>openMore("holidays","places")}/>:
@@ -269,7 +293,7 @@ function App(){
           <button className="secondary-button" autoFocus onClick={close}>{t("Продължи да играеш","Keep playing")}</button>
           <button className="primary-button end-life-confirm" data-testid="confirm-give-up" onClick={finishLife}>{t("Приключи живота","End this life")}</button>
         </div>
-      </>:dialog==="replay"?<><p>{t("Започваш отново на 16 в Трявна. Написаните страници от този живот ще останат в албума.","Start again at sixteen in Tryavna. The pages from this life will stay in your album.")}</p><div className="dialog-actions"><button className="secondary-button" onClick={close}>{t("Назад","Back")}</button><button className="primary-button" data-testid="confirm-replay" onClick={replay}>{t("Започни отначало","Start again")}</button></div></>:
+      </>:dialog==="replay"?<><p>{t("Започваш отново на 16 в Трявна. Написаните страници от този живот ще останат в албума.","Start again at sixteen in Tryavna. The pages from this life will stay in your album.")}</p><div className="dialog-actions"><button className="secondary-button" onClick={close}>{t("Назад","Back")}</button><button className="primary-button" data-testid="confirm-replay" onClick={openAvatarCreator}>{t("Към аватара","Customize avatar")}</button></div></>:
       <div className="settings-list"><button onClick={setLocale}>{t("Език","Language")}<strong>{l==="bg"?"Български → English":"English → Български"}</strong></button>
       <button onClick={exportSave}>{t("Изтегли резервно копие","Download a backup")}<Icon name="down"/></button>
       <label className="import-label">{t("Възстанови от файл","Restore from a file")}<input type="file" accept=".json,application/json" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;try{const value=file.size<5_000_000?deserialize(await file.text()):null;importRef.current=value;setImportMessage(value?"ready":"invalid")}catch{setImportMessage("invalid")}e.target.value=""}}/></label>
