@@ -1,6 +1,21 @@
-import { expect, test } from "@playwright/test";
+import { expect, test as base } from "@playwright/test";
+import { once } from "node:events";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
+import { builtGameServer, sitePath } from "./serve-built-game.mjs";
+
+const test = base.extend({
+  baseURL: async ({}, use) => {
+    const server = builtGameServer();
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    try {
+      await use(`http://127.0.0.1:${server.address().port}${sitePath}`);
+    } finally {
+      await new Promise(resolve => server.close(resolve));
+    }
+  },
+});
 
 test("a new life advances, keeps its journal after reload, and recovers the previous save", async ({ page, baseURL }) => {
   const localOrigin = new URL(baseURL).origin + "/";
