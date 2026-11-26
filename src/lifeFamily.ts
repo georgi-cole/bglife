@@ -1,7 +1,7 @@
-import { hasSteadyIncome } from "./lifePath.ts";
 import type { GameState, Text } from "./engine.ts";
 import type { Heir, LifeActivityDefinition } from "./lifeActivities.ts";
-import { newChildProfile } from "./peopleIdentity.ts";
+import { hasLivingChildren, newChildProfile, type PeopleId } from "./peopleIdentity.ts";
+import { isExpecting } from "./reproduction.ts";
 
 type Systems = GameState["lifeSystems"];
 type Family = Systems["family"];
@@ -20,6 +20,10 @@ function updatePets(s: GameState, changes: Partial<Pets>): Systems {
 const single = (s: GameState): Text | null => s.lifeSystems.family.stage === "single" ? null
   : t("Тази дейност е достъпна, когато си без връзка.", "Available when you are single.");
 
+function availableMatch(s: GameState, id: PeopleId): Text | null {
+  return single(s) ?? (s.deceased[id] ? t("Тази среща вече е недостъпна.", "This person is no longer available.") : null);
+}
+
 const withPartner = (s: GameState): Text | null => s.lifeSystems.family.partner ? null
   : t("Първо започни връзка.", "Start a relationship first.");
 
@@ -35,8 +39,8 @@ function stageRequired(stage: Family["stage"], minimumBond: number, prompt: Text
 }
 
 const familyRoom = (s: GameState): Text | null => {
-  const { children, expecting } = s.lifeSystems.family;
-  if (expecting) return t("Вече очакваш дете.", "You are already expecting a child.");
+  const { children } = s.lifeSystems.family;
+  if (isExpecting(s)) return t("Вече очакваш дете.", "You are already expecting a child.");
   if (children >= 2) return t("Вече се грижиш за две деца.", "You are already raising two children.");
   return null;
 };
@@ -46,28 +50,28 @@ const hasPet = (s: GameState): Text | null => s.lifeSystems.pets.adopted || s.li
 
 const familyActivities: LifeActivityDefinition[] = [
   {
-    id: "family.tinder", category: "family", minAge: 18, requires: single,
+    id: "family.tinder", category: "family", minAge: 18, requires: s => availableMatch(s, "appMatch"),
     label: t("Намери съвпадение в Tinder", "Find a Tinder match"),
     description: t("Разгледай профили и уговори среща, ако интересът е взаимен.", "Browse profiles and arrange a date if the interest is mutual."),
     result: t("След няколко съобщения и едно кафе и двамата искате да се видите пак.", "After a few messages and a coffee, you both want to see each other again."),
     cost: 900, stats: { joy: 5, influence: 1 },
     update: s => updateFamily(s, { partner: "appMatch", stage: "dating", bond: 28 }),
   }, {
-    id: "family.dating-service", category: "family", minAge: 18, requires: single,
+    id: "family.dating-service", category: "family", minAge: 18, requires: s => availableMatch(s, "serviceMatch"),
     label: t("Ползвай услуга за запознанства", "Use a dating service"),
     description: t("Уговори първа среща с човек, с когото имаш общи интереси.", "Arrange a first date with someone who shares your interests."),
     result: t("Харесвате едни и същи филми. Излизате с уговорка за още една среща.", "You like the same films. By the end of the date, you have plans to meet again."),
     cost: 3500, stats: { joy: 4, influence: 2 },
     update: s => updateFamily(s, { partner: "serviceMatch", stage: "dating", bond: 37 }),
   }, {
-    id: "family.casual", category: "family", minAge: 18, requires: single,
+    id: "family.casual", category: "family", minAge: 18, requires: single, replayOnly: true,
     label: t("Запознанство за една вечер", "Have a one-night stand"),
     description: t("Запознай се с пълнолетен човек, който също търси неангажираща среща.", "Meet another adult who is also looking for something casual."),
     result: t("И на двама ви е приятно. Имате ясна уговорка, че срещата остава еднократна.", "You both enjoy the evening and agree to leave it as a one-time encounter."),
     cost: 2400, stats: { joy: 5 },
   }, {
     id: "family.date-eli", category: "family", minAge: 18,
-    requires: s => single(s) ?? (s.trust.friend >= 65 ? null
+    requires: s => availableMatch(s, "friend") ?? (s.trust.friend >= 65 ? null
       : t("Ели трябва да ти има повече доверие.", "Eli needs to trust you more.")),
     label: t("Покани Ели на среща", "Ask Eli on a date"),
     description: t("Покани Ели от кръга ти за разходка и кафе.", "Ask Eli, your childhood friend, to go for a walk and coffee."),
@@ -106,7 +110,8 @@ const familyActivities: LifeActivityDefinition[] = [
     cost: 90_000, stats: { joy: 10, influence: 5 },
     update: s => updateFamily(s, { stage: "married", bond: Math.min(100, s.lifeSystems.family.bond + 8) }),
   }, {
-    id: "family.baby", category: "family", minAge: 18,
+    // Keep old action IDs so imported journals replay exactly.
+    id: "family.baby", category: "family", minAge: 18, replayOnly: true,
     requires: s => {
       const family = s.lifeSystems.family;
       if (!["committed", "engaged", "married"].includes(family.stage)) {
@@ -121,8 +126,8 @@ const familyActivities: LifeActivityDefinition[] = [
     cost: 28_000, stats: { joy: 8, health: -3 },
     update: s => updateFamily(s, { expecting: true }),
   }, {
-    id: "family.adopt", category: "family", minAge: 21,
-    requires: s => familyRoom(s) ?? (!hasSteadyIncome(s)
+    id: "family.adopt", category: "family", minAge: 21, replayOnly: true,
+    requires: s => familyRoom(s) ?? (s.career === "student"
       ? t("Трябва да имаш постоянен доход.", "You need a steady income.") : null),
     label: t("Осинови дете", "Adopt a child"),
     description: t("Подготви дома и бюджета за осиновяване. Грижата за дете влиза в годишните разходи.", "Prepare your home and budget for adoption. Childcare becomes an annual expense."),
@@ -198,7 +203,7 @@ type HeirChoice = { id: Heir; add: Text; remove: Text; eligibility?: (s: GameSta
 const heirs: HeirChoice[] = [
   { id: "partner", add: t("Посочи партньора си за наследник", "Name your partner as an heir"), remove: t("Премахни партньора си от наследниците", "Remove your partner as an heir"), eligibility: withPartner },
   { id: "children", add: t("Посочи децата си за наследници", "Name your children as heirs"), remove: t("Премахни децата си от наследниците", "Remove your children as heirs"),
-    eligibility: s => s.lifeSystems.family.children ? null : t("Все още нямаш деца.", "You do not have children yet.") },
+    eligibility: s => hasLivingChildren(s) ? null : t("Все още нямаш деца.", "You do not have children yet.") },
   { id: "rumi", add: t("Посочи Руми за наследник", "Name Rumi as an heir"), remove: t("Премахни Руми от наследниците", "Remove Rumi as an heir") },
   { id: "friend", add: t("Посочи Ели за наследник", "Name Eli as an heir"), remove: t("Премахни Ели от наследниците", "Remove Eli as an heir") },
 ];
@@ -211,6 +216,9 @@ const heirActivities: LifeActivityDefinition[] = heirs.flatMap(({ id, add, remov
     result: t("Записваш още един наследник. Дяловете в плана се преизчисляват.", "You add an heir. The shares in your plan are recalculated."),
     requires: s => {
       if (s.lifeSystems.legacy.heirs.includes(id)) return t("Вече е в списъка.", "Already in the plan.");
+      if ((id === "rumi" || id === "friend") && s.deceased[id]) {
+        return t("Този човек вече е починал.", "This person has died.");
+      }
       const partnerIsEli = s.lifeSystems.family.partner === "friend";
       if (partnerIsEli && ((id === "partner" && s.lifeSystems.legacy.heirs.includes("friend")) ||
         (id === "friend" && s.lifeSystems.legacy.heirs.includes("partner")))) {

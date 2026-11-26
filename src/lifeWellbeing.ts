@@ -1,6 +1,7 @@
-import { studying } from "./lifePath.ts";
 import type { GameState, Option, Text } from "./engine.ts";
 import { applyStats, boundStat, type LifeStats, type LifeSystems, type StatDelta } from "./lifeActivities.ts";
+import { ageHealth } from "./lifeHealth.ts";
+import { studying } from "./lifePath.ts";
 import { newChildProfile } from "./peopleIdentity.ts";
 
 const text = (bg: string, en: string): Text => ({ bg, en });
@@ -27,24 +28,27 @@ export function storyStats(s: GameState, result: GameState, option: Option, kind
 
 export function settleWellbeing(s: GameState, bank: LifeSystems["bank"], unpaidCare: boolean, unpaidDebt: boolean, closingChapter: boolean) {
   const notes: Text[] = [];
+  const full = s.lifespanStart !== null;
   const used = s.usedActions;
   const active = used.some(id => id.startsWith("gym."));
   const influenceActivity = used.some(id => /^(social\.|fun\.|family\.)/.test(id));
   const familyActivity = used.some(id => id.startsWith("family."));
   const petActivity = used.some(id => id.startsWith("pets."));
+  const agedHealth = full ? ageHealth(s, active, closingChapter) : null;
   const wellbeing: StatDelta = {
-    health: active ? 1 : -1,
-    looks: s.age < 20 ? 1 : s.age > 22 ? -1 : 0,
+    health: agedHealth?.health ?? (active ? 1 : -1),
+    looks: full && s.age >= 85 ? -1 : s.age < 20 ? 1 : s.age > 22 ? -1 : 0,
     joy: unpaidCare || unpaidDebt ? -4 : used.length ? 1 : -1,
-    brains: studying(s) ? 2 : 1,
+    brains: (s.path && s.age >= 7 ? studying(s) : s.career === "student" && (!full || s.age < 19)) ? 2 : 1,
     influence: influenceActivity ? 0 : s.stats.influence > 24 ? -1 : 0,
   };
 
   const { family, pets, legacy } = s.lifeSystems;
   const spentTimeWithPartner = family.partner && used.some(id => id.startsWith("people." + family.partner + "."));
   const bondChange = family.stage === "single" || familyActivity || spentTimeWithPartner ? 0 : -2;
-  const children = family.children + Number(family.expecting);
-  if (family.expecting) {
+  const birth = family.expecting && (!full || !closingChapter);
+  const children = family.children + Number(birth);
+  if (birth) {
     wellbeing.joy = (wellbeing.joy ?? 0) + 8;
     notes.push(text("Посрещна дете в семейството.", "You welcomed a child into your family."));
   }
@@ -54,7 +58,8 @@ export function settleWellbeing(s: GameState, bank: LifeSystems["bank"], unpaidC
   const roll = (Math.imul(s.seed ^ Math.imul(s.age, 0x7feb352d), 0x846ca68b) >>> 0) % 100;
   const assisted = used.some(id => id === "hospital.emergency" || id === "hospital.clinic");
   let issue = s.lifeSystems.medicalIssue;
-  if (!assisted) {
+  if (agedHealth) issue = agedHealth.issue;
+  else if (!assisted) {
     if (issue === "routine" && roll < 14 && s.stats.health < 62) {
       issue = "urgent";
       wellbeing.health = (wellbeing.health ?? 0) - 14;
@@ -76,16 +81,17 @@ export function settleWellbeing(s: GameState, bank: LifeSystems["bank"], unpaidC
     stats: applyStats(s.stats, wellbeing),
     lifeSystems: {
       ...s.lifeSystems, bank, medicalIssue: issue,
+      ...(agedHealth && { healthCondition: agedHealth.condition ?? null }),
       family: {
         ...family, bond: boundStat(family.bond + bondChange), children, expecting: false,
-        childProfiles: family.expecting
+        childProfiles: birth
           ? [...family.childProfiles, newChildProfile(s, s.age + Number(!closingChapter), 0, 60)]
           : family.childProfiles,
       },
       pets: petBond === pets.bond ? pets : { ...pets, bond: petBond },
       legacy,
     },
-    notes,
+    notes, healthNote: agedHealth?.note,
   };
 }
 

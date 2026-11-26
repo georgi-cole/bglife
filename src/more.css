@@ -113,6 +113,8 @@
 .activity-category-copy small { color: var(--secondary); font-size: .7rem; line-height: 1.25; }
 
 .activity-hospital { --activity-accent: #faa2aa; }
+.activity-fertility { --activity-accent: #e9b0df; }
+.activity-adoption { --activity-accent: #f2c393; }
 .activity-gym { --activity-accent: #81d4a6; }
 .activity-pets { --activity-accent: #ebc58c; }
 .activity-holidays { --activity-accent: #8dd4d0; }

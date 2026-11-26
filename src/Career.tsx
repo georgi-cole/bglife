@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from "react";
-import type { GameState } from "./engine.ts";
+import { movingCost, type GameState } from "./engine.ts";
+import { CityPicker } from "./CityPicker.tsx";
 import { applicationLabel, employmentIncome, findJob, healthCoverage, insuranceView, jobGross, recentInsuredMonths, requirementName, workView } from "./employment.ts";
 import { isSchoolAge, pathActionBlock } from "./lifePath.ts";
 import { mark, type PathAction } from "./pathActions.ts";
-import { fields, pathCities, pathMoney, playableCities, subjects } from "./pathCatalog.ts";
-import { netMonthly, PATH_POLICY_YEAR, policy, relocation } from "./pathPolicy.ts";
+import { fields, pathCities, pathMoney, subjects } from "./pathCatalog.ts";
+import { netMonthly, PATH_POLICY_YEAR, policy } from "./pathPolicy.ts";
 import { gradeName, SCHOOL_EFFORT, schoolView } from "./school.ts";
 import type { Language } from "./session.ts";
 import { Icon, MenuTitle, copy, money } from "./ui.tsx";
@@ -107,7 +108,11 @@ function School({ s, l, onAction }: TrackProps) {
     {diploma.vocational && <Row label={t("Квалификация", "Qualification")}>{fields[diploma.vocational][l]}</Row>}
   </section>;
 
-  const grade = school.grade!;
+  if (school.grade === null) return <section className="career-card">
+    <div className="career-card-title"><Icon name="school"/><h2>{s.age < 4 ? t("Преди училище", "Before school") : t("Предучилищна подготовка", "Preschool")}</h2></div>
+    <p>{t("Изборът на училище започва в I клас, на 7 години.", "Choose a school in first grade, at age seven.")}</p>
+  </section>;
+  const grade = school.grade;
   const report = school.report;
   const exams = view.actions.filter(action => action.id === "school.nvo" || action.id.startsWith("school.final."));
   const secondSubject = view.actions.filter(action => action.id.startsWith("school.final-subject."));
@@ -197,15 +202,17 @@ function University({ s, l, onAction }: TrackProps) {
       </details>
     </section> : school.diploma && s.age >= 18 ? <section className="career-card">
       <h2>{t("Кандидатстване в университет", "University admissions")}</h2>
-      <ToggleStrip label={t("Град на университета", "University city")} selected={city} onSelect={setCity}
-        options={playableCities.map(id => ({ id, label: pathCities[id].name[l] }))}/>
+      <div className="city-field">
+        <label htmlFor="university-city">{t("Град на университета", "University city")}</label>
+        <CityPicker id="university-city" city={city} language={l} onChange={setCity}/>
+      </div>
       {pathCities[city].programs.length === 0 && <p>{t("Тук няма университетски програми. Избери друг град за кандидатстване.",
         "There are no university programs here. Choose another city to apply.")}</p>}
       <div className="career-list">
         {allPrograms.filter(item => item.city === city && !university.degrees.some(degree => degree.program === item.program.id)).map(({ program }) => {
           const outcome = university.applications[program.id];
           const exams = university.entrance[program.id];
-          const moveCost = city === s.city ? 0 : -relocation(s, city).cashDelta;
+          const moveCost = city === s.city ? 0 : movingCost(s);
           return <article className="career-list-item" key={program.id}>
             <h3>{program.title[l]}</h3>
             <p>{program.institution[l]} · {program.years} {t("години", "years")}</p>

@@ -159,9 +159,6 @@
 .career-vacancies { margin-top: .34rem; }
 .career-source { padding-top: .3rem; }
 
-.avatar-opening { display: grid; gap: .36rem; min-width: 0; max-width: 26rem; }
-.places-move { display: grid; align-content: start; gap: .48rem; }
-.places-move p { margin: 0; }
 @media (max-width: 360px) {
   .career-heading, .career-card { padding-inline: .55rem; }
   .career-toggles button { padding-inline: .34rem; }

@@ -1,7 +1,10 @@
-import { decodeSave, encodeSave, newCareerLife, resumeCareerLife, type GameState } from "./engine.ts";
+import { continueLife, decodeSave, encodeSave, newLife, startCareerLife, type GameState } from "./engine.ts";
+
+import { startFamilyEvents } from "./reproduction.ts";
 
 export const SAVE_KEY = "bglife.journal.v1";
 export const LANGUAGE_KEY = "bglife.language";
+export const VIP_TRIAL_KEY = "bglife.preview.vip";
 export type Session = { life: GameState; album: GameState[] };
 export type Language = "bg" | "en";
 
@@ -16,7 +19,7 @@ export function deserialize(raw: string | null): Session | null {
     if (value?.version !== 1 || typeof value.life !== "string" || !Array.isArray(value.album)) return null;
     const life = decodeSave(value.life);
     const album = value.album.map((entry: unknown) => typeof entry === "string" ? decodeSave(entry) : null);
-    return life && album.every((entry: GameState | null) => entry !== null) ? {life, album} : null;
+    return life && album.every((entry: GameState | null) => entry !== null) ? {life: startFamilyEvents(continueLife(life)), album} : null;
   } catch { return null; }
 }
 
@@ -24,11 +27,11 @@ export function loadSession(): { session: Session; notice: "recovered" | "damage
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     const session = deserialize(raw);
-    if (session) return { session: { ...session, life: resumeCareerLife(session.life) }, notice: null };
+    if (session) return { session: { ...session, life: startCareerLife(session.life) }, notice: null };
     const backup = deserialize(localStorage.getItem(SAVE_KEY + ".previous"));
-    if (backup) return { session: { ...backup, life: resumeCareerLife(backup.life) }, notice: "recovered" };
-    return {session: {life:newCareerLife(), album:[]}, notice: raw ? "damaged" : null};
-  } catch { return {session:{life:newCareerLife(), album:[]}, notice:"temporary"}; }
+    if (backup) return { session: { ...backup, life: startCareerLife(backup.life) }, notice: "recovered" };
+    return {session: {life:startCareerLife(newLife()), album:[]}, notice: raw ? "damaged" : null};
+  } catch { return {session:{life:startCareerLife(newLife()), album:[]}, notice:"temporary"}; }
 }
 
 export function persist(session: Session): boolean {
@@ -40,6 +43,11 @@ export function persist(session: Session): boolean {
     localStorage.setItem(SAVE_KEY,next);
     return true;
   } catch { return false; }
+}
+
+export function initialTrialVip(): boolean {
+  try { return localStorage.getItem(VIP_TRIAL_KEY) === "on"; }
+  catch { return false; }
 }
 
 export function initialLanguage(): Language {

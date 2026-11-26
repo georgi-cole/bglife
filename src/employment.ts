@@ -1,6 +1,8 @@
-import type { Career, City, GameState, Text } from "./engine.ts";
+import { cities, type City } from "./cities.ts";
+import { jobTypes, type JobId } from "./cityPaths.ts";
+import type { Career, GameState, Text } from "./engine.ts";
 import { average, limit, pathRoll, type PathAction, type PathEvent } from "./pathActions.ts";
-import { fields, pathCities, pathMoney, pathText as t, type Field, type Job } from "./pathCatalog.ts";
+import { fields, legacyGenericJob, legacyLocalJobId, pathCities, pathMoney, pathText as t, type Field, type Job } from "./pathCatalog.ts";
 import { netMonthly, policy } from "./pathPolicy.ts";
 
 type Contract = { job: string; city: City; gross: number; hours: 4 | 8; monthsLeft: number | null; tenure: number; performance: number };
@@ -36,21 +38,60 @@ const WORKDAYS_PER_MONTH = 21;
 const MIN_YOUTH_AGE = 16;
 export const serviceMonths = (employment: EmploymentState) => Math.floor(employment.serviceCredits / SERVICE_PER_MONTH);
 export const recentInsuredMonths = (employment: EmploymentState) => employment.recentGross.slice(-18).filter(Boolean).length;
-export const findJob = (city: City, id: string) => pathCities[city].jobs.find(job => job.id === id);
+export const findJob = (city: City, id: string) => id === legacyGenericJob.id ? legacyGenericJob : pathCities[city].jobs.find(job => job.id === id);
 const activeMonths = (job: Contract) => Math.min(12, job.monthsLeft ?? 12);
 
-export function startEmployment(s: GameState, legacy: Career | null): EmploymentState {
-  const id = legacy === "qa" ? "sofia-qa" : legacy === "woodcarver" ? "tryavna-workshop" : null;
-  const placed = id && findJob(s.city, id);
-  const gross = legacy === "qa" ? pathMoney(1044) : pathMoney(812);
-  const years = placed ? s.history.filter(event => event.kind === "year" && event.age >= 19).length : 0;
-  const insuredMonths = years * 12;
+function legacyGross(city: City, career: Career, local?: JobId | null): number {
+  const annualNet = career === "qa" ? 1_080_000 : career === "woodcarver" ? 840_000
+    : career === "local-job" ? local ? jobTypes[local].pay : city === "sofia" ? 1_380_000 : 1_110_000 : 0;
+  const preTax = annualNet / (12 * (1 - policy.incomeTax));
+  return Math.round(preTax + Math.min(preTax / (1 - policy.employeeInsurance), policy.insuranceCeiling) * policy.employeeInsurance);
+}
+
+function legacyWorkHistory(s: GameState) {
+  let role: Career = "student", gross = 0, tenure = 0;
+  const months: number[] = [];
+  for (const event of s.history) {
+    if (event.id === "life.retire" || (event.id.startsWith("move.") && role === "local-job")) {
+      role = "student";
+      gross = 0;
+      tenure = 0;
+    }
+    if (event.startedCareer || event.id.startsWith("life.work.")) {
+      role = event.startedCareer ?? "local-job";
+      const local = event.id.startsWith("life.work.") ? event.id.slice(10) as JobId : null;
+      gross = legacyGross(event.city, role, local);
+      tenure = 0;
+    }
+    if (event.kind === "year" && event.age >= 19) {
+      months.push(...Array<number>(12).fill(Math.min(gross, policy.insuranceCeiling)));
+      if (gross > 0) tenure += 12;
+    }
+  }
+  return { months, tenure };
+}
+
+export function startEmployment(s: GameState): EmploymentState {
+  const id = s.localJob ? legacyLocalJobId(s.city, s.localJob)
+    : s.career === "qa" && s.city === "sofia" ? "sofia-qa"
+    : s.career === "woodcarver" && s.city === "tryavna" ? "tryavna-workshop" : legacyGenericJob.id;
+  const placed = s.retirement === null && s.career !== "student" ? findJob(s.city, id) ?? legacyGenericJob : null;
+  const gross = legacyGross(s.city, s.career, s.localJob);
+  const { months, tenure } = legacyWorkHistory(s);
+  const insuredMonths = s.serviceYears * 12;
+  const recorded = months.filter(Boolean).slice(0, insuredMonths);
+  const missing = Math.max(0, insuredMonths - recorded.length);
+  const incomeTotal = recorded.reduce((total, value) => total + value, 0)
+    + missing * (gross || pathCities[s.city].benchmark);
+  const pension = s.retirement ? {
+    kind: s.serviceYears * 12 >= (s.avatar?.presentation === "male" ? policy.men : policy.women).service
+      ? "full" as const : "reduced" as const, monthly: Math.round(s.retirement.payment / 12),
+  } : null;
   return {
-    job: placed ? { job: placed.id, city: s.city, gross, hours: 8, monthsLeft: null, tenure: insuredMonths, performance: 55 } : null,
+    job: placed ? { job: placed.id, city: s.city, gross, hours: 8, monthsLeft: null, tenure, performance: 55 } : null,
     applications: {}, prepared: false, worked: false,
-    serviceCredits: insuredMonths * SERVICE_PER_MONTH,
-    recentGross: Array<number>(Math.min(24, insuredMonths)).fill(gross), incomeTotal: gross * insuredMonths,
-    insuredMonths, benefit: null, separation: null, pension: null, healthDebt: 0, registrations: [],
+    serviceCredits: insuredMonths * SERVICE_PER_MONTH, recentGross: months.slice(-24), incomeTotal,
+    insuredMonths, benefit: null, separation: null, pension, healthDebt: 0, registrations: [],
   };
 }
 
@@ -103,8 +144,8 @@ const register = {
 };
 
 function registered(s: GameState, work: EmploymentState, field: RegulatedField) {
-  const district = pathCities[s.city].district.bg;
-  return work.registrations.some(item => item.field === field && pathCities[item.city].district.bg === district);
+  const district = cities[s.city].district;
+  return work.registrations.some(item => item.field === field && cities[item.city].district === district);
 }
 
 export function workView(s: GameState, work: EmploymentState) {

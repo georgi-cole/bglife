@@ -1,5 +1,5 @@
 import type { City, GameState, Text } from "./engine.ts";
-import { fallbackSchool, pathCities, pathText as t, schoolSubjects, subjects, type Field, type School, type Subject } from "./pathCatalog.ts";
+import { fallbackSchool, legacySchoolId, pathCities, pathText as t, schoolSubjects, subjects, type Field, type School, type Subject } from "./pathCatalog.ts";
 import { average, limit, mark, pathRoll, roundMark, type PathAction, type PathEvent } from "./pathActions.ts";
 
 type Subjects<T> = Partial<Record<Subject, T>>;
@@ -31,16 +31,20 @@ const CLASSWORK = new Set<Subject>(["bulgarian", "math", "english", "german", "s
 const roman = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
 export const gradeName = (grade: number) => t(roman[grade] + " клас", "Grade " + grade);
 
-export function startSchool(city: City, age: number): SchoolState {
-  const grade = age < 19 ? Math.max(1, age - 6) : null;
-  const zone = Object.keys(pathCities[city].zones)[0];
+export function startSchool(s: GameState): SchoolState {
+  const { city, age, enrollment } = s;
+  const grade = age >= 7 && age < 19 ? age - 6 : null;
+  const local = pathCities[city];
+  const zone = Object.keys(local.zones)[0];
+  const recordedSchool = enrollment?.city === city ? local.schools.find(school => school.id === legacySchoolId(enrollment)
+    && (grade !== null && grade < 8 ? school.primary : school.admission)) : undefined;
   const legacyDiploma: Diploma | null = age >= 19 ? {
     average: 4.1, marks: { bulgarian: 4.2, math: 4, biology: 4, art: 4.2 },
-    bulgarian: 4.2, second: { kind: "second", mark: 4, subject: "math", age: 18 },
+    bulgarian: 4.2, second: { kind: "second", mark: 4, subject: "math", age: 18 }, vocational: recordedSchool?.vocational,
   } : null;
   return {
-    grade, zone, schoolId: fallbackSchool(city, grade ?? 12, zone).id,
-    enrolled: grade !== 1 && grade !== 8, enrollment: {}, left: false, used: [], effort: 0, prep: {}, assessments: {},
+    grade, zone: recordedSchool?.zone ?? zone, schoolId: recordedSchool?.id ?? fallbackSchool(city, grade ?? 1, zone).id,
+    enrolled: Boolean(recordedSchool && grade !== 1) || (grade !== 1 && grade !== 8), enrollment: {}, left: false, used: [], effort: 0, prep: {}, assessments: {},
     report: null, transcript: [], nvo: null, finals: [], finalSubject: null, diploma: legacyDiploma,
   };
 }
@@ -60,7 +64,8 @@ function baseline(s: GameState, school: SchoolState, subject: Subject) {
   const fullTime = s.path?.work.job?.hours === 8;
   const prep = (school.prep[subject] ?? 0) * .135;
   if (subject === "pe") return 3.35 + stat * .018 + prep;
-  return 2.3 + stat * .024 + prep - Number(fullTime) * .24;
+  const coursework = school.grade && school.grade <= 4 ? 2.9 : school.grade && school.grade <= 7 ? 2.7 : 2.5;
+  return coursework + stat * .024 + prep - Number(fullTime) * .24;
 }
 
 function yearMark(s: GameState, school: SchoolState, subject: Subject) {
@@ -110,7 +115,7 @@ function formatMarks(title: Text, score: number): Text {
 function highSchoolScore(s: GameState, state: SchoolState, school: School) {
   const exam = state.nvo;
   if (school.admission?.cutoff === 0) return 100;
-  if (!exam || exam.grade !== 7) return 0;
+  if (!exam || exam.grade !== 7) return 58 + (s.stats.brains - 45) * .5;
   const grades = state.report?.marks;
   const gradePoints = ((grades?.math ?? 3) + (grades?.bulgarian ?? 3) - 4) * 12.5;
   if (school.admission?.focus === "art") {

@@ -1,4 +1,7 @@
-import type { City, Text } from "./engine.ts";
+import { cities, cityIds, type City } from "./cities.ts";
+import { cityPaths, jobTypes, studyFields, type Enrollment, type JobId, type StudyField } from "./cityPaths.ts";
+import type { Text } from "./engine.ts";
+import type { District } from "./mortalityData.ts";
 
 export const pathText = (bg: string, en: string): Text => ({ bg, en });
 const t = pathText;
@@ -23,11 +26,16 @@ export const subjects = {
   pe: t("Физическо възпитание", "Physical education"),
 } satisfies Record<string, Text>;
 export type Subject = keyof typeof subjects;
-export type Field = "art" | "tech" | "business" | "law" | "medicine" | "nursing";
+export type Field = "art" | "tech" | "business" | "law" | "medicine" | "nursing"
+  | "engineering" | "transport" | "agriculture" | "education" | "humanities" | "tourism" | "science" | "veterinary";
 export const fields: Record<Field, Text> = {
   art: t("Приложни изкуства", "Applied arts"), tech: t("Информатика и технологии", "Computing and technology"),
   business: t("Икономика", "Economics"), law: t("Право", "Law"), medicine: t("Медицина", "Medicine"),
   nursing: t("Здравни грижи", "Nursing"),
+  engineering: t("Инженерство", "Engineering"), transport: t("Транспорт и логистика", "Transport and logistics"),
+  agriculture: t("Земеделие", "Agriculture"), education: t("Педагогика", "Education"),
+  humanities: t("Хуманитарни науки", "Humanities"), tourism: t("Туризъм", "Tourism"),
+  science: t("Природни науки", "Natural sciences"), veterinary: t("Ветеринарна медицина", "Veterinary medicine"),
 };
 
 export type School = {
@@ -50,7 +58,7 @@ export type Program = {
   fee: { state?: number; paid?: number };
   admission: { subject: Subject; exam?: readonly Subject[]; state?: number; paid?: number };
 };
-type JobRequirement = "none" | "secondary" | "art" | "tech" | "business" | "law" | "medicine" | "nursing";
+type JobRequirement = "none" | "secondary" | Field;
 export type Job = {
   id: string;
   title: Text;
@@ -87,12 +95,9 @@ function job(
   return { id, title, employer, requirement, wageRatio, hours, termMonths, youth };
 }
 
-// Extend this record when adding a playable City. Salary anchors are NSI district averages,
-// Q3 2026, in EUR/month. Institution names are real; admissions, wages and fees are tuned for play.
-export const pathCities: Record<City, CityCatalog> = {
+// These two cities have additional school and job choices with separate neighborhood catchments.
+const expanded: Partial<Record<City, Pick<CityCatalog, "zones" | "schools" | "programs" | "jobs">>> = {
   tryavna: {
-    name: t("Трявна", "Tryavna"), district: t("област Габрово", "Gabrovo district"),
-    benchmark: pathMoney(1134), essentials: pathMoney(425),
     zones: { town: t("Град Трявна", "Tryavna") },
     schools: [
       { id: "slaveykov", zone: "town", name: t("СУ „Петко Р. Славейков“", "Petko R. Slaveykov School"),
@@ -115,14 +120,13 @@ export const pathCities: Record<City, CityCatalog> = {
     ],
   },
   sofia: {
-    name: t("София", "Sofia"), district: t("София (столица)", "Sofia (capital)"),
-    benchmark: pathMoney(1932), essentials: pathMoney(550),
     zones: {
       mladost: t("Младост", "Mladost"), lozenets: t("Лозенец", "Lozenets"),
       izgrev: t("Изгрев", "Izgrev"), lyulin: t("Люлин", "Lyulin"),
       center: t("Централни райони", "Central districts"),
     },
     schools: [
+      { id: "144-su", zone: "mladost", name: t("144. СУ „Народни будители“", "144th Narodni Buditeli School"), primary: true },
       { id: "125-su", zone: "mladost", name: t("125. СУ „Боян Пенев“", "125th Boyan Penev School"), primary: true,
         profile: t("Общообразователна паралелка", "General studies"), admission: { cutoff: 0, focus: "balanced" } },
       { id: "81-su", zone: "mladost", name: t("81. СУ „Виктор Юго“", "81st Victor Hugo School"), primary: true,
@@ -180,14 +184,119 @@ export const pathCities: Record<City, CityCatalog> = {
   },
 };
 
-export const playableCities = Object.keys(pathCities) as City[];
+
+const nsiGrossQ3 = {
+  BLG: 1021, BGS: 1161, VAR: 1351, VTR: 1119, VID: 1036, VRC: 1307, GAB: 1134,
+  DOB: 1098, KRZ: 1054, KNL: 1040, LOV: 1132, MON: 1060, PAZ: 1107, PER: 1147,
+  PVN: 1151, PDV: 1232, RAZ: 1136, RSE: 1178, SLS: 1046, SLV: 1069, SML: 1029,
+  SFO: 1344, SOF: 1932, SZR: 1242, TGV: 1137, HKV: 1024, SHU: 1192, JAM: 1096,
+} satisfies Record<District, number>;
+
+const studyCredentials: Record<StudyField, Field> = {
+  sport: "education", general: "humanities", stem: "science", humanities: "humanities", tourism: "tourism",
+  construction: "engineering", languages: "humanities", business: "business", engineering: "engineering",
+  textiles: "engineering", music: "art", woodcarving: "art", economics: "business", computing: "tech",
+  navigation: "transport", medicine: "medicine", history: "humanities", nursing: "nursing", pedagogy: "education",
+  agronomy: "agriculture", biotech: "science", transport: "transport", architecture: "engineering", veterinary: "veterinary",
+};
+
+const jobRequirements: Record<JobId, JobRequirement> = {
+  university: "secondary", hotel: "secondary", electronics: "engineering", port: "transport", food: "none",
+  shipping: "transport", software: "tech", "become-guide": "tourism", publishing: "humanities",
+  studio: "art", border: "transport", heritage: "secondary", agriculture: "agriculture", clinic: "secondary",
+  building: "engineering", machine: "none", craft: "none", machinery: "engineering", trade: "secondary",
+  orchard: "none", spa: "tourism", events: "secondary", warehousing: "none", rail: "transport", laboratory: "science",
+  education: "education", textiles: "engineering", outdoors: "none", metro: "transport", energy: "engineering",
+  animal: "secondary", glass: "none", woodcarving: "none",
+};
+
+const localEmployer = t("Местен работодател", "Local employer");
+const coveredPrograms: Partial<Record<City, Record<number, string>>> = {
+  sofia: { 3: "su-computing", 4: "mu-medicine", 5: "unwe-econ" },
+};
+const coveredSchools: Partial<Record<City, Record<number, string>>> = {
+  sofia: { 0: "144-su", 1: "smg", 2: "91-neg" },
+  tryavna: { 0: "slaveykov", 1: "slaveykov", 2: "art-tryavna" },
+};
+const coveredJobs: Partial<Record<City, Partial<Record<JobId, string>>>> = {
+  sofia: { software: "sofia-qa" },
+  tryavna: { woodcarving: "tryavna-workshop" },
+};
+
+export const legacySchoolId = ({ city, index }: Enrollment) => coveredSchools[city]?.[index] ?? "school-" + city + "-" + index;
+export const legacyProgramId = ({ city, index }: Enrollment) => coveredPrograms[city]?.[index] ?? "program-" + city + "-" + index;
+export const legacyLocalJobId = (city: City, id: JobId) => coveredJobs[city]?.[id] ?? "local-" + id;
+
+function localSchool(city: City, index: number, school: (typeof cityPaths)[City]["schools"][number]): School {
+  const { name, level, field: study } = school;
+  const id = legacySchoolId({ city, index, graduationAge: 0 });
+  if (level === "primary") return { id, zone: "town", name, primary: true };
+  const field = studyCredentials[study];
+  const focus: Subject = study === "languages" ? "english" : fieldSubject[field];
+  const vocational = ["tourism", "construction", "business", "engineering", "textiles", "woodcarving"].includes(study) ? field : undefined;
+  return { id, zone: "town", name, profile: studyFields[study], focus: [focus], vocational,
+    admission: { cutoff: study === "general" ? 0 : study === "stem" ? 65 : 48,
+      focus: focus === "math" ? "math" : focus === "art" ? "art" : focus === "bulgarian" ? "bulgarian" : "balanced" } };
+}
+
+function localProgram(city: City, index: number, school: (typeof cityPaths)[City]["schools"][number]): Program {
+  const field = studyCredentials[school.field];
+  const medicine = field === "medicine", veterinary = field === "veterinary";
+  const privateProgram = /свободен университет|Американски университет/.test(school.name.bg);
+  const years = medicine || veterinary ? 6 : school.field === "architecture" ? 5 : 4;
+  return { id: legacyProgramId({ city, index, graduationAge: 0 }), institution: school.name, title: studyFields[school.field],
+    field, years, fee: { ...(!privateProgram && { state: medicine ? 620 : 410 }), paid: medicine ? 5900 : 1900 },
+    admission: { subject: fieldSubject[field], ...(medicine && { exam: ["biology", "chemistry"] }),
+      ...(veterinary && { exam: ["biology"] }), ...(!privateProgram && { state: medicine ? 5.05 : 4.25 }), paid: medicine ? 4.4 : 3.45 } };
+}
+
+function catalog(city: City): CityCatalog {
+  const profile = cities[city];
+  const anchor = nsiGrossQ3[profile.district];
+  const original = cityPaths[city];
+  const detailed = expanded[city];
+  const town = t("Град " + profile.name.bg, profile.name.en);
+  const zones = detailed?.zones ?? { town };
+  const schools = detailed?.schools ?? original.schools.flatMap((school, index) => school.level !== "higher" ? [localSchool(city, index, school)] : []);
+  const backup: School = { id: "general-" + city, zone: "town", name: t("Местна гимназия", "Local secondary school"),
+    profile: studyFields.general, admission: { cutoff: 0, focus: "balanced" } };
+  const programs = original.schools.flatMap((school, index) =>
+    school.level === "higher" && !coveredPrograms[city]?.[index] ? [localProgram(city, index, school)] : []);
+  const jobs = original.jobs.filter(id => !coveredJobs[city]?.[id]).map(id =>
+    job(legacyLocalJobId(city, id), jobTypes[id].label, localEmployer, jobRequirements[id], jobTypes[id].pay / 1_400_000));
+  if (!detailed) jobs.push(
+    job("shop-" + city, t("Продавач-консултант", "Shop assistant"), localEmployer, "none", .73),
+    job("library-" + city, t("Летен помощник в библиотека", "Summer library assistant"),
+      t("Читалищна библиотека", "Community library"), "none", .60, 4, 3, true),
+    job("cafe-" + city, t("Бариста", "Barista"), t("Кафене в града", "Local café"), "none", .66, 4),
+  );
+  for (const program of [...(detailed?.programs ?? []), ...programs]) {
+    if (program.field === "medicine" && !detailed) jobs.push(
+      job("doctor-" + city, t("Лекар специализант", "Resident physician"), t("Местна болница", "Local hospital"), "medicine", 1.25));
+    if (program.field === "nursing" && !detailed) jobs.push(
+      job("nurse-" + city, t("Медицинска сестра", "Nurse"), t("Местно лечебно заведение", "Local healthcare provider"), "nursing", 1.05));
+  }
+
+  const centre = city === "samokov" || profile.district === "SOF" ? cities.sofia.name
+    : city === "tryavna" ? cities.gabrovo.name : profile.name;
+  const district = profile.district === "SOF" ? t("София (столица)", "Sofia (capital)")
+    : t("област " + centre.bg, centre.en + " district");
+  return { name: profile.name, district, benchmark: pathMoney(anchor),
+    essentials: pathMoney(Math.round(425 + (anchor - 1134) * (125 / 798))),
+    zones, schools: schools.some(item => item.admission?.cutoff === 0) ? schools : [...schools, backup],
+    programs: [...(detailed?.programs ?? []), ...programs], jobs: [...(detailed?.jobs ?? []), ...jobs] };
+}
+
+// The legacy city catalog is also used to replay older saves. Every playable city gets
+// career entries from the same catalog and its NSI Q3 2026 district wage benchmark.
+
 
 export function schoolSubjects(grade: number, school?: School): Subject[] {
   let common: Subject[];
   if (grade <= 2) common = ["bulgarian", "math", "homeland", "art", "pe"];
   else if (grade <= 4) common = ["bulgarian", "math", "english", "world", "art", "pe"];
   else if (grade <= 6) common = ["bulgarian", "math", "english", "world", "history", "geography", "pe"];
-  else common = ["bulgarian", "math", "english", "history", "biology", "chemistry", "art", "pe"];
+  else common = ["bulgarian", "math", "english", "history", "geography", "biology", "chemistry", "art", "pe"];
   return [...new Set([...common, ...(grade >= 8 ? school?.focus ?? [] : [])])];
 }
 
@@ -198,6 +307,8 @@ export function fallbackSchool(city: City, grade: number, zone: string): School 
 
 export const fieldSubject: Record<Field, Subject> = {
   art: "art", tech: "math", business: "math", law: "bulgarian", medicine: "biology", nursing: "biology",
+  engineering: "math", transport: "math", agriculture: "biology", education: "bulgarian", humanities: "history",
+  tourism: "geography", science: "chemistry", veterinary: "biology",
 };
 
 export const programSubjects: Record<Field, readonly Text[]> = {
@@ -207,4 +318,16 @@ export const programSubjects: Record<Field, readonly Text[]> = {
   law: [t("Теория на правото", "Legal theory"), t("Гражданско право", "Civil law")],
   medicine: [t("Анатомия", "Anatomy"), t("Физиология", "Physiology")],
   nursing: [t("Анатомия", "Anatomy"), t("Клинична практика", "Clinical practice")],
+  engineering: [t("Инженерна математика", "Engineering mathematics"), t("Проектиране", "Design")],
+  transport: [t("Транспортни системи", "Transport systems"), t("Логистика", "Logistics")],
+  agriculture: [t("Почвознание", "Soil science"), t("Растениевъдство", "Crop science")],
+  education: [t("Дидактика", "Teaching methods"), t("Педагогическа практика", "Teaching practice")],
+  humanities: [t("Културна история", "Cultural history"), t("Работа с източници", "Source analysis")],
+  tourism: [t("Управление на туризма", "Tourism management"), t("Туристическа география", "Tourism geography")],
+  science: [t("Лабораторни методи", "Laboratory methods"), t("Аналитична химия", "Analytical chemistry")],
+  veterinary: [t("Анатомия на животните", "Animal anatomy"), t("Клинична практика", "Clinical practice")],
 };
+
+export const pathCities = Object.fromEntries(cityIds.map(city => [city, catalog(city)])) as Record<City, CityCatalog>;
+export const playableCities = cityIds;
+export const legacyGenericJob = job("legacy-local-job", t("Работа в града", "Local job"), localEmployer, "none", .85);

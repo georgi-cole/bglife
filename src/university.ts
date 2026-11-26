@@ -1,7 +1,7 @@
-import type { City, GameState } from "./engine.ts";
+import { moveBlocker, type City, type GameState } from "./engine.ts";
+import { cityPaths } from "./cityPaths.ts";
 import { average, mark, pathRoll, roundMark, type PathAction, type PathEvent } from "./pathActions.ts";
-import { fieldSubject, pathCities, pathMoney, pathText as t, playableCities, programSubjects, subjects, type Field, type Program, type Subject } from "./pathCatalog.ts";
-import { relocation, relocationBlock } from "./pathPolicy.ts";
+import { fieldSubject, legacyProgramId, pathCities, pathMoney, pathText as t, playableCities, programSubjects, subjects, type Field, type Program, type Subject } from "./pathCatalog.ts";
 import type { Diploma } from "./school.ts";
 
 export type Funding = "state" | "paid";
@@ -17,6 +17,7 @@ type Student = {
   coursework: boolean;
   session: number | null;
   scholarship: "awarded" | "refused" | null;
+  legacyFeeWaiver?: true;
 };
 export type Degree = { program: string; city: City; field: Field; mark: number; age: number };
 export type UniversityState = {
@@ -30,9 +31,25 @@ export const fundingName: Record<Funding, ReturnType<typeof t>> = {
   state: t("Държавна поръчка", "State-funded"), paid: t("Платено обучение", "Tuition-funded"),
 };
 export const scholarshipAmount = pathMoney(900);
-export const beginUniversity = (): UniversityState => ({ student: null, applications: {}, preparation: null, entrance: {}, degrees: [] });
+
 export const allPrograms = playableCities.flatMap(city => pathCities[city].programs.map(program => ({ city, program })));
 export const findProgram = (city: City, id: string) => pathCities[city].programs.find(program => program.id === id);
+
+export function startUniversity(s: GameState): UniversityState {
+  const state: UniversityState = { student: null, applications: {}, preparation: null, entrance: {}, degrees: [] };
+  const recorded = s.enrollment;
+  if (!recorded || cityPaths[recorded.city].schools[recorded.index].level !== "higher") return state;
+  const program = findProgram(recorded.city, legacyProgramId(recorded));
+  if (!program) return state;
+  if (s.age >= recorded.graduationAge) return { ...state,
+    degrees: [{ program: program.id, city: recorded.city, field: program.field, mark: 4.1, age: recorded.graduationAge }] };
+  const yearsPassed = Math.max(0, program.years - (recorded.graduationAge - s.age));
+  return { ...state, student: {
+    program: program.id, city: recorded.city, funding: program.fee.state !== undefined ? "state" : "paid",
+    yearsPassed, marks: Array<number>(yearsPassed).fill(4.1), paused: s.city !== recorded.city,
+    study: false, coursework: false, session: null, scholarship: null, legacyFeeWaiver: true,
+  } };
+}
 export const marksFor = (diploma: Diploma, subject: Subject): number => subject === "bulgarian" ? diploma.bulgarian
   : subject === diploma.second.subject ? diploma.second.mark : diploma.marks[subject] ?? diploma.average;
 
@@ -56,7 +73,7 @@ function admission(s: GameState, diploma: Diploma, program: Program, state: Univ
 export function universityCosts(state: UniversityState): { due: number; scholarship: number } {
   const student = state.student;
   if (!student || student.paused) return { due: 0, scholarship: 0 };
-  const fee = findProgram(student.city, student.program)?.fee[student.funding] ?? 0;
+  const fee = student.legacyFeeWaiver ? 0 : findProgram(student.city, student.program)?.fee[student.funding] ?? 0;
   return { due: pathMoney(fee), scholarship: student.scholarship === "awarded" ? scholarshipAmount : 0 };
 }
 
@@ -75,6 +92,7 @@ export function universityView(s: GameState, university: UniversityState, diplom
     actions.push({
       id: student.paused ? "university.resume" : "university.pause",
       label: student.paused ? t("Възобнови обучението", "Resume your studies") : t("Прекъсни за година", "Take a study break"),
+      blocked: student.paused && student.city !== s.city ? t("Върни се в града на университета.", "Return to your university’s city first.") : undefined,
       run: () => ({ state: { ...university, student: { ...student, paused: !student.paused } },
         note: student.paused ? t("Върна се към обучението си.", "You resumed your studies.")
           : t("Прекъсна временно. Курсът и оценките ти се пазят.", "You took a break. Your progress is kept.") }),
@@ -126,15 +144,15 @@ export function universityView(s: GameState, university: UniversityState, diplom
     const application = university.applications[program.id];
     if (application && application.outcome !== "refused") {
       const funding = application.outcome;
-      const move = city === s.city ? null : relocation(s, city);
+      const move = city !== s.city;
       actions.push({
         id: "university.enroll." + program.id,
         label: move ? t("Запиши се и се премести", "Enroll and move") : t("Запиши се", "Enroll"),
-        blocked: move ? relocationBlock(s, city) : undefined,
+        blocked: move ? moveBlocker(s, city) ?? undefined : undefined,
         run: () => ({
           state: { ...university, student: { program: program.id, city, funding, yearsPassed: 0, marks: [], paused: false,
             study: false, coursework: false, session: null, scholarship: null } },
-          moveTo: move?.city,
+          moveTo: move ? city : undefined,
           note: t(program.title.bg + " · " + fundingName[funding].bg + ". Таксата влиза в годишния бюджет.",
             program.title.en + " · " + fundingName[funding].en + ". Tuition is due from this year’s budget."),
         }),

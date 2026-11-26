@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   advance, annualBudget, choose, commitmentsLeft, decodeSave, doAction, doLifeActivity, encodeSave,
-  getChoices, getEstate, getLifeActivities, getPersonActivities, giveUp, lifeStatKeys, newLife, playYear,
+  getChoices, getEstate, getLifeActivities, getPersonActivities, giveUp, lifeStatKeys, newChapterLife as newLife, playYear,
 } from "../src/engine.ts";
 import { personAvatarTraits, personName } from "../src/peopleIdentity.ts";
 
@@ -23,6 +23,15 @@ function doActivity(s, id) {
   assert.deepEqual(after.history.at(-1).statsDelta, offered.statDelta);
   for (const key of lifeStatKeys) assert.ok(0 <= after.stats[key] && after.stats[key] <= 100, key);
   return after;
+}
+function replayLegacyAction(s, id) {
+  assert.equal(option(s, id), undefined);
+  assert.strictEqual(doLifeActivity(s, id), s);
+  const transcript = JSON.parse(encodeSave(s));
+  transcript.commands.push({ age: s.age, kind: "action", id });
+  const replayed = decodeSave(JSON.stringify(transcript));
+  assert.ok(replayed, "Old journals still replay " + id);
+  return replayed;
 }
 function toAge(age, seed = 108) {
   let s = newLife(seed);
@@ -97,7 +106,7 @@ test("bank transfers, the borrowing ledger and estate cash remain replayable", (
   roundTrip(after);
 });
 
-test("relationships mature into a family and an estate plan splits the remaining balance", () => {
+test("legacy pregnancy saves replay into a family and an estate plan splits the remaining balance", () => {
   let s = pick(toAge(18));
   s = doActivity(s, "family.dating-service");
   s = doActivity(s, "family.time-together");
@@ -108,7 +117,7 @@ test("relationships mature into a family and an estate plan splits the remaining
   s = doActivity(s, "family.engage");
   s = doActivity(s, "family.marry");
   s = pick(advance(s));
-  s = doActivity(s, "family.baby");
+  s = replayLegacyAction(s, "family.baby");
   assert.equal(s.lifeSystems.family.expecting, true);
   s = doActivity(s, "legacy.add.partner");
   s = pick(advance(s));
@@ -144,7 +153,7 @@ test("a former partner remains in the life history after a save is replayed", ()
 });
 
 test("an adopted child keeps the same recorded gender, name and portrait on replay", () => {
-  const s = doActivity(pick(toAge(22, 109)), "family.adopt");
+  const s = replayLegacyAction(pick(toAge(22, 109)), "family.adopt");
   const [child] = s.lifeSystems.family.childProfiles;
   assert.equal(child.gender, "female");
   assert.equal(personAvatarTraits(s, "child-0").presentation, child.gender);
@@ -186,7 +195,7 @@ test("profile actions use time, money and trust and replay with the same outcome
 test("child profiles offer age-appropriate actions that strengthen their bond", () => {
   let s=pick(toAge(21));
   assert.deepEqual(getPersonActivities(s,"child-0"),[]);
-  s=doActivity(s,"family.adopt");
+  s=replayLegacyAction(s,"family.adopt");
   assert.ok(getPersonActivities(s,"child-0").some(action=>action.id==="people.child-0.playground"));
   assert.ok(!getPersonActivities(s,"child-0").some(action=>action.id==="people.child-0.board-game"));
   s=doLifeActivity(s,"people.child-0.bedtime");

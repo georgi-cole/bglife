@@ -1,12 +1,13 @@
 import type {GameState,PersonId,Text} from "./engine.ts";
+import {partnerIntimacy} from "./lifeReproduction.ts";
 import type {ActivityBranch,LifeActivityDefinition,LifeSystems} from "./lifeActivities.ts";
-import {childIndex,isChild,personAge,personRelationship,personSeed,type PeopleId} from "./peopleIdentity.ts";
+import {childIndex,isChild,isKnownPerson,personAge,personRelationship,personSeed,type ContactId} from "./peopleIdentity.ts";
 
 const t = (bg:string, en:string):Text => ({bg,en});
-const contactIds = ["rumi","niki","mentor","friend","appMatch","serviceMatch","child-0","child-1"] as const;
 type Context = "relative" | "cousin" | "mentor" | "friend" | "partner" | "former" | "child";
 
-function context(s:GameState,id:PeopleId):Context|null {
+function context(s:GameState,id:ContactId):Context|null {
+  if (!isKnownPerson(s,id) || s.deceased[id]) return null;
   if(isChild(id))return personAge(s,id)===null?null:"child";
   const family=s.lifeSystems.family;
   if(family.partner===id)return "partner";
@@ -67,7 +68,7 @@ const actions: Record<Context, Interaction[]> = {
   ],
 };
 
-function changeBond(s:GameState,id:PeopleId,amount:number):LifeSystems {
+function changeBond(s:GameState,id:ContactId,amount:number):LifeSystems {
   const {family}=s.lifeSystems;
   if(isChild(id)){
     const index=childIndex(id);
@@ -77,7 +78,7 @@ function changeBond(s:GameState,id:PeopleId,amount:number):LifeSystems {
   return {...s.lifeSystems,family:{...family,bond:Math.max(0,Math.min(100,family.bond+amount))}};
 }
 
-const contextualActivities: LifeActivityDefinition[] = contactIds.flatMap(contact=>
+const contextualActivities = (contact: ContactId): LifeActivityDefinition[] =>
   (Object.entries(actions) as Array<[Context,Interaction[]]>).flatMap(([kind,options])=>options.map(row=>{
     const knownContact: PersonId|undefined=contact==="rumi"||contact==="niki"||contact==="mentor"||contact==="friend"?contact:undefined;
     const trackBond=kind==="partner"||kind==="child";
@@ -92,7 +93,7 @@ const contextualActivities: LifeActivityDefinition[] = contactIds.flatMap(contac
       trust:knownContact&&!trackBond?{[knownContact]:row.bond}:undefined,
       update:trackBond?s=>changeBond(s,contact,row.bond):undefined,
     } satisfies LifeActivityDefinition;
-  })));
+  }));
 
 type BranchVariant = {
   id:string;label:Text;description:Text;city?:"sofia"|"tryavna";cost?:number;request?:number;
@@ -166,7 +167,7 @@ const groups:BranchGroup[] = [
   ]},
 ];
 
-function reaction(s:GameState,contact:PeopleId,group:BranchGroup,choice:BranchVariant) {
+function reaction(s:GameState,contact:ContactId,group:BranchGroup,choice:BranchVariant) {
   const seed=Array.from(group.id+"."+choice.id).reduce((hash,char)=>Math.imul(hash^char.charCodeAt(0),16777619),personSeed(s.seed,contact));
   const roll=(Math.imul(seed^s.age,0x45d9f3b)>>>0)%100;
   const bond=personRelationship(s,contact)??42;
@@ -191,7 +192,7 @@ function reaction(s:GameState,contact:PeopleId,group:BranchGroup,choice:BranchVa
         t("Жестът беше приет спокойно.","They acknowledged it quietly."))};
 }
 
-const branchActivities = contactIds.flatMap(contact=>groups.flatMap(group=>group.variants.map(choice=>{
+const branchActivities = (contact: ContactId): LifeActivityDefinition[] => groups.flatMap(group=>group.variants.map(choice=>{
   const knownContact:PersonId|undefined=contact==="rumi"||contact==="niki"||contact==="mentor"||contact==="friend"?contact:undefined;
   return {
     id:"people."+contact+"."+group.id+"."+choice.id, category:"family", contact, branch:{id:group.id,label:group.label,description:group.description},
@@ -214,6 +215,8 @@ const branchActivities = contactIds.flatMap(contact=>groups.flatMap(group=>group
       };
     },
   } satisfies LifeActivityDefinition;
-})));
+}));
 
-export const peopleActivities: LifeActivityDefinition[] = [...contextualActivities,...branchActivities];
+export function getPeopleActivityDefinitions(contact: ContactId): LifeActivityDefinition[] {
+  return [...partnerIntimacy(contact), ...contextualActivities(contact), ...branchActivities(contact)];
+}
