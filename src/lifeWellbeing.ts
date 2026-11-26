@@ -73,7 +73,10 @@ export function settleWellbeing(s: GameState, bank: LifeSystems["bank"], unpaidC
     stats: applyStats(s.stats, wellbeing),
     lifeSystems: {
       ...s.lifeSystems, bank, medicalIssue: issue,
-      family: { ...family, bond: boundStat(family.bond + bondChange), children, expecting: false },
+      family: {
+        ...family, bond: boundStat(family.bond + bondChange), children, expecting: false,
+        childrenJoinedAt: family.expecting ? [...family.childrenJoinedAt, s.age + Number(!closingChapter)] : family.childrenJoinedAt,
+      },
       pets: petBond === pets.bond ? pets : { ...pets, bond: petBond },
       legacy,
     },

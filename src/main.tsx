@@ -1,7 +1,8 @@
 import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
 import {createRoot} from "react-dom/client";
 import {FIRST_AGE,choose,defaultPlayChoice,doAction,doLifeActivity,giveUp,newLife,playYear,type GameState,type LifeActivityCategory} from "./engine.ts";
-import {Album,People,Places} from "./Views.tsx";
+import {Album,Places} from "./Views.tsx";
+import {People} from "./People.tsx";
 import {Journal,Wallet} from "./Journal.tsx";
 import {More,StatsBars} from "./More.tsx";
 import {Icon,MenuTitle,NavigationButton,PlaySymbol,copy,money,name,occupation,tabLabels,type Tab} from "./ui.tsx";
@@ -262,7 +263,7 @@ function App(){
     {(screen==="game"||screen==="album")&&<header className="masthead"><CharacterHeader life={s} l={l}
       onAvatar={showJournal&&!s.finished?()=>openMore("aesthetics"):undefined}/></header>}
     {notice&&<div className="save-notice" role="status"><span>{notice==="temporary"?t("Браузърът не запази играта. Можеш да изтеглиш копие от Настройки.","This browser couldn’t save your game. Download a backup in Settings."):notice==="recovered"?t("Дневникът е възстановен от предишния запис.","Your journal was restored from its previous save."):t("Предишният запис е повреден. Започваш нова глава.","The previous save was damaged. A new chapter has begun.")}</span><NavigationButton label={t("Затвори","Dismiss")} onClick={()=>setNotice(null)}/></div>}
-    <div className={screen==="avatar"?"game-layout avatar-layout":screen==="game"?(tab==="more"?"game-layout more-layout":"game-layout"):"game-layout start-layout"} ref={viewportRef}>
+    <div className={screen==="avatar"?"game-layout avatar-layout":screen==="game"?(tab==="more"||tab==="people"?"game-layout more-layout":"game-layout"):"game-layout start-layout"} ref={viewportRef}>
       <main className={screen==="home"?"main-column start-column":(showJournal===false&&(tab==="people"||tab==="places")&&screen==="game"&&slideMenu)?"main-column menu-enter":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
       {showJournal&&<div className="life-tools">
         <button className="icon-button menu-button" onClick={()=>openMenuScreen("home")}><Icon name="menu" size={18}/>{t("Меню","Menu")}</button>

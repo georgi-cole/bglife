@@ -14,11 +14,15 @@ export type LifeActivityCategory = "hospital" | "gym" | "pets" | "holidays" | "f
 export type Platform = "instagram" | "facebook" | "tiktok" | "youtube" | "vbox7" | "onlyfans";
 export type Heir = "partner" | "children" | "rumi" | "friend";
 
+export type PartnerId = PersonId | "appMatch" | "serviceMatch";
+
 export type LifeSystems = {
   medicalIssue: "routine" | "urgent" | null;
   pets: { adopted: boolean; rescued: boolean; bond: number };
   family: {
-    partner: PersonId | "appMatch" | "serviceMatch" | null;
+    partner: PartnerId | null;
+    formerPartners: { id: PartnerId; endedAt: number }[];
+    childrenJoinedAt: number[];
     stage: "single" | "dating" | "committed" | "engaged" | "married";
     bond: number;
     children: number;
@@ -64,7 +68,7 @@ export function startingLifeSystems(): LifeSystems {
   return {
     medicalIssue: null,
     pets: { adopted: false, rescued: false, bond: 0 },
-    family: { partner: null, stage: "single", bond: 0, children: 0, expecting: false },
+    family: { partner: null, formerPartners: [], childrenJoinedAt: [], stage: "single", bond: 0, children: 0, expecting: false },
     bank: { accountOpen: false, balance: 0, loan: 0, mortgage: 0, ownsHome: false },
     social: {},
     legacy: { heirs: [], prepared: false },
@@ -143,8 +147,7 @@ export function lifeActivityOption(s: GameState, definition: LifeActivityDefinit
   };
 }
 
-export function lifePartnerLabel(s: GameState): Text | null {
-  const partner = s.lifeSystems.family.partner;
+export function lifePartnerLabel(s: GameState, partner = s.lifeSystems.family.partner): Text | null {
   if (partner === null) return null;
   if (partner === "appMatch") return { bg: "Алекс", en: "Alex" };
   if (partner === "serviceMatch") return { bg: "Дани", en: "Dani" };

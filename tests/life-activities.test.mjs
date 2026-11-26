@@ -112,6 +112,7 @@ test("relationships mature into a family and an estate plan splits the remaining
   s = doActivity(s, "legacy.add.partner");
   s = pick(advance(s));
   assert.equal(s.lifeSystems.family.children, 1);
+  assert.deepEqual(s.lifeSystems.family.childrenJoinedAt, [s.age]);
   assert.equal(s.lifeSystems.family.expecting, false);
   s = doActivity(s, "legacy.add.children");
   s = doActivity(s, "legacy.prepare");
@@ -126,6 +127,15 @@ test("relationships mature into a family and an estate plan splits the remaining
   assert.deepEqual(estate.shares.map(share => share.heir), ["partner", "children"]);
   assert.equal(estate.shares.reduce((sum, share) => sum + share.amount, 0), estate.net);
   roundTrip(ended);
+});
+
+test("a former partner remains in the life history after a save is replayed", () => {
+  let s = pick(toAge(18));
+  s = doActivity(s, "family.dating-service");
+  s = doActivity(s, "family.break-up");
+  assert.equal(s.lifeSystems.family.stage, "single");
+  assert.deepEqual(s.lifeSystems.family.formerPartners, [{ id: "serviceMatch", endedAt: 18 }]);
+  roundTrip(s);
 });
 
 test("platform options require an account and posts have persistent followers and effects", () => {

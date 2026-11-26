@@ -126,7 +126,10 @@ const familyActivities: LifeActivityDefinition[] = [
     description: t("Подготви дома и бюджета за осиновяване. Грижата за дете влиза в годишните разходи.", "Prepare your home and budget for adoption. Childcare becomes an annual expense."),
     result: t("След период на подготовка вкъщи вече има нов член на семейството.", "After months of preparation, you welcome a child into your home."),
     cost: 50_000, stats: { joy: 10, health: -2, influence: 2 },
-    update: s => updateFamily(s, { children: s.lifeSystems.family.children + 1 }),
+    update: s => updateFamily(s, {
+      children: s.lifeSystems.family.children + 1,
+      childrenJoinedAt: [...s.lifeSystems.family.childrenJoinedAt, s.age],
+    }),
   }, {
     id: "family.break-up", category: "family", minAge: 18, requires: withPartner,
     label: t("Прекрати връзката", "End the relationship"),
@@ -134,7 +137,11 @@ const familyActivities: LifeActivityDefinition[] = [
     result: t("Разделяте се след спокоен разговор. Уговорките за децата, ако имате такива, остават в сила.", "You separate after a calm conversation. Any arrangements for your children stay in place."),
     stats: { joy: -7 },
     update: s => {
-      const systems = updateFamily(s, { partner: null, stage: "single", bond: 0 });
+      const { partner, formerPartners } = s.lifeSystems.family;
+      const systems = updateFamily(s, {
+        partner: null, stage: "single", bond: 0,
+        formerPartners: partner ? [...formerPartners.filter(entry => entry.id !== partner), { id: partner, endedAt: s.age }] : formerPartners,
+      });
       if (!systems.legacy.heirs.includes("partner")) return systems;
       return {
         ...systems,
