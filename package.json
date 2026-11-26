@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A Bulgarian life simulator. The first playable chapter follows Mila from Tryavna to age 26.",
+  "description": "A Bulgarian life simulator covering birth through age 131.",
   "engines": { "node": ">=24.0.0" },
   "scripts": {
     "dev": "node scripts/build.mjs --serve",

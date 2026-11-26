@@ -1,4 +1,6 @@
+import { cities, inCityBg } from "./cities.ts";
 import type { GameState, Text } from "./engine.ts";
+import { hasLivingChildren } from "./peopleIdentity.ts";
 import type { Heir, LifeActivityDefinition, LifeSystems } from "./lifeActivities.ts";
 
 const txt = (bg: string, en: string): Text => ({ bg, en });
@@ -68,7 +70,7 @@ export const lifeBank: LifeActivityDefinition[] = [
   {
     id: "bank.mortgage", category: "bank", minAge: 21, cost: HOME_DOWN_PAYMENT,
     label: txt("Купи жилище с ипотека", "Buy a home with a mortgage"),
-    description: txt("Купуваш малко жилище в Трявна с 3 000 € самоучастие. Плащаш ипотеката годишно и запазваш местоживеенето си.", "Buy a small home in Tryavna with a €3,000 down payment. Pay the mortgage annually and keep your current residence."),
+    description: txt("Купуваш малко жилище с 3 000 € самоучастие. Вноските по ипотеката влизат в годишния бюджет.", "Buy a small home with a €3,000 down payment. Mortgage payments count towards your annual budget."),
     result: txt("Подписа покупката на жилище в Трявна. То влиза в имуществото ти, а ипотеката – в годишния бюджет.", "You bought a home in Tryavna. It becomes part of your estate, and the mortgage enters your yearly budget."),
     requires: s => accountRequired(s) ?? (s.lifeSystems.bank.ownsHome
       ? txt("Вече имаш жилище.", "You already own a home.")
@@ -76,7 +78,17 @@ export const lifeBank: LifeActivityDefinition[] = [
         ? txt("Нужни са стабилна работа, достатъчен доход след наема и изплатен личен заем.", "You need stable work, sufficient income after rent, and a paid-off personal loan.")
         : null),
     stats: { influence: 2, joy: 4 },
-    update: s => setBank(s, { mortgage: HOME_VALUE - HOME_DOWN_PAYMENT, ownsHome: true }),
+    resolve: s => {
+      const original = s.lifespanStart === null;
+      const city = original ? "tryavna" : s.city;
+      const name = cities[city].name;
+      return {
+        result: txt("Подписа покупката на жилище " + inCityBg(city) + ". То влиза в имуществото ти, а ипотеката – в годишния бюджет.",
+          "You bought a home in " + name.en + ". It becomes part of your estate, and the mortgage enters your yearly budget."),
+        lifeSystems: setBank(s, { mortgage: HOME_VALUE - HOME_DOWN_PAYMENT, ownsHome: true,
+          ...(!original && { homeCity: city }) }),
+      };
+    },
   },
   {
     id: "bank.pay-mortgage", category: "bank", minAge: 21,
@@ -100,8 +112,10 @@ export function billText(obligations: number): Text {
 export function settleFinances(s: GameState, baseNet: number) {
   const bank = s.lifeSystems.bank;
   const { adopted, rescued } = s.lifeSystems.pets;
-  const childrenInCare = s.lifeSystems.family.childProfiles.filter(child => child.ageAtJoin + s.age - child.joinedAt < 18).length;
-  const careDue = (Number(adopted) + Number(rescued)) * 24_000 + childrenInCare * 84_000;
+  const { family } = s.lifeSystems;
+  const dependants = s.lifespanStart === null ? family.children : family.childProfiles.filter((child, index) =>
+    !s.deceased[`child-${index}`] && child.ageAtJoin + s.age - child.joinedAt < 18).length;
+  const careDue = (Number(adopted) + Number(rescued)) * 24_000 + dependants * 84_000;
   const loan = bank.loan + Math.ceil(bank.loan * 0.05);
   const mortgage = bank.mortgage + Math.ceil(bank.mortgage * 0.027);
   const loanDue = Math.min(LOAN_INSTALLMENT, loan);
@@ -136,7 +150,8 @@ export function getEstate(s: GameState) {
   const net = s.cash + bank.balance + homeValue + rentalDeposit - debt;
   const heirs = legacy.prepared ? legacy.heirs.filter(heir => (
     heir !== "partner" || family.partner !== null
-  ) && (heir !== "children" || family.children > 0)) : [];
+  ) && (heir !== "children" || hasLivingChildren(s))
+    && ((heir !== "friend" && heir !== "rumi") || !s.deceased[heir])) : [];
   const distributable = Math.max(net, 0);
   const share = heirs.length === 0 ? 0 : Math.floor(distributable / heirs.length);
   const remaining = distributable - share * heirs.length;

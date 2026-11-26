@@ -1,7 +1,7 @@
 import type { GameState, Text } from "./engine.ts";
 import { clinicChance, familyRoll, menopauseAge, naturalChance, type ConceptionMethod } from "./fertilityModel.ts";
 import type { ActivityBranch, ActivityResolution, LifeActivityDefinition, PartnerId } from "./lifeActivities.ts";
-import { isChild, personAge, personGender, type PeopleId } from "./peopleIdentity.ts";
+import { isChild, personAge, personGender, type ContactId } from "./peopleIdentity.ts";
 import {
   acceptAdoption, adoptionAges, adoptionSpouse, casualParent, conception, contactParent, isExpecting,
   naturalParents, playerParent, updateReproduction, type Parent,
@@ -43,7 +43,7 @@ function resolveIntimacy(s: GameState, partner: Parent, mode: IntimacyChoice): A
   };
 }
 
-export function partnerIntimacy(contact: PeopleId): LifeActivityDefinition[] {
+export function partnerIntimacy(contact: ContactId): LifeActivityDefinition[] {
   if (isChild(contact) || contact === "rumi" || contact === "niki") return [];
   const modesForPartner: IntimacyChoice[] = ["protected", "unprotected", "try"];
   return modesForPartner.map(mode => ({

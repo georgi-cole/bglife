@@ -2,11 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { defaultMaleAvatar } from "../src/avatar.ts";
 import {
-  advance, choose, decodeSave, doLifeActivity, encodeSave, getChoices, getLifeActivities, getPersonActivities,
-  nameNewborns, newLife, playYear,
+  choose, continueLife, decodeSave, doAction, doLifeActivity, encodeSave, getActions, getChoices, getLifeActivities, getPersonActivities,
+  nameNewborns, newChapterLife, newProfileLife, playYear,
 } from "../src/engine.ts";
 import { birthCount, clinicChance, familyRoll, menopauseAge, miscarriageChance, naturalChance } from "../src/fertilityModel.ts";
-import { personAge, personGender, personName } from "../src/peopleIdentity.ts";
+import { personAge, personGender, personName, personSeed } from "../src/peopleIdentity.ts";
+import { rollDeath } from "../src/mortality.ts";
+import { deserialize, serialize } from "../src/session.ts";
 
 function story(s) {
   const choices = getChoices(s);
@@ -22,7 +24,9 @@ function birthday(s) {
 }
 
 function ageUp(s, age) {
-  while (s.age < age) s = birthday(s);
+  while (s.age < age) {
+    s = s.endReason === "chapter" ? continueLife(s) : birthday(s);
+  }
   return story(s);
 }
 
@@ -44,7 +48,7 @@ function startDating(s, id) {
 }
 
 function couple(seed, age, { male = false, married = false, begins = 18 } = {}) {
-  let s = ageUp(newLife(seed, male ? defaultMaleAvatar : null), begins);
+  let s = ageUp(newChapterLife(seed, male ? defaultMaleAvatar : null), begins);
   s = startDating(s, male ? "family.dating-service" : "family.tinder");
   s = story(birthday(s));
   s = activity(activity(s, "family.time-together"), "family.commit");
@@ -76,7 +80,7 @@ test("fertility climbs down through the 40s with a rare chance before menopause"
 });
 
 test("consensual adult intimacy respects protection, contact gender and the yearly action limit", () => {
-  const teen = newLife(14);
+  const teen = newChapterLife(14);
   assert.equal(getLifeActivities(teen).filter(item => item.category === "fertility" || item.category === "adoption").length, 0);
   assert.strictEqual(doLifeActivity(teen, "family.casual.unprotected"), teen);
 
@@ -90,7 +94,7 @@ test("consensual adult intimacy respects protection, contact gender and the year
   assert.equal(unprotected.lifeSystems.reproduction.pregnancy.dueAge, 22);
   replay(unprotected);
 
-  let sameSex = ageUp(newLife(14), 21);
+  let sameSex = ageUp(newChapterLife(14), 21);
   sameSex = activity(sameSex, "family.dating-service");
   assert.ok(!getPersonActivities(sameSex, "serviceMatch").some(item => item.id.endsWith(".try")));
   sameSex = activity(sameSex, "people.serviceMatch.intimacy.unprotected");
@@ -164,7 +168,7 @@ test("a conception at the chapter boundary is resolved at 27 and older natural p
   assert.equal(end.endReason, "chapter");
   assert.equal(end.lifeSystems.reproduction.pregnancy.dueAge, 27);
   replay(end);
-  const continued = birthday(decodeSave(encodeSave(end)));
+  const continued = continueLife(decodeSave(encodeSave(end)));
   assert.equal(continued.age, 27);
   assert.equal(continued.history.at(-1).id, "birth");
   replay(continued);
@@ -184,7 +188,7 @@ test("a conception at the chapter boundary is resolved at 27 and older natural p
 test("clinic treatment persists and a multiple birth creates a separate playable profile for each child", () => {
   const seed = findSeed(seed => familyRoll(seed, 24, "clinic.iui") < clinicChance("iui", 24, 51, false)
     && birthCount(24, "iui", familyRoll(seed, 25, player + ".birth-count")) === 3 && lossDraw(seed, 25) > 0.20);
-  let s = ageUp(newLife(seed), 24);
+  let s = ageUp(newChapterLife(seed), 24);
   const beforeEvaluation = s;
   assert.strictEqual(doLifeActivity(s, "fertility.iui"), s);
   if (s.lifeSystems.medicalIssue === "urgent") s = activity(s, "hospital.emergency");
@@ -208,7 +212,7 @@ test("clinic treatment persists and a multiple birth creates a separate playable
 });
 
 test("adoption advances through assessment, matching and a player decision", () => {
-  let s = ageUp(newLife(117), 21);
+  let s = ageUp(newChapterLife(117), 21);
   s = activity(s, "adoption.apply");
   assert.equal(s.lifeSystems.reproduction.adoption.stage, "review");
   assert.equal(s.lifeSystems.family.children, 0);
@@ -231,4 +235,74 @@ test("adoption advances through assessment, matching and a player decision", () 
   assert.match(personName(joined, "child-0").bg, new RegExp("^" + child.firstName + " "));
   assert.ok(joined.age - child.age >= 15 && joined.age - child.age <= 50);
   replay(joined);
+});
+
+function customLife(seed) {
+  return newProfileLife({
+    seed, city: "varna", presentation: "male", avatar: defaultMaleAvatar,
+    profile: { name: "Явор Тодоров", talent: "none", vip: false, wealthy: false, disposition: null },
+  });
+}
+
+test("a named life started at birth passes its own surname to the next generation", () => {
+  const mother = "serviceMatch.Даниела Маринова";
+  const seed = findSeed(seed => conceptionDraw(seed, 23, "serviceMatch") < 0.25 && lossDraw(seed, 24, mother) > 0.2
+    && birthCount(25, "natural", familyRoll(seed, 24, mother + ".birth-count")) === 1
+    && !rollDeath({ age: 25, sex: "female", city: "varna" }, personSeed(seed, "serviceMatch")));
+  let s = ageUp(customLife(seed), 20);
+  assert.equal(s.history[0].age, 0);
+  const work = getActions(s).find(item => item.id.startsWith("life.work."));
+  assert.ok(work);
+  s = ageUp(doAction(s, work.id), 21);
+  s = startDating(s, "family.dating-service");
+  s = birthday(s);
+  s = ageUp(activity(activity(s, "family.time-together"), "family.commit"), 23);
+  s = activity(s, "people.serviceMatch.intimacy.try");
+  assert.equal(s.lifeSystems.reproduction.pregnancy.father.name.bg, "Явор Тодоров");
+  const born = birthday(s);
+  assert.equal(born.lifeSystems.reproduction.naming.father.name.en, "Yavor Todorov");
+  assert.strictEqual(doAction(born, "move.sofia"), born);
+  const female = personGender(born, "child-0") === "female";
+  const saved = nameNewborns(born, [female ? "Рая" : "Стоян"], "father");
+  assert.equal(personName(saved, "child-0").bg, female ? "Рая Яворова Тодорова" : "Стоян Яворов Тодоров");
+  assert.equal(saved.city, "varna");
+  replay(saved);
+});
+
+test("a partner's death settles a pending pregnancy and closes a joint adoption application", () => {
+  const seed = findSeed(seed => conceptionDraw(seed, 22, "serviceMatch") < 0.25
+    && rollDeath({ age: 24, sex: "female", city: "tryavna" }, personSeed(seed, "serviceMatch")));
+  let s = continueLife(couple(seed, 22, { male: true, married: true }));
+  s = activity(s, "adoption.apply");
+  s = activity(s, "people.serviceMatch.intimacy.try");
+  assert.equal(s.lifeSystems.reproduction.adoption.stage, "review");
+  assert.ok(s.lifeSystems.reproduction.pregnancy);
+  const next = birthday(s);
+  assert.ok(next.deceased.serviceMatch);
+  assert.equal(next.lifeSystems.reproduction.pregnancy, null);
+  assert.equal(next.lifeSystems.reproduction.adoption, null);
+  assert.equal(next.lifeSystems.family.children, 0);
+  assert.ok(next.history.some(event => event.id === "pregnancy-loss" && event.age === 23));
+  assert.ok(next.history.some(event => event.id === "adoption-household" && event.age === 23));
+  replay(next);
+});
+
+test("existing lifespan saves keep their journal and receive family conversations on future birthdays", () => {
+  const played = ageUp(customLife(108), 30);
+  const transcript = JSON.parse(encodeSave(played));
+  assert.equal(transcript.version, 3);
+  delete transcript.familyEventsFrom;
+  const raw = JSON.stringify(transcript);
+  const session = deserialize(JSON.stringify({ version: 1, life: raw, album: [raw] }));
+  assert.ok(session);
+  const earlierEntries = played.history.filter(event => event.id !== "family-questions");
+  assert.deepEqual(session.life.history, earlierEntries);
+  assert.deepEqual(session.album[0].history, earlierEntries);
+  assert.equal(session.life.lifeSystems.reproduction.familyEventsFrom, played.commands.length);
+  assert.equal(session.album[0].lifeSystems.reproduction.familyEventsFrom, null);
+
+  const advanced = birthday(session.life);
+  assert.equal(advanced.age, 31);
+  assert.deepEqual(advanced.history.filter(event => event.id === "family-questions").map(event => event.age), [31]);
+  assert.deepEqual(deserialize(serialize({ ...session, life: advanced })).life, advanced);
 });

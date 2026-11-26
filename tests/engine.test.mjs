@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   advance, annualBudget, choose, commitmentsLeft, decodeSave, doAction, encodeSave,
-  getActions, getChoices, getScene, newLife, playYear, yearRecap,
+  getActions, getChoices, getScene, newChapterLife as newLife, playYear, yearRecap,
 } from "../src/engine.ts";
 import { actions, scenes } from "../src/story.ts";
 

@@ -1,8 +1,8 @@
 # BgLife
 
-The first playable chapter follows Mila Nikolova from age 16 in Tryavna through age 26. School, a workshop, a move to Sofia and a Friday promise lead to different people and opportunities. The interface and story support Bulgarian and English.
+BgLife follows one life from birth through age 131. Choose a birth city, make decisions between birthdays, and revisit the years in your journal. Lives born in Tryavna can follow the original age 16–26 storyline. The interface and story support Bulgarian and English.
 
-## Play the chapter
+## Play the game
 
 [Play BgLife on GitHub Pages](https://georgi-cole.github.io/bglife/).
 
@@ -12,7 +12,7 @@ The game saves in browser storage on the current device. Keep the same browser a
 
 ## Family play
 
-At the end of the first chapter, use **Continue this life** or **+1 year** to play the later years. Open a partner's profile in **People** for intimacy options. **Hospital → Fertility** offers consultations and treatments to adult female characters. **Love and family → Adoption** takes an application through assessment, the register and a match. A birth opens the naming form with a suggested Bulgarian name. Married biological parents use the father's surname, while unmarried parents in the game can choose either surname.
+Use **+1 year** to continue a life through childhood and adulthood. In an active save from the original chapter, the game resumes the life under the newer lifespan rules. Open a partner's profile in **People** for intimacy options. **Hospital → Fertility** offers consultations and treatments to adult female characters. **Love and family → Adoption** takes an application through assessment, the register and a match. A birth opens the naming form with a suggested Bulgarian name. Married biological parents use the father's surname, while unmarried parents in the game can choose either surname.
 
 The conception curve uses [ACOG's per-cycle estimates](https://www.acog.org/womens-health/faqs/having-a-baby-after-age-35-how-aging-affects-fertility-and-pregnancy) as anchors. A single unprotected encounter is a fraction of a planned cycle in the game. Age points between the anchors and the small chance before menopause in later years are simulated, informed by [CDC guidance](https://www.cdc.gov/contraception/hcp/usspr/contraception-not-needed.html). The [Norwegian pregnancy register study](https://www.bmj.com/content/364/bmj.l869) supplies miscarriage age bands. IVF is based on pregnancy per embryo transfer data from the [HFEA](https://www.hfea.gov.uk/about-us/publications/research-and-data/fertility-treatment-2023-trends-and-figures). The [NSI birth statistics](https://www.nsi.bg/press-release/naselenie-i-demografski-procesi-9002) inform the frequency of multiple births. The game assigns its own procedure prices, eligibility and pacing.
 
@@ -39,6 +39,25 @@ The production build creates **dist/** for static hosting or native wrapping, an
 
 The GitHub Pages workflow checks and builds every push to `main`, then publishes `dist/`. Repository Settings → Pages uses **GitHub Actions** as the publishing source.
 
+## Population data
+
+- [NSI period life table, 2023–2025](https://www.nsi.bg/statistical-data/212/681) supplies the probability of death between consecutive birthdays by age and sex through age 99. The game extends the published 100+ group with a smooth curve and caps playable ages at 131.
+- [NSI life expectancy by district and sex, 2023–2025](https://www.nsi.bg/statistical-data/212/678) calibrates adult hazards. The city catalog uses the [NSI settlement register](https://www.nsi.bg/nrnm/special/ekatte/regions). Sofia is the shared administrative centre of two districts. A life in Sofia uses the capital district, and Samokov gives Sofia Province its own playable location.
+- [NSI cause-of-death rates, 2025](https://www.nsi.bg/statistical-data/236/765) provide the national mix of causes by age band and sex. Health and conditions adjust the corresponding hazards. The active character's hazard multiplier is 0.82.
+- Retirement uses rounded ages and credited working years based on the [NSSI eligibility schedule](https://www.nssi.bg/fizicheski-lica/pensii-bg/trudova-deinost-pridobivane-pravo/pensii-za-osig-staj-v-namalen-razmer/). Pay, expenses and pensions are gameplay values.
+
+New cities declare their oblast in `src/cities.ts`. Legacy saves replay their original years before the new rules take effect. An active save that closed the old chapter opens at 27.
+
+## Family and city content
+
+A new profile always starts at birth. Choose a name, sex, city and talent. The in-game VIP trial unlocks the wealthy heir start, newborn appearance editor and starting personality trait. The trial is stored on this device.
+
+Birth families are generated from the seed before the first turn and continue aging in People. The [NSI 2025 population yearbook](https://www.nsi.bg/file/38429/DMGR2025.pdf) supplies birth-order weights and the [NSI 2025 maternal-age table](https://www.nsi.bg/statistical-data/217/692) supplies district averages at first birth. Shared households and the rare alternative-care arrangements use gameplay weights, informed by [Census 2021](https://www.nsi.bg/index.php/file/24384/Census2021_Families.pdf). Household structure at a census and care at the birth of a child measure different things.
+
+Each playable city has cultural content in `src/cityCulture.ts` and school, study and work entries in `src/cityPaths.ts`. Add both records when you add a city. The [IBE–BAS dialect atlas](https://ibl.bas.bg/en/interaktivna-dialektna-karta-na-balgarskiya-ezik/) gives broad speech regions. Dialogue and habits are fictional examples. The [education register](https://ri.mon.bg/) and the [Economic Map of Bulgaria](https://map.mi.government.bg/) inform the catalog. Program examples, availability and salaries are adapted for the game.
+
+Profiles saved before this update keep their original family and avatar data. The new family model applies when starting a new life.
+
 ## Mobile wrappers
 
 Capacitor reads `capacitor.config.ts` and packages the contents of `dist/` as local app resources. The provisional local app identifier is `com.georgicole.bglife`. Choose the permanent identifier before registering store applications.
@@ -59,7 +78,7 @@ npx cap add ios
 npx cap open ios
 ```
 
-After changing the game, run `npm run native:sync` to rebuild and copy the web output into the generated native projects. Compile and sign through Android Studio or Xcode. The downloadable chapter is a browser build.
+After changing the game, run `npm run native:sync` to rebuild and copy the web output into the generated native projects. Compile and sign through Android Studio or Xcode. The downloadable game is a browser build.
 
 ## Project layout
 
