@@ -2,12 +2,33 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { avatarPresets, avatarStages, defaultAvatar, defaultMaleAvatar, getAvatarLook, getAvatarName, getAvatarStage, getAvatarTreatments } from "../src/avatar.ts";
 import { advance, choose, decodeSave, doLifeActivity, encodeSave, getChoices, newLife } from "../src/engine.ts";
+import { personAge, personAvatarTraits, personGender } from "../src/peopleIdentity.ts";
 import { deserialize, serialize } from "../src/session.ts";
 
 const custom = {
   ...defaultAvatar, face: "diamond", hair: "slick", eyes: "narrow", brows: "angled", lips: "full",
   skin: "deep", hairColor: "copper", eyeColor: "green",
 };
+
+test("people's portraits draw their traits from the character's gender across saves", () => {
+  const contacts = { rumi: "female", niki: "male", mentor: "male", friend: "female", appMatch: "male", serviceMatch: "female" };
+  const styles = { female: ["bob", "curls", "ponytail", "waves", "bangs", "bun"], male: ["crop", "part", "slick", "buzz"] };
+  for (const seed of [0, 108, 0xffffffff]) {
+    const life = newLife(seed);
+    const restored = decodeSave(encodeSave(life));
+    const older = advance(choose(restored, getChoices(restored)[0].id));
+    for (const [id, gender] of Object.entries(contacts)) {
+      const traits = personAvatarTraits(life, id);
+      assert.equal(personGender(life, id), gender);
+      assert.equal(traits.presentation, gender);
+      assert.ok(styles[gender].includes(traits.hair), id);
+      assert.deepEqual(personAvatarTraits(older, id), traits);
+      const look = getAvatarLook(traits, personAge(older, id));
+      assert.equal(look.traits.presentation, gender);
+      if (gender === "male") assert.ok(styles.male.includes(look.traits.hair), id);
+    }
+  }
+});
 
 test("the male avatar retains his identity across age presets and replay", () => {
   const avatar = { ...defaultMaleAvatar, hair: "slick", eyeColor: "green" };

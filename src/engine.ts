@@ -280,7 +280,7 @@ export function doLifeActivity(s: GameState, id: string, expectedAge = s.age): G
     en: definition.branch.label.en+" · "+definition.label.en,
   } : definition.label;
   const narrative=resolution?.result ?? definition.result;
-  const contact=definition.contact ? personName(s.seed,definition.contact) : null;
+  const contact=definition.contact ? personName(s,definition.contact) : null;
   const option: Option = {
     id: definition.id, label,
     result: contact ? {bg: contact.bg+" · "+narrative.bg, en: contact.en+" · "+narrative.en} : narrative,

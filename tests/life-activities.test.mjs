@@ -4,6 +4,7 @@ import {
   advance, annualBudget, choose, commitmentsLeft, decodeSave, doAction, doLifeActivity, encodeSave,
   getChoices, getEstate, getLifeActivities, getPersonActivities, giveUp, lifeStatKeys, newLife, playYear,
 } from "../src/engine.ts";
+import { personAvatarTraits, personName } from "../src/peopleIdentity.ts";
 
 const option = (s, id) => getLifeActivities(s).find(activity => activity.id === id);
 function pick(s) {
@@ -112,7 +113,9 @@ test("relationships mature into a family and an estate plan splits the remaining
   s = doActivity(s, "legacy.add.partner");
   s = pick(advance(s));
   assert.equal(s.lifeSystems.family.children, 1);
-  assert.deepEqual(s.lifeSystems.family.childProfiles, [{ joinedAt: s.age, ageAtJoin: 0, bond: 60 }]);
+  assert.deepEqual(s.lifeSystems.family.childProfiles, [{ joinedAt: s.age, ageAtJoin: 0, bond: 60, gender: "male" }]);
+  assert.equal(personAvatarTraits(s, "child-0").presentation, "male");
+  assert.match(personName(s, "child-0").bg, /Николов$/);
   assert.equal(s.lifeSystems.family.expecting, false);
   s = doActivity(s, "legacy.add.children");
   s = doActivity(s, "legacy.prepare");
@@ -132,9 +135,20 @@ test("relationships mature into a family and an estate plan splits the remaining
 test("a former partner remains in the life history after a save is replayed", () => {
   let s = pick(toAge(18));
   s = doActivity(s, "family.dating-service");
+  const portrait = personAvatarTraits(s, s.lifeSystems.family.partner);
   s = doActivity(s, "family.break-up");
   assert.equal(s.lifeSystems.family.stage, "single");
   assert.deepEqual(s.lifeSystems.family.formerPartners, [{ id: "serviceMatch", endedAt: 18 }]);
+  assert.deepEqual(personAvatarTraits(decodeSave(encodeSave(s)), "serviceMatch"), portrait);
+  roundTrip(s);
+});
+
+test("an adopted child keeps the same recorded gender, name and portrait on replay", () => {
+  const s = doActivity(pick(toAge(22, 109)), "family.adopt");
+  const [child] = s.lifeSystems.family.childProfiles;
+  assert.equal(child.gender, "female");
+  assert.equal(personAvatarTraits(s, "child-0").presentation, child.gender);
+  assert.match(personName(s, "child-0").bg, /Николова$/);
   roundTrip(s);
 });
 

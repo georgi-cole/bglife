@@ -53,7 +53,7 @@ export function PersonActionDialog({flow,life,l,onClose,onSelect,onConfirm}: {
       <NavigationButton label={t("Затвори","Close")} onClick={onClose}/>
     </div>
     <div className="person-dialog-body">
-      <p className="person-dialog-contact">{personName(flow.seed,flow.contact)[l]}</p>
+      <p className="person-dialog-contact">{personName(life,flow.contact)[l]}</p>
       <h2 id="person-action-heading" ref={heading} tabIndex={-1}>{title}</h2>
       {stage==="choose" && (options.length>0?<div className="person-action-options">{options.map(option=>
         <button type="button" key={option.id} className="person-action-option" data-person-option={option.id}

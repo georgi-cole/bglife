@@ -1,5 +1,6 @@
 import type { GameState, Option, Text } from "./engine.ts";
 import { applyStats, boundStat, type LifeStats, type LifeSystems, type StatDelta } from "./lifeActivities.ts";
+import { newChildProfile } from "./peopleIdentity.ts";
 
 const text = (bg: string, en: string): Text => ({ bg, en });
 const oldActions: Record<string, StatDelta> = {
@@ -77,7 +78,7 @@ export function settleWellbeing(s: GameState, bank: LifeSystems["bank"], unpaidC
       family: {
         ...family, bond: boundStat(family.bond + bondChange), children, expecting: false,
         childProfiles: family.expecting
-          ? [...family.childProfiles, { joinedAt: s.age + Number(!closingChapter), ageAtJoin: 0, bond: 60 }]
+          ? [...family.childProfiles, newChildProfile(s, s.age + Number(!closingChapter), 0, 60)]
           : family.childProfiles,
       },
       pets: petBond === pets.bond ? pets : { ...pets, bond: petBond },

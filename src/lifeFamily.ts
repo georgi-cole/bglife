@@ -1,5 +1,6 @@
 import type { GameState, Text } from "./engine.ts";
 import type { Heir, LifeActivityDefinition } from "./lifeActivities.ts";
+import { newChildProfile } from "./peopleIdentity.ts";
 
 type Systems = GameState["lifeSystems"];
 type Family = Systems["family"];
@@ -128,7 +129,7 @@ const familyActivities: LifeActivityDefinition[] = [
     cost: 50_000, stats: { joy: 10, health: -2, influence: 2 },
     update: s => updateFamily(s, {
       children: s.lifeSystems.family.children + 1,
-      childProfiles: [...s.lifeSystems.family.childProfiles, { joinedAt: s.age, ageAtJoin: 3, bond: 45 }],
+      childProfiles: [...s.lifeSystems.family.childProfiles, newChildProfile(s, s.age, 3, 45)],
     }),
   }, {
     id: "family.break-up", category: "family", minAge: 18, requires: withPartner,

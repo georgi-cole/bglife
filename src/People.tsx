@@ -1,8 +1,8 @@
 import {useLayoutEffect,useRef,useState} from "react";
 import {AvatarPortrait} from "./AvatarPortrait.tsx";
-import {avatarPalettes,avatarPresets,getAvatarLook,type AvatarTraits} from "./avatar.ts";
+import {getAvatarLook} from "./avatar.ts";
 import {commitmentsLeft,getPersonActivities,type GameState,type LifeActivityOption,type PersonId} from "./engine.ts";
-import {personAge,personName,personPresentation,personSeed,type PeopleId} from "./peopleIdentity.ts";
+import {personAge,personAvatarTraits,personName,type PeopleId} from "./peopleIdentity.ts";
 import type {Language} from "./session.ts";
 import {personProfiles} from "./story.ts";
 import {Icon,MenuTitle,ageLabel,copy,money,town,type IconName} from "./ui.tsx";
@@ -19,21 +19,6 @@ type Person = {
 };
 type Group = { title: string; people: Person[]; dating?: boolean };
 
-function portraitTraits(seed: number, id: PeopleId): AvatarTraits {
-  let number = personSeed(seed,id);
-  function pick<T extends {id: string}>(options: readonly T[]): T["id"] {
-    number = Math.imul(number, 1664525) + 1013904223 | 0;
-    return options[(number >>> 8) % options.length].id;
-  }
-
-  return {
-    presentation: personPresentation(seed,id),
-    face: pick(avatarPresets.face), hair: pick(avatarPresets.hair), eyes: pick(avatarPresets.eyes),
-    brows: pick(avatarPresets.brows), lips: pick(avatarPresets.lips),
-    skin: pick(avatarPalettes.skin), hairColor: pick(avatarPalettes.hairColor), eyeColor: pick(avatarPalettes.eyeColor),
-  };
-}
-
 function getPeople(s: GameState, l: Language): Group[] {
   const t=(bg:string,en:string)=>copy(l,bg,en);
   const {partner,stage,bond,formerPartners,childProfiles}=s.lifeSystems.family;
@@ -45,13 +30,13 @@ function getPeople(s: GameState, l: Language): Group[] {
     const profile = personProfiles[id];
     const trust = s.trust[id];
     return {
-      id, name:personName(s.seed,id)[l], status:profile.role[l]+" · "+town(profile.city,l),
+      id, name:personName(s,id)[l], status:profile.role[l]+" · "+town(profile.city,l),
       score:{label:t("Доверие","Trust"),value:trust}, portraitAge:personAge(s,id)??0,
     };
   }
   function knownPartner(id: Partner, status: string): Person {
     const profile = id==="appMatch" || id==="serviceMatch" ? null : contact(id);
-    return {...profile,id,name:personName(s.seed,id)[l],status,portraitAge:personAge(s,id)??0,score:undefined};
+    return {...profile,id,name:personName(s,id)[l],status,portraitAge:personAge(s,id)??0,score:undefined};
   }
 
   const former = formerPartners.filter(row=>row.id!==partner).slice().reverse();
@@ -61,7 +46,7 @@ function getPeople(s: GameState, l: Language): Group[] {
     {title:t("Деца","Children"),people:childProfiles.map(({bond},index)=>{
       const id=`child-${index}` as const;
       return {
-        id,name:personName(s.seed,id)[l],status:t("Дете","Child"),portraitAge:personAge(s,id)??0,
+        id,name:personName(s,id)[l],status:t("Дете","Child"),portraitAge:personAge(s,id)??0,
         score:{label:t("Близост","Bond"),value:bond},
       };
     })},
@@ -80,8 +65,8 @@ function RelationshipMeter({score}: {score:NonNullable<Person["score"]>}) {
     data-level={score.value<25?"poor":score.value<45?"strained":score.value<60?"neutral":"good"}/>;
 }
 
-function Portrait({person,seed}: {person:Person;seed:number}) {
-  return <AvatarPortrait region="badge" className="people-portrait" look={getAvatarLook(portraitTraits(seed,person.id),person.portraitAge)}/>;
+function Portrait({person,life}: {person:Person;life:GameState}) {
+  return <AvatarPortrait region="badge" className="people-portrait" look={getAvatarLook(personAvatarTraits(life,person.id),person.portraitAge)}/>;
 }
 
 const actionIcons: Record<string,IconName> = {
@@ -153,7 +138,7 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
     </header>
     {person ? <>
       <div className="people-profile">
-        <Portrait person={person} seed={s.seed}/>
+        <Portrait person={person} life={s}/>
         <div className="people-profile-copy">
           <h2>{person.name}</h2>
           <small>{ageLabel(person.portraitAge,l)} · {person.status}</small>
@@ -176,7 +161,7 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
         return <section key={group.title}>
           <h2 className="people-group-heading">{group.title}</h2>
           {group.people.map(row=><button type="button" className="people-row" key={row.id} data-person={row.id} onClick={()=>openPerson(row.id)}>
-            <Portrait person={row} seed={s.seed}/>
+            <Portrait person={row} life={s}/>
             <span className="people-row-copy">
               <strong>{row.name}</strong><small>{row.status}</small>
               {row.score&&<RelationshipMeter score={row.score}/>}

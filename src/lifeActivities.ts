@@ -1,4 +1,5 @@
 import type { City, GameState, PersonId, Text } from "./engine.ts";
+import type { AvatarPresentation } from "./avatar.ts";
 import { peopleActivities } from "./peopleActivities.ts";
 import type { PeopleId } from "./peopleIdentity.ts";
 import { lifeBank } from "./lifeEconomy.ts";
@@ -18,7 +19,7 @@ export type Heir = "partner" | "children" | "rumi" | "friend";
 
 export type PartnerId = PersonId | "appMatch" | "serviceMatch";
 
-export type ChildProfile = { joinedAt: number; ageAtJoin: number; bond: number };
+export type ChildProfile = { joinedAt: number; ageAtJoin: number; bond: number; gender: AvatarPresentation };
 
 export type LifeSystems = {
   medicalIssue: "routine" | "urgent" | null;
