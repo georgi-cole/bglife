@@ -1,4 +1,14 @@
 import { actions, scenes } from "./story.ts";
+import {
+  activityDefinitions, getLifeActivityDefinition, lifeActivityOption, spentActivityTime, startingLifeSystems,
+  startingStats, statsChange, type LifeActivityOption, type LifeStats, type LifeSystems, type StatDelta,
+} from "./lifeActivities.ts";
+import { billText, settleFinances } from "./lifeEconomy.ts";
+import { settleWellbeing, storyStats } from "./lifeWellbeing.ts";
+
+export { lifeHeirLabel, lifePartnerLabel, lifeStatKeys } from "./lifeActivities.ts";
+export type { Heir, LifeActivityCategory, LifeActivityOption, LifeStat, LifeStats, Platform } from "./lifeActivities.ts";
+export { getEstate } from "./lifeEconomy.ts";
 
 /** All amounts in state or story effects are integer euro cents. */
 export type Text = { bg: string; en: string };
@@ -22,6 +32,7 @@ export type Effect = {
   removeFlags?: string[];
   trust?: Partial<Record<PersonId, number>>;
   person?: PersonId;
+  stats?: StatDelta;
 };
 export type Option = { id: string; label: Text; result: Text; effect?: Effect; when?: Condition };
 export type Scene = {
@@ -35,7 +46,7 @@ export type Scene = {
 };
 export type Action = Option & { minAge?: number; maxAge?: number };
 
-export type Command = { age: number; kind: "choice" | "action"; id: string } | { age: number; kind: "year" };
+export type Command = { age: number; kind: "choice" | "action"; id: string } | { age: number; kind: "year" | "end" };
 export type Memory = {
   age: number;
   city: City;
@@ -46,6 +57,7 @@ export type Memory = {
   person?: PersonId;
   witnesses: PersonId[];
   cashDelta: number;
+  statsDelta?: StatDelta;
   movedTo?: City;
   startedCareer?: Career;
 };
@@ -66,6 +78,9 @@ export type GameState = {
   choiceId: string | null;
   commands: Command[];
   finished: boolean;
+  endReason: "chapter" | "gaveUp" | null;
+  stats: LifeStats;
+  lifeSystems: LifeSystems;
 };
 
 const FIRST_AGE = 16;
@@ -73,7 +88,9 @@ const FINAL_AGE = 26;
 const SHARED_DEPOSIT = 40_000;
 const FORMAT = "bglife.chapter";
 const CONTENT = "tryavna-sofia-1";
-const MAX_COMMANDS = (FINAL_AGE - FIRST_AGE + 1) * 4;
+const YEARLY_TIME = 2;
+// Per year: one choice, up to two discretionary activities, a possible emergency, and the year close.
+const MAX_COMMANDS = (FINAL_AGE - FIRST_AGE + 1) * (YEARLY_TIME + 3) + 1;
 const PEOPLE: PersonId[] = ["rumi", "niki", "mentor", "friend"];
 
 function eligible(s: GameState, filter?: Condition): boolean {
@@ -104,6 +121,7 @@ export function newLife(seed = randomSeed()): GameState {
     seed: seed >>> 0, age: FIRST_AGE, city: "tryavna", housing: "home", career: "student",
     cash: 70_000, deposit: 0, trust: { rumi: 60, niki: 45, mentor: 45, friend: 55 },
     flags: [], history: [], usedActions: [], sceneId: "", choiceId: null, commands: [], finished: false,
+    endReason: null, stats: startingStats(), lifeSystems: startingLifeSystems(),
   };
   s.sceneId = sceneForYear(s);
   return s;
@@ -156,7 +174,7 @@ export function yearRecap(s: GameState, age: number) {
 export function commitmentsLeft(s: GameState): number {
   if (s.finished) return 0;
   const reserved = s.housing === "rumi" && s.flags.includes("fridays") ? 1 : 0;
-  return Math.max(0, 2 - reserved - s.usedActions.length);
+  return Math.max(0, YEARLY_TIME - reserved - spentActivityTime(s));
 }
 
 export function getActions(s: GameState): Action[] {
@@ -167,12 +185,25 @@ export function getActions(s: GameState): Action[] {
   );
 }
 
-export function annualBudget(s: GameState): { pay: number; essentials: number; housing: number; net: number } {
+function baseBudget(s: GameState): { pay: number; essentials: number; housing: number; net: number } {
   if (s.age < 19 || s.career === "student") return { pay: 0, essentials: 0, housing: 0, net: 0 };
   const pay = { woodcarver: 840_000, qa: 1_080_000 }[s.career];
   const essentials = { tryavna: 510_000, sofia: 660_000 }[s.city];
   const housing = { home: 150_000, rumi: 180_000, shared: 360_000 }[s.housing];
   return { pay, essentials, housing, net: pay - essentials - housing };
+}
+
+function annualFinances(s: GameState) {
+  const base = baseBudget(s);
+  const finances = settleFinances(s, base.net);
+  return {
+    ...finances,
+    budget: { ...base, net: base.net - finances.obligations, obligations: finances.obligations },
+  };
+}
+
+export function annualBudget(s: GameState): { pay: number; essentials: number; housing: number; net: number; obligations: number } {
+  return annualFinances(s).budget;
 }
 
 function applyEffect(s: GameState, effect?: Effect): GameState {
@@ -192,15 +223,16 @@ function applyEffect(s: GameState, effect?: Effect): GameState {
 
 function applyOption(s: GameState, kind: "choice" | "action", option: Option, title: Text): GameState {
   const result = applyEffect(s, option.effect);
+  const stats = storyStats(s, result, option, kind);
   const witnesses = PEOPLE.filter((id) => id === option.effect?.person || option.effect?.trust?.[id] !== undefined);
   const memory: Memory = {
     age: s.age, city: result.city, kind, id: option.id, title, text: option.result,
-    person: option.effect?.person, witnesses, cashDelta: result.cash - s.cash,
+    person: option.effect?.person, witnesses, cashDelta: result.cash - s.cash, statsDelta: statsChange(s.stats, stats),
   };
   if (result.city !== s.city) memory.movedTo = result.city;
   if (result.career !== s.career) memory.startedCareer = result.career;
   return {
-    ...result,
+    ...result, stats,
     choiceId: kind === "choice" ? option.id : s.choiceId,
     usedActions: kind === "action" ? [...s.usedActions, option.id] : s.usedActions,
     history: [...s.history, memory],
@@ -218,7 +250,44 @@ export function choose(s: GameState, optionId: string, expectedAge = s.age): Gam
 export function doAction(s: GameState, actionId: string, expectedAge = s.age): GameState {
   if (s.age !== expectedAge) return s;
   const action = getActions(s).find((a) => a.id === actionId);
-  return action ? applyOption(s, "action", action, action.label) : s;
+  return action ? applyOption(s, "action", action, action.label) : doLifeActivity(s, actionId, expectedAge);
+}
+
+export function getLifeActivities(s: GameState): LifeActivityOption[] {
+  const timeLeft = commitmentsLeft(s);
+  return activityDefinitions.map(definition => lifeActivityOption(s, definition, timeLeft));
+}
+
+export function doLifeActivity(s: GameState, id: string, expectedAge = s.age): GameState {
+  if (s.age !== expectedAge) return s;
+  const definition = getLifeActivityDefinition(id);
+  if (!definition) return s;
+  const activity = lifeActivityOption(s, definition, commitmentsLeft(s));
+  if (activity.blocked) return s;
+
+  const option: Option = {
+    id: definition.id, label: definition.label, result: definition.result,
+    effect: {
+      cash: activity.cashDelta, stats: definition.stats ?? {},
+      trust: definition.trust, person: definition.person,
+    },
+  };
+  const result = applyOption(s, "action", option, definition.label);
+  const lifeSystems = definition.update?.(s) ?? s.lifeSystems;
+  return { ...result, lifeSystems: definition.resolvesMedicalIssue ? { ...lifeSystems, medicalIssue: null } : lifeSystems };
+}
+
+export function giveUp(s: GameState, expectedAge = s.age): GameState {
+  if (s.finished || s.age !== expectedAge) return s;
+  const memory: Memory = {
+    age: s.age, city: s.city, kind: "end", id: "end-" + s.age, witnesses: [], cashDelta: 0,
+    title: { bg: "Край на историята", en: "End of the story" },
+    text: { bg: "Приключи тази история на Мила. Дневникът ѝ остава в албума.", en: "You ended this story for Mila. Her journal stays in the album." },
+  };
+  return {
+    ...s, finished: true, endReason: "gaveUp", sceneId: "", choiceId: null,
+    history: [...s.history, memory], commands: [...s.commands, { age: s.age, kind: "end" }],
+  };
 }
 
 const euroFormat = { style: "currency", currency: "EUR", maximumFractionDigits: 0, minimumFractionDigits: 0 } as const;
@@ -229,8 +298,10 @@ function currency(amount: number, locale: keyof typeof formatters): string {
 
 export function advance(s: GameState, expectedAge = s.age): GameState {
   if (s.finished || s.age !== expectedAge || s.choiceId === null) return s;
-  const budget = annualBudget(s);
+  const { budget, bank, unpaidCare, unpaidDebt } = annualFinances(s);
   const finished = s.age === FINAL_AGE;
+  const { stats, lifeSystems, notes } = settleWellbeing(s, bank, unpaidCare, unpaidDebt, finished);
+  if (budget.obligations > 0) notes.unshift(billText(budget.obligations));
   const summary: Text = s.age < 19
     ? { bg: "Джобните са у теб. Домашните разходи са поети от семейството.", en: "Your pocket money stays yours. The family covered the household bills." }
     : {
@@ -240,12 +311,17 @@ export function advance(s: GameState, expectedAge = s.age): GameState {
   const memory: Memory = {
     age: s.age, city: s.city, kind: "year", id: "year-" + s.age, witnesses: [],
     title: { bg: "Годишна равносметка", en: "The year in numbers" },
-    text: summary, cashDelta: budget.net,
+    text: {
+      bg: [summary.bg, ...notes.map(note => note.bg)].join(" "),
+      en: [summary.en, ...notes.map(note => note.en)].join(" "),
+    },
+    cashDelta: budget.net, statsDelta: statsChange(s.stats, stats),
   };
   const next: GameState = {
     ...s, age: finished ? s.age : s.age + 1, cash: s.cash + budget.net,
     history: [...s.history, memory], commands: [...s.commands, { age: s.age, kind: "year" }],
     usedActions: [], choiceId: null, finished, sceneId: "",
+    endReason: finished ? "chapter" : null, stats, lifeSystems,
   };
   if (!finished) next.sceneId = sceneForYear(next);
   return next;
@@ -273,9 +349,9 @@ export function decodeSave(raw: string): GameState | null {
     for (const c of saved.commands) {
       if (!object(c) || c.age !== s.age || s.finished) return null;
       let next: GameState;
-      if (c.kind === "year") {
+      if (c.kind === "year" || c.kind === "end") {
         if ("id" in c) return null;
-        next = advance(s, s.age);
+        next = c.kind === "year" ? advance(s, s.age) : giveUp(s, s.age);
       } else {
         if (typeof c.id !== "string" || c.id.length > 100) return null;
         if (c.kind === "choice") next = choose(s, c.id, s.age);

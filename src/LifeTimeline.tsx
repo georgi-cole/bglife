@@ -1,23 +1,35 @@
 import React, {type ReactNode} from "react";
 import { yearRecap, type GameState, type Memory } from "./engine.ts";
 import type { Language } from "./session.ts";
-import { Icon, copy, money, occupation, town } from "./ui.tsx";
+import { Icon, copy, lifeStatLabels, money, occupation, town } from "./ui.tsx";
 
 function signedMoney(amount: number, l: Language) {
   return (amount > 0 ? "+" : "") + money(amount, l);
 }
 
+function StatChanges({delta, l}: {delta: Memory["statsDelta"]; l: Language}) {
+  if (!delta) return null;
+  const labels = lifeStatLabels(l);
+  return <>{(Object.keys(labels) as Array<keyof typeof labels>).map(key => {
+    const change = delta[key];
+    return change ? <span key={key} className={change > 0 ? "life-stat-up" : "life-stat-down"}>
+      {labels[key]} {change > 0 ? "+" : ""}{change}
+    </span> : null;
+  })}</>;
+}
+
 function LifeEvent({event, l}: {event: Memory; l: Language}) {
   const action = event.kind === "action";
   return <li className={"life-event " + (action ? "life-action" : "life-decision")}>
-    <span className="life-event-icon"><Icon name={action ? "clock" : "check"} size={16}/></span>
+    <span className="life-event-icon"><Icon name={action ? "clock" : event.kind === "end" ? "journal" : "check"} size={16}/></span>
     <div className="life-event-content">
       <h4>{event.title[l]}</h4>
       <p>{event.text[l]}</p>
-      {(event.movedTo || event.startedCareer || event.cashDelta !== 0) && <div className="life-event-changes">
+      {(event.movedTo || event.startedCareer || event.cashDelta !== 0 || event.statsDelta) && <div className="life-event-changes">
         {event.movedTo && <span className="move-event"><Icon name="pin" size={13}/>{copy(l, "Нов град", "New city")} · {town(event.movedTo, l)}</span>}
         {event.startedCareer && <span className="career-event"><Icon name="bag" size={13}/>{copy(l, "Нова работа", "New job")} · {occupation(event.startedCareer, l)}</span>}
         {event.cashDelta !== 0 && <span className={event.cashDelta > 0 ? "cash-in" : "cash-out"}><Icon name="wallet" size={13}/>{signedMoney(event.cashDelta, l)}</span>}
+        <StatChanges delta={event.statsDelta} l={l}/>
       </div>}
     </div>
   </li>;
@@ -45,7 +57,7 @@ export function LifeTimeline({s, l, children}: {s: GameState; l: Language; child
           {latest && !s.finished && <small>{copy(l, "Сега", "Now")}</small>}
         </h3>
         {eventsToShow.length > 0 && <ul className="life-entries">
-          {eventsToShow.map(event => <LifeEvent key={event.kind + event.id} event={event} l={l}/>)}
+          {eventsToShow.map((event,index) => <LifeEvent key={event.kind + event.id + index} event={event} l={l}/>)}
         </ul>}
         {recap && budget && <details className="life-year-budget">
           <summary>
@@ -56,6 +68,7 @@ export function LifeTimeline({s, l, children}: {s: GameState; l: Language; child
             <Icon name="down" size={14}/>
           </summary>
           <p>{budget.text[l]}</p>
+          {budget.statsDelta && <div className="life-event-changes life-year-stats"><StatChanges delta={budget.statsDelta} l={l}/></div>}
         </details>}
         {latest && children}
       </section>;

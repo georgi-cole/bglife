@@ -19,7 +19,8 @@ export function StartScreen({ life, l, onContinue, onNewLife, onAlbum, onGuide, 
   const t = (bg: string, en: string) => copy(l, bg, en);
   const hasProgress = life.commands.length > 0;
   const progress = [ageLabel(life.age, l), town(life.city, l)];
-  if (life.finished) progress.push(t("Завършена история", "Story complete"));
+  if (life.endReason === "gaveUp") progress.push(t("Приключена история", "Story ended"));
+  else if (life.finished) progress.push(t("Завършена история", "Story complete"));
 
   return <div className="start-screen">
     <header className="start-cover">
@@ -60,6 +61,7 @@ export function StartGuide({ l }: { l: Language }) {
   return <ol className="start-guide">
     <li>{t("Започваш като Мила на 16 години в Трявна. В „Живот“ вземаш решения и избираш какво да правиш през годината.", "You start as Mila, aged sixteen, in Tryavna. Make decisions and choose how to spend the year in Life.")}</li>
     <li>{t("Натисни „+1 година“, за да продължиш. Дневникът показва какво се е случило през годината.", "Tap “+1 year” to move on. The journal shows what happened that year.")}</li>
+    <li>{t("В „Още“ избираш как да използваш свободното си време. Показателите под навигацията се променят с решенията, дейностите и изминалите години.", "Use More to decide how to spend your free time. The bars below navigation change with decisions, activities, and the passing years.")}</li>
     <li>{t("Играта се запазва автоматично в този браузър. Миналите истории са в „Албум“.", "The game saves automatically in this browser. Past stories are in Album.")}</li>
   </ol>;
 }

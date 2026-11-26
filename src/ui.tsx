@@ -10,7 +10,7 @@ const paths = {
   pin:"M19 10c0 5-7 10-7 10S5 15 5 10a7 7 0 1 1 14 0Zm-5 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z",
   right:"M4 12h15m-6-6 6 6-6 6", next:"m9 5 7 7-7 7", close:"m6 6 12 12M18 6 6 18",
   home:"m3 11 9-8 9 8M6 9v11h12V9m-8 11v-7h4v7",
-  menu:"M4 6h16M4 12h16M4 18h16", plus:"M12 5v14M5 12h14",
+  menu:"M4 6h16M4 12h16M4 18h16", more:"M5 12h.01m6.99 0h.01m6.99 0h.01", plus:"M12 5v14M5 12h14",
   help:"M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.1 9a3 3 0 1 1 5.3 2c-1.3 1-2.4 1.5-2.4 3m0 3h.01",
   wallet:"M3 7h17v13H3zM3 7V5l14-3v5m-2 5h6v4h-6z",
   clock:"M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-5v5l3 2",
@@ -34,5 +34,12 @@ export const ageLabel=(age:number,l:Language)=>copy(l,age+" г.","Age "+age);
 export const money = (cents:number,l:Language) => new Intl.NumberFormat(l==="bg"?"bg-BG":"en-IE",{style:"currency",currency:"EUR",minimumFractionDigits:cents%100===0?0:2, maximumFractionDigits:2}).format(cents/100);
 export const occupation = (career:GameState["career"],l:Language) => career==="student"?copy(l,"Ученичка","Student"):career==="woodcarver"?copy(l,"Дърворезбарка","Woodcarver"):copy(l,"Софтуерно тестване","Software QA");
 export const homeName=(s:GameState,l:Language)=>({home:copy(l,"Семейният дом","Family home"),rumi:copy(l,"При леля Руми","Aunt Rumi’s flat"),shared:copy(l,"Споделена квартира","Shared flat")})[s.housing];
-export type Tab = "journal"|"people"|"places"|"album";
-export const tabLabels=(l:Language):Record<Tab,string>=>({journal:copy(l,"Живот","Life"),people:copy(l,"Хора","People"),places:copy(l,"Места","Places"),album:copy(l,"Албум","Album")});
+export type Tab = "journal"|"people"|"places"|"more"|"album";
+export const tabLabels=(l:Language):Record<Tab,string>=>({journal:copy(l,"Живот","Life"),people:copy(l,"Хора","People"),places:copy(l,"Места","Places"),more:copy(l,"Още","More"),album:copy(l,"Албум","Album")});
+export const lifeStatLabels=(l:Language):Record<keyof GameState["stats"],string>=>({
+  health:copy(l,"Здраве","Health"),
+  looks:copy(l,"Визия","Looks"),
+  joy:copy(l,"Радост","Joy"),
+  brains:copy(l,"Ум","Brains"),
+  influence:copy(l,"Влияние","Influence"),
+});

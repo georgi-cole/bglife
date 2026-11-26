@@ -1,14 +1,15 @@
 import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
 import {createRoot} from "react-dom/client";
-import {choose,defaultPlayChoice,doAction,newLife,playYear,type GameState} from "./engine.ts";
+import {choose,defaultPlayChoice,doAction,doLifeActivity,giveUp,newLife,playYear,type GameState,type LifeActivityCategory} from "./engine.ts";
 import {Album,People,Places} from "./Views.tsx";
 import {Journal,Wallet} from "./Journal.tsx";
+import {More,StatsBars} from "./More.tsx";
 import {Icon,PlaySymbol,copy,tabLabels,type Tab} from "./ui.tsx";
 import {deserialize,initialLanguage,LANGUAGE_KEY,loadSession,persist,SAVE_KEY,serialize,type Session} from "./session.ts";
 import "./style.css";
 import {StartGuide,StartScreen} from "./StartScreen.tsx";
 
-type Dialog="wallet"|"settings"|"replay"|"guide"|null;
+type Dialog="wallet"|"settings"|"replay"|"guide"|"give-up"|null;
 type Screen = "home" | "game" | "album";
 type LogPosition = {age: number; focus?: boolean};
 
@@ -27,10 +28,12 @@ function App(){
   const [first]=useState(loadSession),[session,setSession]=useState(first.session),[notice,setNotice]=useState(first.notice);
   const [l,setLanguage]=useState(initialLanguage),[tab,setTab]=useState<Tab>("journal"),[dialog,setDialog]=useState<Dialog>(null);
   const [screen,setScreen]=useState<Screen>("home");
+  const [moreMenu,setMoreMenu]=useState<{category:LifeActivityCategory|null;version:number}>({category:null,version:0});
   const live=useRef(session),dialogRef=useRef<HTMLDialogElement>(null);
   const viewportRef=useRef<HTMLDivElement>(null);
   const mainRef=useRef<HTMLElement>(null);
   const focusScreen=useRef(false);
+  const endTarget=useRef<GameState|null>(null);
   const nextLogPosition=useRef<LogPosition|null>(null);
   const s=session.life,t=(bg:string,en:string)=>copy(l,bg,en);
   const labels=tabLabels(l);
@@ -79,8 +82,8 @@ function App(){
     focusScreen.current=true;
     setScreen(which);
   }
-  function openJournal(life:GameState){
-    const position=lastLogPosition(life);
+  function openJournal(life:GameState,currentYear=false){
+    const position=currentYear?{age:life.age}:lastLogPosition(life);
     nextLogPosition.current=position && {...position,focus:true};
     focusScreen.current=true;
     setTab("journal");
@@ -96,6 +99,23 @@ function App(){
     else if(tab==="journal")scrollToLog(position);
     nextLogPosition.current=tab===which?null:position;
     setTab(which);
+  }
+  function openMore(category:LifeActivityCategory|null=null){
+    setMoreMenu(menu=>({category,version:menu.version+1}));
+    route("more");
+  }
+  function requestGiveUp(){
+    if(live.current.life.finished)return;
+    endTarget.current=live.current.life;
+    setDialog("give-up");
+  }
+  function finishLife(){
+    const current=live.current;
+    const ended=current.life===endTarget.current ? giveUp(current.life,current.life.age) : current.life;
+    close();
+    if(ended===current.life)return;
+    commit({...current,life:ended});
+    openJournal(ended);
   }
   function act(fn:(v:GameState)=>GameState){
     const current=live.current;
@@ -134,7 +154,12 @@ function App(){
   }
   const [importMessage,setImportMessage]=useState<"invalid"|"ready"|null>(null);
   const importRef=useRef<Session|null>(null);
-  function close(){setDialog(null);setImportMessage(null);importRef.current=null}
+  function close(){
+    setDialog(null);
+    setImportMessage(null);
+    importRef.current=null;
+    endTarget.current=null;
+  }
   function importBackup(){
     if(!importRef.current)return;
     const current=live.current,restored=importRef.current;
@@ -150,7 +175,7 @@ function App(){
   const fallback = defaultPlayChoice(s);
   const playLabel = s.finished ? t("Нов живот","New life") : t("Следваща година","Next year");
   function navItem(k:Tab) {
-    return <button data-tab={k} className="nav-item" aria-current={tab===k?"page":undefined} onClick={()=>route(k)}><Icon name={k}/><span>{labels[k]}</span></button>;
+    return <button data-tab={k} className="nav-item" aria-current={tab===k?"page":undefined} onClick={()=>k==="more"?openMore():route(k)}><Icon name={k}/><span>{labels[k]}</span></button>;
   }
   const toolbar = <div className="masthead-actions">
     <button className="lang-button" data-testid="language" onClick={setLocale} aria-label={t("Switch to English","Премини на български")}>{l==="bg"?"EN":"БГ"}</button>
@@ -167,10 +192,13 @@ function App(){
       {screen==="home"?<StartScreen life={s} l={l} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
         onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</StartScreen>:
        screen==="album"?<Album s={s} archive={session.album} l={l}/>:
-       tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>setDialog("wallet")} onAlbum={()=>route("album")} onReplay={()=>setDialog("replay")}/>:
-       tab==="people"?<People s={s} l={l}/>:tab==="places"?<Places s={s} l={l}/>:<Album s={s} archive={session.album} l={l}/>}
+       tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>setDialog("wallet")} onAlbum={()=>route("album")} onReplay={()=>setDialog("replay")} onMore={openMore}/>:
+       tab==="people"?<People s={s} l={l} onFamily={()=>openMore("family")}/>:tab==="places"?<Places s={s} l={l} onHolidays={()=>openMore("holidays")}/>:
+       tab==="more"?<More key={moreMenu.version} life={s} l={l} initialCategory={moreMenu.category}
+        onActivity={id=>act(v=>doLifeActivity(v,id,s.age))} onGiveUp={requestGiveUp} onJournal={()=>openJournal(live.current.life,true)} onAlbum={()=>route("album")}/>:
+       <Album s={s} archive={session.album} l={l}/>}
     </main></div>
-    {screen==="game"&&<nav className="bottom-nav" aria-label={t("Навигация","Navigation")}>
+    {screen==="game"&&<footer className="game-footer"><nav className="bottom-nav" aria-label={t("Навигация","Navigation")}>
       <div className="nav-inner">
         {navItem("journal")}{navItem("people")}
         <button className="play-control" data-testid="advance" onClick={nextYear}
@@ -179,11 +207,18 @@ function App(){
           aria-describedby={fallback && tab==="journal" ? "play-default" : undefined}>
           <span className="play-face" aria-hidden="true"><PlaySymbol/></span><span>{s.finished ? playLabel : "+1 " + t("година","year")}</span>
         </button>
-        {navItem("places")}{navItem("album")}
+        {navItem("places")}{navItem("more")}
       </div>
-    </nav>}
-    {dialog&&<dialog key={dialog} ref={dialogRef} className="modal-card" onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}><div className="dialog-head"><h2 id="dialog-heading">{dialog==="wallet"?t("Портфейл","Wallet"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):t("Нов живот","New life")}</h2><button className="icon-button" aria-label={t("Затвори","Close")} onClick={close}><Icon name="close"/></button></div>
-      {dialog==="wallet"?<Wallet s={s} l={l}/>:dialog==="guide"?<StartGuide l={l}/>:dialog==="replay"?<><p>{t("Започваш отново на 16 в Трявна. Написаните страници от този живот ще останат в албума.","Start again at sixteen in Tryavna. The pages from this life will stay in your album.")}</p><div className="dialog-actions"><button className="secondary-button" onClick={close}>{t("Назад","Back")}</button><button className="primary-button" data-testid="confirm-replay" onClick={replay}>{t("Започни отначало","Start again")}</button></div></>:
+    </nav><StatsBars life={s} l={l}/></footer>}
+    {dialog&&<dialog key={dialog} ref={dialogRef} className="modal-card" onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}><div className="dialog-head"><h2 id="dialog-heading">{dialog==="wallet"?t("Портфейл","Wallet"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):dialog==="give-up"?t("Приключване на живота","End this life"):t("Нов живот","New life")}</h2><button className="icon-button" aria-label={t("Затвори","Close")} onClick={close}><Icon name="close"/></button></div>
+      {dialog==="wallet"?<Wallet s={s} l={l} onBank={()=>{close();openMore("bank");}}/>:
+      dialog==="guide"?<StartGuide l={l}/>:dialog==="give-up"?<>
+        <p>{t("Историята на Мила ще приключи на тази възраст. Дневникът остава достъпен в албума.","Mila’s story will end at her current age. Her journal will remain available in the album.")}</p>
+        <div className="dialog-actions">
+          <button className="secondary-button" autoFocus onClick={close}>{t("Продължи да играеш","Keep playing")}</button>
+          <button className="primary-button end-life-confirm" data-testid="confirm-give-up" onClick={finishLife}>{t("Приключи живота","End this life")}</button>
+        </div>
+      </>:dialog==="replay"?<><p>{t("Започваш отново на 16 в Трявна. Написаните страници от този живот ще останат в албума.","Start again at sixteen in Tryavna. The pages from this life will stay in your album.")}</p><div className="dialog-actions"><button className="secondary-button" onClick={close}>{t("Назад","Back")}</button><button className="primary-button" data-testid="confirm-replay" onClick={replay}>{t("Започни отначало","Start again")}</button></div></>:
       <div className="settings-list"><button onClick={setLocale}>{t("Език","Language")}<strong>{l==="bg"?"Български → English":"English → Български"}</strong></button>
       <button onClick={exportSave}>{t("Изтегли резервно копие","Download a backup")}<Icon name="down"/></button>
       <label className="import-label">{t("Възстанови от файл","Restore from a file")}<input type="file" accept=".json,application/json" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;try{const value=file.size<5_000_000?deserialize(await file.text()):null;importRef.current=value;setImportMessage(value?"ready":"invalid")}catch{setImportMessage("invalid")}e.target.value=""}}/></label>
