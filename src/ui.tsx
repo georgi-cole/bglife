@@ -1,4 +1,5 @@
 import React from "react";
+import { getAvatarName, type AvatarTraits } from "./avatar.ts";
 import type { GameState } from "./engine.ts";
 import type { Language } from "./session.ts";
 
@@ -54,10 +55,10 @@ export function PlaySymbol() {
 }
 export const copy = (l:Language, bg:string, en:string) => l==="bg"?bg:en;
 export const town = (s:GameState["city"],l:Language) => s==="sofia"?copy(l,"София","Sofia"):copy(l,"Трявна","Tryavna");
-export const name = (l:Language) => copy(l,"Мила Николова","Mila Nikolova");
+export const name = (l:Language, avatar:AvatarTraits | null) => getAvatarName(avatar)[l];
 export const ageLabel=(age:number,l:Language)=>copy(l,age+" г.","Age "+age);
 export const money = (cents:number,l:Language) => new Intl.NumberFormat(l==="bg"?"bg-BG":"en-IE",{style:"currency",currency:"EUR",minimumFractionDigits:cents%100===0?0:2, maximumFractionDigits:2}).format(cents/100);
-export const occupation = (career:GameState["career"],l:Language) => career==="student"?copy(l,"Ученичка","Student"):career==="woodcarver"?copy(l,"Дърворезбарка","Woodcarver"):copy(l,"Софтуерно тестване","Software QA");
+export const occupation = (career:GameState["career"],l:Language, avatar:AvatarTraits | null) => career==="student"?copy(l,avatar?.presentation==="male"?"Ученик":"Ученичка","Student"):career==="woodcarver"?copy(l,avatar?.presentation==="male"?"Дърворезбар":"Дърворезбарка","Woodcarver"):copy(l,"Софтуерно тестване","Software QA");
 export const homeName=(s:GameState,l:Language)=>({home:copy(l,"Семейният дом","Family home"),rumi:copy(l,"При леля Руми","Aunt Rumi’s flat"),shared:copy(l,"Споделена квартира","Shared flat")})[s.housing];
 export type Tab = "journal"|"people"|"places"|"more"|"album";
 export const tabLabels=(l:Language):Record<Tab,string>=>({journal:copy(l,"Живот","Life"),people:copy(l,"Хора","People"),places:copy(l,"Места","Places"),more:copy(l,"Още","More"),album:copy(l,"Албум","Album")});

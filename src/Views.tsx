@@ -3,6 +3,7 @@ import {art} from "../scripts/art";
 import {personProfiles,placeProfiles} from "./story.ts";
 import {lifePartnerLabel,type City,type GameState,type PersonId} from "./engine.ts";
 import type {Language} from "./session.ts";
+import {LifePortrait} from "./AvatarPortrait.tsx";
 import {Icon,MenuTitle,ageLabel,copy,money,town} from "./ui.tsx";
 
 type MenuControls = {onClose:()=>void;closeLabel:string;back?:boolean};
@@ -10,8 +11,8 @@ type MenuControls = {onClose:()=>void;closeLabel:string;back?:boolean};
 export function People({s,l,onFamily,...menu}:MenuControls & {s:GameState;l:Language;onFamily:()=>void}) {
   const family=s.lifeSystems.family;
   const partner=lifePartnerLabel(s);
-  const stages = {single:copy(l,"Необвързана","Single"),dating:copy(l,"Срещат се","Dating"),committed:copy(l,"Във връзка","In a relationship"),engaged:copy(l,"Сгодени","Engaged"),married:copy(l,"Семейство","Married")};
-  return <><header className="page-head"><p className="section-kicker"><Icon name="people"/>{copy(l,"Кръгът на Мила","Mila’s circle")}</p><MenuTitle {...menu}><h1>{copy(l,"Хора","People")}</h1></MenuTitle></header>
+  const stages = {single:copy(l,"Без връзка","Single"),dating:copy(l,"Срещат се","Dating"),committed:copy(l,"Във връзка","In a relationship"),engaged:copy(l,"Сгодени","Engaged"),married:copy(l,"Семейство","Married")};
+  return <><header className="page-head"><p className="section-kicker"><Icon name="people"/>{copy(l,"Твоят кръг","Your circle")}</p><MenuTitle {...menu}><h1>{copy(l,"Хора","People")}</h1></MenuTitle></header>
     <div className="journal-links"><button className="secondary-button" onClick={onFamily}>
       <Icon name="people" size={17}/>{copy(l,"Любов и семейство","Love and Family")}
     </button></div>
@@ -25,7 +26,7 @@ export function People({s,l,onFamily,...menu}:MenuControls & {s:GameState;l:Lang
       const p=personProfiles[id],mem=s.history.filter(m=>m.person===id||m.witnesses.includes(id)).slice().reverse();
       return <article className="detail-card person-card" key={id}><div className="profile-head"><span className={"avatar colour-"+i}>{p.name[l].split(" ").slice(-1)[0][0]}</span><div><small>{p.role[l]} · {town(p.city,l)}</small><h2>{p.name[l]}</h2></div></div>
       <p>{p.detail[l]}</p><div className="relation-evidence"><Icon name="key" size={16}/>{s.trust[id]>=70?copy(l,"Много доверие","Strong trust"):s.trust[id]>=50?copy(l,"Разчита на теб","Counts on you"):s.trust[id]>=35?copy(l,"Опознавате се","Getting to know you"):copy(l,"Има дистанция","Keeping some distance")}</div>
-      {mem.length>0&&<details className="mem-details"><summary>{copy(l,"Спомени с Мила","Memories with Mila")} <span>{mem.length}</span></summary>{mem.map((m,index)=><div className="small-memory" key={m.age+m.kind+m.id+index}><small>{ageLabel(m.age,l)}</small><p>{m.text[l]}</p></div>)}</details>}</article>;
+      {mem.length>0&&<details className="mem-details"><summary>{copy(l,"Общи спомени","Shared memories")} <span>{mem.length}</span></summary>{mem.map((m,index)=><div className="small-memory" key={m.age+m.kind+m.id+index}><small>{ageLabel(m.age,l)}</small><p>{m.text[l]}</p></div>)}</details>}</article>;
     })}</div></>;
 }
 export function Places({s,l,onHolidays,...menu}:MenuControls & {s:GameState;l:Language;onHolidays:()=>void}) {
@@ -43,7 +44,7 @@ function Pages({s,l}:{s:GameState;l:Language}) {
 export function Album({s,archive,l,...menu}:MenuControls & {s:GameState;archive:GameState[];l:Language}) {
   const [selected,setSelected]=useState<number|null>(null);
   const active=selected===null?s:archive[selected]||s;
-  return <><header className="page-head"><p className="section-kicker"><Icon name="album"/>{copy(l,"Лични спомени","Personal memories")}</p><MenuTitle {...menu}><h1>{copy(l,"Албумът на Мила","Mila’s album")}</h1></MenuTitle><p>{copy(l,"Решенията, срещите и сметките, които останаха в дневника.","The choices, encounters and bills that made it into the journal.")}</p></header>
-    {archive.length>0&&<div className="runs"><button className={selected===null?"selected":""} onClick={()=>setSelected(null)}>{copy(l,"Текущ живот","Current life")}</button>{archive.map((run,i)=><button className={i===selected?"selected":""} key={i} onClick={()=>setSelected(i)}>{copy(l,"Живот ","Life ")}{i+1} · {town(run.city,l)}</button>)}</div>}
+  return <><header className="page-head"><p className="section-kicker"><Icon name="album"/>{copy(l,"Лични спомени","Personal memories")}</p><MenuTitle {...menu}><h1>{copy(l,"Албум","Album")}</h1></MenuTitle><p>{copy(l,"Решенията, срещите и сметките, които останаха в дневника.","The choices, encounters and bills that made it into the journal.")}</p></header>
+    {archive.length>0&&<div className="runs"><button className={selected===null?"selected":""} onClick={()=>setSelected(null)}><LifePortrait life={s} region="badge" className="run-portrait"/>{copy(l,"Текущ живот","Current life")}</button>{archive.map((run,i)=><button className={i===selected?"selected":""} key={i} onClick={()=>setSelected(i)}><LifePortrait life={run} region="badge" className="run-portrait"/>{copy(l,"Живот ","Life ")}{i+1} · {town(run.city,l)}</button>)}</div>}
     <Pages key={selected??"current"} s={active} l={l}/></>;
 }

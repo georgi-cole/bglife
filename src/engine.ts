@@ -1,4 +1,5 @@
 import { actions, scenes } from "./story.ts";
+import { parseAvatar, type AvatarTraits } from "./avatar.ts";
 import {
   activityDefinitions, getLifeActivityDefinition, lifeActivityOption, spentActivityTime, startingLifeSystems,
   startingStats, statsChange, type LifeActivityOption, type LifeStats, type LifeSystems, type StatDelta,
@@ -64,6 +65,7 @@ export type Memory = {
 
 export type GameState = {
   seed: number;
+  avatar: AvatarTraits | null;
   age: number;
   city: City;
   housing: Housing;
@@ -83,7 +85,7 @@ export type GameState = {
   lifeSystems: LifeSystems;
 };
 
-const FIRST_AGE = 16;
+export const FIRST_AGE = 16;
 const FINAL_AGE = 26;
 const SHARED_DEPOSIT = 40_000;
 const FORMAT = "bglife.chapter";
@@ -116,9 +118,9 @@ function randomSeed(): number {
   return globalThis.crypto?.getRandomValues(new Uint32Array(1))[0] ?? (Date.now() >>> 0);
 }
 
-export function newLife(seed = randomSeed()): GameState {
+export function newLife(seed = randomSeed(), avatar: AvatarTraits | null = null): GameState {
   const s: GameState = {
-    seed: seed >>> 0, age: FIRST_AGE, city: "tryavna", housing: "home", career: "student",
+    seed: seed >>> 0, avatar, age: FIRST_AGE, city: "tryavna", housing: "home", career: "student",
     cash: 70_000, deposit: 0, trust: { rumi: 60, niki: 45, mentor: 45, friend: 55 },
     flags: [], history: [], usedActions: [], sceneId: "", choiceId: null, commands: [], finished: false,
     endReason: null, stats: startingStats(), lifeSystems: startingLifeSystems(),
@@ -282,7 +284,9 @@ export function giveUp(s: GameState, expectedAge = s.age): GameState {
   const memory: Memory = {
     age: s.age, city: s.city, kind: "end", id: "end-" + s.age, witnesses: [], cashDelta: 0,
     title: { bg: "Край на историята", en: "End of the story" },
-    text: { bg: "Приключи тази история на Мила. Дневникът ѝ остава в албума.", en: "You ended this story for Mila. Her journal stays in the album." },
+    text: s.avatar?.presentation === "male"
+      ? { bg: "Приключи историята на Милен. Дневникът му остава в албума.", en: "You ended Milen’s story. His journal stays in the album." }
+      : { bg: "Приключи тази история на Мила. Дневникът ѝ остава в албума.", en: "You ended this story for Mila. Her journal stays in the album." },
   };
   return {
     ...s, finished: true, endReason: "gaveUp", sceneId: "", choiceId: null,
@@ -327,9 +331,12 @@ export function advance(s: GameState, expectedAge = s.age): GameState {
   return next;
 }
 
-/** Only validated input commands are persisted. Recalculation keeps the ledger and witnesses consistent. */
+/** Store the portrait's starting traits and replay the commands that shaped the life. */
 export function encodeSave(s: GameState): string {
-  return JSON.stringify({ format: FORMAT, version: 1, content: CONTENT, seed: s.seed, commands: s.commands });
+  return JSON.stringify({
+    format: FORMAT, version: 1, content: CONTENT, seed: s.seed,
+    ...(s.avatar && { avatar: s.avatar }), commands: s.commands,
+  });
 }
 
 function object(value: unknown): value is Record<string, unknown> {
@@ -345,7 +352,9 @@ export function decodeSave(raw: string): GameState | null {
     if (saved.version !== undefined && saved.version !== 1) return null;
     if (typeof saved.seed !== "number" || !Number.isSafeInteger(saved.seed) || saved.seed < 0 || saved.seed > 0xffffffff) return null;
     if (!Array.isArray(saved.commands) || saved.commands.length > MAX_COMMANDS) return null;
-    let s = newLife(saved.seed);
+    const avatar = "avatar" in saved ? parseAvatar(saved.avatar) : null;
+    if ("avatar" in saved && !avatar) return null;
+    let s = newLife(saved.seed, avatar);
     for (const c of saved.commands) {
       if (!object(c) || c.age !== s.age || s.finished) return null;
       let next: GameState;

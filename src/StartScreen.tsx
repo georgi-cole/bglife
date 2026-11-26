@@ -17,7 +17,7 @@ type Props = {
 
 export function StartScreen({ life, l, onContinue, onNewLife, onAlbum, onGuide, children }: Props) {
   const t = (bg: string, en: string) => copy(l, bg, en);
-  const hasProgress = life.commands.length > 0;
+  const hasLife = life.avatar !== null || life.commands.length > 0;
   const progress = [ageLabel(life.age, l), town(life.city, l)];
   if (life.endReason === "gaveUp") progress.push(t("Приключена история", "Story ended"));
   else if (life.finished) progress.push(t("Завършена история", "Story complete"));
@@ -33,16 +33,16 @@ export function StartScreen({ life, l, onContinue, onNewLife, onAlbum, onGuide, 
     </header>
 
     <nav className="start-actions" aria-label={t("Начално меню", "Main menu")}>
-      <button className="start-primary" onClick={hasProgress ? onContinue : onNewLife}>
+      <button className="start-primary" onClick={hasLife ? onContinue : onNewLife}>
         <span className="start-play"><PlaySymbol /></span>
         <span className="start-primary-text">
-          <strong>{hasProgress ? t("Продължи", "Continue") : t("Нов живот", "New life")}</strong>
-          <small>{name(l)} · {(hasProgress ? progress : [town(life.city, l), ageLabel(life.age, l)]).join(" · ")}</small>
+          <strong>{hasLife ? t("Продължи", "Continue") : t("Нов живот", "New life")}</strong>
+          <small>{(hasLife ? [name(l, life.avatar), ...progress] : [town(life.city, l), ageLabel(life.age, l)]).join(" · ")}</small>
         </span>
         <Icon name="next" size={19} />
       </button>
 
-      {hasProgress && <button className="start-option start-option-wide" onClick={onNewLife}>
+      {hasLife && <button className="start-option start-option-wide" onClick={onNewLife}>
         <Icon name="plus" size={20} />
         <span>{t("Нов живот", "New life")}</span>
         <Icon name="next" size={17} />
@@ -59,7 +59,7 @@ export function StartScreen({ life, l, onContinue, onNewLife, onAlbum, onGuide, 
 export function StartGuide({ l }: { l: Language }) {
   const t = (bg: string, en: string) => copy(l, bg, en);
   return <ol className="start-guide">
-    <li>{t("Започваш като Мила на 16 години в Трявна. В „Живот“ вземаш решения и избираш какво да правиш през годината.", "You start as Mila, aged sixteen, in Tryavna. Make decisions and choose how to spend the year in Life.")}</li>
+    <li>{t("Създай аватар и започни своята история на 16 години в Трявна. В „Живот“ вземаш решения и избираш какво да правиш през годината.", "Create an avatar and start your story at sixteen in Tryavna. Make decisions and choose how to spend the year in Life.")}</li>
     <li>{t("Натисни „+1 година“, за да продължиш. Дневникът показва какво се е случило през годината.", "Tap “+1 year” to move on. The journal shows what happened that year.")}</li>
     <li>{t("В „Още“ избираш как да използваш свободното си време. Показателите под навигацията се променят с решенията, дейностите и изминалите години.", "Use More to decide how to spend your free time. The bars below navigation change with decisions, activities, and the passing years.")}</li>
     <li>{t("Играта се запазва автоматично в този браузър. Миналите истории са в „Албум“.", "The game saves automatically in this browser. Past stories are in Album.")}</li>

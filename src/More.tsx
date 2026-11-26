@@ -4,6 +4,8 @@ import {
   type GameState, type LifeActivityCategory, type LifeActivityOption, type LifeStat, type Memory,
 } from "./engine.ts";
 import type { Language } from "./session.ts";
+import { avatarTreatments, getAvatarStage, getAvatarTreatments } from "./avatar.ts";
+import { LifePortrait } from "./AvatarPortrait.tsx";
 import { Icon, MenuTitle, copy, lifeStatLabels, money, type IconName } from "./ui.tsx";
 import "./more.css";
 
@@ -79,7 +81,7 @@ function CategoryStatus({ life, category, l }: { life: GameState; category: Life
     }
     case "family": {
       const status = {
-        single: t("Необвързана","Single"), dating: t("Излизате","Dating"), committed: t("Сериозна връзка","Committed"),
+        single: t("Без връзка","Single"), dating: t("Излизате","Dating"), committed: t("Сериозна връзка","Committed"),
         engaged: t("Сгодени","Engaged"), married: t("Женени","Married"),
       };
       fields = [{ label: t("Статус","Relationship"), value: status[family.stage] }];
@@ -99,6 +101,17 @@ function CategoryStatus({ life, category, l }: { life: GameState; category: Life
       if (bank.mortgage > 0) fields.push({ label: t("Оставаща ипотека","Mortgage balance"), value: money(bank.mortgage, l) });
       if (bank.ownsHome) fields.push({ label: t("Жилище","Home"), value: t("Собствено","Owned") });
       break;
+    case "aesthetics": {
+      const treatments = getAvatarTreatments(life.history, life.age);
+      return <section className="avatar-current" aria-labelledby="avatar-current-heading">
+        <LifePortrait life={life} region="badge"/>
+        <div>
+          <h2 id="avatar-current-heading">{t("Външен вид", "Your appearance")}</h2>
+          <p>{getAvatarStage(life.age).label[l]} · {life.age} {t("г.", "years old")}</p>
+          {treatments.length > 0 && <p aria-live="polite">{treatments.map(treatment => treatment.label[l]).join(" · ")}</p>}
+        </div>
+      </section>;
+    }
     case "social":
       fields = [{ label: t("Активни профили","Active accounts"), value: Object.keys(social).length }];
       break;
@@ -178,6 +191,7 @@ function ActivityCard({ category, option, feedback, onChoose, onJournal, l, tone
   const icon = domain === "social" ? socialActionIcons[action] : activityIcons[option.id] ?? activityIcons[domain + "." + group];
   const amount = option.cashDelta;
   const cost = amount === 0 ? t("Безплатно", "Free") : (amount > 0 ? "+" : "−") + money(Math.abs(amount), l);
+  const treatment = avatarTreatments.find(item => item.id === option.id);
 
   return <li className="activity-entry">
     <button type="button" className="activity-card" aria-disabled={!!option.blocked} tabIndex={option.blocked ? -1 : undefined}
@@ -188,6 +202,9 @@ function ActivityCard({ category, option, feedback, onChoose, onJournal, l, tone
           <span>{option.label[l]}</span>
         </strong>
         <span className="activity-description">{option.description[l]}</span>
+        {treatment && <span className="avatar-treatment-note">
+          {treatment.label[l]} · {treatment.years === 1 ? t("тази година","this year") : t("тази и следващата година","this year and next")}
+        </span>}
         <span className="activity-meta">
           {ageLock && <span className="activity-age" aria-label={t("Достъпно от "+ageLock+" г.","Available from age "+ageLock)}>{ageLock}+</span>}
           <span><Icon name="wallet" size={14} />{cost}</span>

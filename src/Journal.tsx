@@ -16,7 +16,7 @@ export function Wallet({s,l,onBank}:{s:GameState;l:Language;onBank:()=>void}) {
     {bank.loan>0&&<div className="stat-row"><span>{copy(l,"Остатък по заема","Loan balance")}</span><b>{money(bank.loan,l)}</b></div>}
     {bank.mortgage>0&&<div className="stat-row"><span>{copy(l,"Остатък по ипотеката","Mortgage balance")}</span><b>{money(bank.mortgage,l)}</b></div>}
     <h3>{copy(l,"Годишен бюджет","Annual budget")}</h3>
-    {s.age<19?<><p>{copy(l,"Докато живееш у дома като ученичка, семейството поема основните разходи. Личните покупки се плащат от портфейла ти.","While you’re at school and living at home, your family covers the household bills. Your own purchases come out of your wallet.")}</p>{obligations}</>:
+    {s.age<19?<><p>{copy(l,"Докато живееш у дома и ходиш на училище, семейството поема основните разходи. Личните покупки се плащат от портфейла ти.","While you’re at school and living at home, your family covers the household bills. Your own purchases come out of your wallet.")}</p>{obligations}</>:
     <><div className="stat-row"><span>{copy(l,"Доход","Income")}</span><b>{money(budget.pay,l)}</b></div><div className="stat-row"><span>{copy(l,"Всекидневни разходи","Living costs")}</span><b>−{money(budget.essentials,l)}</b></div><div className="stat-row"><span>{copy(l,"Жилище","Housing")}</span><b>−{money(budget.housing,l)}</b></div>{obligations}<div className="stat-row"><span>{copy(l,"Остатък за годината","Net for the year")}</span><b>{money(budget.net,l)}</b></div></>}
     <button className="secondary-button" onClick={onBank}><Icon name="wallet"/>{copy(l,"Към банката","Go to Bank")}</button>
   </>;
@@ -50,8 +50,8 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onWallet, 
       </div>
       <div className="hero-content">
         <p className="location"><Icon name="pin" size={16}/>{town(s.city, l)}</p>
-        <h1>{name(l)}</h1>
-        <p className="hero-meta">{occupation(s.career, l)}</p>
+        <h1>{name(l,s.avatar)}</h1>
+        <p className="hero-meta">{occupation(s.career, l, s.avatar)}</p>
       </div>
       <div className="year-track" aria-hidden="true">
         {Array.from({length:11}, (_, i) => <span key={i} className={i < s.age - 16 || s.endReason === "chapter" ? "passed" : i === s.age - 16 ? "current" : ""}/>)}
@@ -79,7 +79,7 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onWallet, 
         <section className="story-card ending-card">
           <p className="section-kicker"><Icon name="album"/>{copy(l, "Епилог", "Epilogue")}</p>
           <h4>{ending?.title[l] ?? copy(l, "Историята приключи", "The story has ended")}</h4>
-          <p className="story-body">{ending?.body[l] ?? copy(l, "Дневникът пази живота на Мила до тази година.", "The journal keeps Mila’s story up to this year.")}</p>
+          <p className="story-body">{ending?.body[l] ?? copy(l, "Дневникът пази твоята история до тази година.", "The journal keeps your story up to this year.")}</p>
           {estate && estate.shares.length > 0 && <div className="estate-summary">
             <h5>{copy(l, "Наследство", "Estate")}</h5>
             {estate.shares.map(({heir, amount}) => <div className="stat-row" key={heir}><span>{lifeHeirLabel(s,heir)[l]}</span><b>{money(amount,l)}</b></div>)}
@@ -98,7 +98,7 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onWallet, 
               <span className="choice-copy"><strong>{option.label[l]}</strong></span><span className="choice-arrow"><Icon name="right"/></span>
             </button>)}
           </div>
-          {fallback && <p className="play-default" id="play-default"><PlaySymbol/>{copy(l, "При продължаване Мила избира", "On Play, Mila chooses")} <strong>{fallback.label[l]}</strong></p>}
+          {fallback && <p className="play-default" id="play-default"><PlaySymbol/>{copy(l, "При продължаване избираш", "On Play, you choose")} <strong>{fallback.label[l]}</strong></p>}
         </section>
       ) : <details className="commitments">
         <summary><Icon name="clock" size={17}/>{copy(l, "Свободно време", "Free time")}<span>{time}/2</span><Icon name="down" size={15}/></summary>
