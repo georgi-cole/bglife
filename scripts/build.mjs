@@ -1,0 +1,64 @@
+import { build, context } from 'esbuild';
+import { createRequire } from 'node:module';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const root = fileURLToPath(new URL('../', import.meta.url));
+const require = createRequire(import.meta.url);
+const dist = path.join(root, 'dist');
+const release = path.join(root, 'release');
+const serve = process.argv.includes('--serve');
+const template = await readFile(path.join(root, 'index.html'), 'utf8');
+const [artCredits, ...licenseTexts] = await Promise.all([
+  readFile(path.join(root, 'public/art/CREDITS.txt'), 'utf8'),
+  ...['react', 'react-dom', 'scheduler'].map(name =>
+    readFile(path.join(path.dirname(require.resolve(name + '/package.json')), 'LICENSE'), 'utf8')
+  )
+]);
+const notices = artCredits.trim() + '\n\nThird-party software\n\n' + [...new Set(licenseTexts)].join('\n');
+
+const config = {
+  absWorkingDir: root,
+  entryPoints: { app: 'src/main.tsx' },
+  outdir: dist,
+  bundle: true,
+  minify: !serve,
+  platform: 'browser',
+  target: 'es2022',
+  format: 'iife',
+  jsx: 'automatic',
+  charset: 'utf8',
+  assetNames: 'art/[name]',
+  loader: { '.webp': 'file' },
+  legalComments: 'inline',
+  define: { 'process.env.NODE_ENV': JSON.stringify(serve ? 'development' : 'production') },
+  logLevel: 'warning'
+};
+
+function page(style, script) {
+  const safeNotices = JSON.stringify(notices).replaceAll('<', '\\u003c');
+  return template
+    .replace('<!-- bglife:style -->', () => style)
+    .replace('<!-- bglife:credits -->', () => '<script id="game-credits" type="application/json">' + safeNotices + '</script>')
+    .replace('<!-- bglife:script -->', () => script);
+}
+
+await mkdir(dist, { recursive: true });
+await writeFile(path.join(dist, 'index.html'), page('<link rel="stylesheet" href="./app.css">', '<script src="./app.js"></script>'));
+await writeFile(path.join(dist, 'CREDITS.txt'), notices);
+if (serve) {
+  const port = Number(process.env.PORT || 4187);
+  const ctx = await context(config);
+  await ctx.watch();
+  const server = await ctx.serve({ host: '127.0.0.1', port, servedir: dist });
+  console.log('BgLife is running at http://127.0.0.1:' + server.port + '/');
+} else {
+  await build(config);
+  const packed = await build({ ...config, write: false, loader: { '.webp': 'dataurl' } });
+  const css = packed.outputFiles.find(f => f.path.endsWith('.css')).text.replace(/<\/style/gi, '<\\/style');
+  const js = packed.outputFiles.find(f => f.path.endsWith('.js')).text.replace(/<\/script/gi, '<\\/script');
+  await mkdir(release, { recursive: true });
+  await writeFile(path.join(release, 'BgLife-Playable.html'), page('<style>' + css + '</style>', '<script>' + js + '</script>'));
+  console.log('Built dist/ and release/BgLife-Playable.html');
+}

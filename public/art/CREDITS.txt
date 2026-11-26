@@ -1,0 +1,9 @@
+BgLife / Location illustrations
+
+tryavna.webp
+An original game illustration inspired by Tryavna's clock tower, timber-framed houses and Balkan foothills.
+
+sofia.webp
+An original game illustration inspired by Sofia's Alexander Nevsky Cathedral, central rooftops and the Vitosha skyline.
+
+Created for BgLife using OpenAI image generation, November 2026. The two cityscapes are imaginative compositions. Each is bundled locally in WebP format for offline play.
