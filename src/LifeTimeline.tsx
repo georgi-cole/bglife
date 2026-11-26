@@ -23,9 +23,10 @@ function LifeEvent({event, l, avatar}: {event: Memory; l: Language; avatar: Game
   const personEvent=action&&event.id.startsWith("people.");
   const loss = event.kind === "end" || event.id.startsWith("loss-");
   const health = event.id.startsWith("health-");
+  const education = event.kind === "path" && /^(school|university|degree|scholarship|tuition)/.test(event.id);
   return <li className={"life-event " + (loss ? "life-loss" : health ? "life-health" : action ? "life-action" : "life-decision")}
     id={personEvent?"life-event-"+event.age+"-"+event.id:undefined} tabIndex={personEvent?-1:undefined} data-person-event={personEvent||undefined}>
-    <span className="life-event-icon"><Icon name={loss ? "journal" : health ? "heart" : action ? "clock" : event.kind === "event" ? "sparkle" : "check"} size={16}/></span>
+    <span className="life-event-icon"><Icon name={loss ? "journal" : health ? "heart" : education ? "school" : event.kind === "path" ? "bag" : action ? "clock" : event.kind === "event" ? "sparkle" : "check"} size={16}/></span>
     <div className="life-event-content">
       <h4>{event.title[l]}</h4>
       <p>{event.text[l]}</p>

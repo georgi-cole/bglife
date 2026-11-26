@@ -1,4 +1,4 @@
-import { continueLife, decodeSave, encodeSave, newLife, type GameState } from "./engine.ts";
+import { continueLife, decodeSave, encodeSave, newLife, startCareerLife, type GameState } from "./engine.ts";
 
 import { startFamilyEvents } from "./reproduction.ts";
 
@@ -27,11 +27,11 @@ export function loadSession(): { session: Session; notice: "recovered" | "damage
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     const session = deserialize(raw);
-    if (session) return { session, notice: null };
+    if (session) return { session: { ...session, life: startCareerLife(session.life) }, notice: null };
     const backup = deserialize(localStorage.getItem(SAVE_KEY + ".previous"));
-    if (backup) return { session: backup, notice: "recovered" };
-    return {session: {life:newLife(), album:[]}, notice: raw ? "damaged" : null};
-  } catch { return {session:{life:newLife(), album:[]}, notice:"temporary"}; }
+    if (backup) return { session: { ...backup, life: startCareerLife(backup.life) }, notice: "recovered" };
+    return {session: {life:startCareerLife(newLife()), album:[]}, notice: raw ? "damaged" : null};
+  } catch { return {session:{life:startCareerLife(newLife()), album:[]}, notice:"temporary"}; }
 }
 
 export function persist(session: Session): boolean {

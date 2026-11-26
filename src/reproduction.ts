@@ -1,3 +1,4 @@
+import { hasSteadyIncome } from "./lifePath.ts";
 import { getAvatarName, type AvatarPresentation } from "./avatar.ts";
 import { bulgarianChildName, familySurname, suggestedFirstName } from "./babyNames.ts";
 import type { GameState, Text } from "./engine.ts";
@@ -213,7 +214,7 @@ function settleAdoption(s: GameState, adoption: Adoption): GameState {
   }
   if (s.age < adoption.nextAge) return s;
   const ages = adoptionAges(s, adoption.spouse);
-  if (s.career === "student" || !ages.length) {
+  if (!hasSteadyIncome(s) || !ages.length) {
     return familyEvent({ ...s, lifeSystems: updateReproduction(s, { adoption: null }) }, "adoption-denied", title,
       t("Социалните приключиха проверката с отказ. Можеш да кандидатстваш отново при промяна на обстоятелствата.",
         "The social services review declined the application. You can reapply if your circumstances change."));

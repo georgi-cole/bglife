@@ -7,6 +7,9 @@ import {talents} from "./lifeProfile.ts";
 import {conditionLabel} from "./lifeHealth.ts";
 import {annualBudget, commitmentsLeft, defaultPlayChoice, getActions, getChoices, getEstate, getScene, lifeHeirLabel, type GameState, type LifeActivityCategory} from "./engine.ts";
 import {LifeTimeline} from "./LifeTimeline.tsx";
+import {pathBudget} from "./lifePath.ts";
+import {currentSchool} from "./school.ts";
+import {findProgram} from "./university.ts";
 import {endingCopy} from "./story.ts";
 import {adoptionStatus, pregnancyStatus} from "./reproduction.ts";
 import type {Language} from "./session.ts";
@@ -14,6 +17,16 @@ import {Icon,PlaySymbol,copy,lifeName,lifeOccupation,money,town} from "./ui.tsx"
 
 export function Wallet({s,l,onBank}:{s:GameState;l:Language;onBank:()=>void}) {
   const budget=annualBudget(s);
+  const path=s.path&&pathBudget(s,s.path);
+  const items: [string,number][] = path ? [
+    [copy(l,"Джобни","Pocket money"),path.pocket],
+    [copy(l,"Нетна заплата","Take-home pay"),path.wage],
+    [copy(l,"Стипендия","Scholarship"),path.scholarship],
+    [copy(l,"Обезщетение за безработица","Unemployment benefit"),path.benefit],
+    [copy(l,"Пенсия","Pension"),path.pension],
+    [copy(l,"Такса за обучение","Tuition"),-path.tuition],
+    [copy(l,"Лични здравни вноски","Personal health contributions"),-path.health],
+  ] : [];
   const bank=s.lifeSystems.bank;
   const obligations=budget.obligations>0&&<div className="stat-row"><span>{copy(l,"Годишни вноски и грижи","Yearly payments and care")}</span><b>−{money(budget.obligations,l)}</b></div>;
   return <><p className="balance-total">{money(s.cash,l)}</p><p className="muted">{copy(l,"Налични пари","Available cash")}</p>
@@ -22,8 +35,10 @@ export function Wallet({s,l,onBank}:{s:GameState;l:Language;onBank:()=>void}) {
     {bank.loan>0&&<div className="stat-row"><span>{copy(l,"Остатък по заема","Loan balance")}</span><b>{money(bank.loan,l)}</b></div>}
     {bank.mortgage>0&&<div className="stat-row"><span>{copy(l,"Остатък по ипотеката","Mortgage balance")}</span><b>{money(bank.mortgage,l)}</b></div>}
     <h3>{copy(l,"Годишен бюджет","Annual budget")}</h3>
-    {s.age<19?<><p>{copy(l,"Докато живееш у дома и ходиш на училище, семейството поема основните разходи. Личните покупки се плащат от портфейла ти.","While you’re at school and living at home, your family covers the household bills. Your own purchases come out of your wallet.")}</p>{obligations}</>:
-    <><div className="stat-row"><span>{copy(l,"Доход","Income")}</span><b>{money(budget.pay,l)}</b></div><div className="stat-row"><span>{copy(l,"Всекидневни разходи","Living costs")}</span><b>−{money(budget.essentials,l)}</b></div><div className="stat-row"><span>{copy(l,"Жилище","Housing")}</span><b>−{money(budget.housing,l)}</b></div>{obligations}<div className="stat-row"><span>{copy(l,"Остатък за годината","Net for the year")}</span><b>{money(budget.net,l)}</b></div></>}
+    {!path&&s.age<19?<><p>{copy(l,"Докато живееш у дома и ходиш на училище, семейството поема основните разходи. Личните покупки се плащат от портфейла ти.","While you’re at school and living at home, your family covers the household bills. Your own purchases come out of your wallet.")}</p>{obligations}</>:
+    <><div className="stat-row"><span>{copy(l,"Доход","Income")}</span><b>{money(budget.pay,l)}</b></div>
+    {items.map(([label,amount])=>amount!==0&&<div className="stat-row" key={label}><span>{label}</span><b>{money(amount,l)}</b></div>)}
+    <div className="stat-row"><span>{copy(l,"Всекидневни разходи","Living costs")}</span><b>−{money(budget.essentials,l)}</b></div><div className="stat-row"><span>{copy(l,"Жилище","Housing")}</span><b>−{money(budget.housing,l)}</b></div>{obligations}<div className="stat-row"><span>{copy(l,"Остатък за годината","Net for the year")}</span><b>{money(budget.net,l)}</b></div></>}
     <button className="secondary-button" onClick={onBank}><Icon name="wallet"/>{copy(l,"Към банката","Go to Bank")}</button>
   </>;
 }
@@ -50,6 +65,12 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onWallet, 
   const pregnancy = s.finished ? null : pregnancyStatus(s);
   const adoptionOffer = !s.finished && s.lifeSystems.reproduction.adoption?.stage === "offer" ? adoptionStatus(s) : null;
   const time = commitmentsLeft(s);
+  const student = s.path?.university.student;
+  const school = s.path?.school;
+  const institution = s.path
+    ? student && !student.paused ? findProgram(student.city, student.program)?.institution
+      : school?.grade != null && !school.left ? currentSchool(s, school).name : null
+    : s.enrollment && s.age < s.enrollment.graduationAge ? cityPaths[s.enrollment.city].schools[s.enrollment.index].name : null;
 
   return <>
     <section className="hero life-stage" data-landscape={artId ? undefined : cities[s.city].landscape} aria-label={town(s.city, l)}>
@@ -62,9 +83,7 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onWallet, 
         <p className="location"><Icon name="pin" size={16}/>{town(s.city, l)}</p>
         <h1>{lifeName(l,s)}</h1>
         <p className="hero-meta">{lifeOccupation(s, l)}</p>
-        {s.enrollment && s.age < s.enrollment.graduationAge && <p className="hero-detail">
-          {cityPaths[s.enrollment.city].schools[s.enrollment.index].name[l]}
-        </p>}
+        {institution && <p className="hero-detail">{institution[l]}</p>}
         {s.profile && s.profile.talent !== "none" && <p className="hero-detail">
           <Icon name="sparkle" size={14}/>{talents[s.profile.talent][l]}
         </p>}

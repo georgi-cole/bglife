@@ -1,3 +1,4 @@
+import { hasSteadyIncome } from "./lifePath.ts";
 import type { GameState, Text } from "./engine.ts";
 import { clinicChance, familyRoll, menopauseAge, naturalChance, type ConceptionMethod } from "./fertilityModel.ts";
 import type { ActivityBranch, ActivityResolution, LifeActivityDefinition, PartnerId } from "./lifeActivities.ts";
@@ -162,7 +163,7 @@ const adoptionActions: LifeActivityDefinition[] = [
     result: t("Документите са подадени. Социален работник ще направи проучване през следващата година.",
       "You submitted your documents. A social worker will assess your application next year."),
     visible: s => canAccessAdoption(s) && !s.lifeSystems.reproduction.adoption,
-    requires: s => s.career === "student" ? t("За кандидатурата ти е нужен постоянен доход.", "Your application needs a steady income.")
+    requires: s => !hasSteadyIncome(s) ? t("За кандидатурата ти е нужен постоянен доход.", "Your application needs a steady income.")
       : adoptionAges(s, adoptionSpouse(s)).length ? null
       : t("Няма подходяща възрастова разлика за процедурата.", "You’re outside the age-gap range for this route."),
     update: s => updateReproduction(s, { adoption: { stage: "review", spouse: adoptionSpouse(s), nextAge: s.age + 1 } }),

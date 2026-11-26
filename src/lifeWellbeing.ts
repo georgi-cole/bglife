@@ -1,6 +1,7 @@
 import type { GameState, Option, Text } from "./engine.ts";
 import { applyStats, boundStat, type LifeStats, type LifeSystems, type StatDelta } from "./lifeActivities.ts";
 import { ageHealth } from "./lifeHealth.ts";
+import { studying } from "./lifePath.ts";
 import { newChildProfile } from "./peopleIdentity.ts";
 
 const text = (bg: string, en: string): Text => ({ bg, en });
@@ -38,7 +39,7 @@ export function settleWellbeing(s: GameState, bank: LifeSystems["bank"], unpaidC
     health: agedHealth?.health ?? (active ? 1 : -1),
     looks: full && s.age >= 85 ? -1 : s.age < 20 ? 1 : s.age > 22 ? -1 : 0,
     joy: unpaidCare || unpaidDebt ? -4 : used.length ? 1 : -1,
-    brains: s.career === "student" && (!full || s.age < 19) ? 2 : 1,
+    brains: (s.path && s.age >= 7 ? studying(s) : s.career === "student" && (!full || s.age < 19)) ? 2 : 1,
     influence: influenceActivity ? 0 : s.stats.influence > 24 ? -1 : 0,
   };
 

@@ -5,7 +5,7 @@ import {hasStartedLife,moveBlocker,movingCost,type City,type GameState} from "./
 import {cities,cityArt} from "./cities.ts";
 import {CityPicker} from "./CityPicker.tsx";
 import {cityCulture,voices} from "./cityCulture.ts";
-import {cityPaths,jobTypes,studyFields,type SchoolLevel} from "./cityPaths.ts";
+import {pathCities} from "./pathCatalog.ts";
 import type {Language} from "./session.ts";
 import {LifePortrait} from "./AvatarPortrait.tsx";
 import {Icon,MenuTitle,ageLabel,copy,money,town} from "./ui.tsx";
@@ -20,7 +20,7 @@ export function Places({s,l,onHolidays,onMove,...menu}: MenuControls & {
   const artId = cityArt(selected);
   const place = artId && placeProfiles[artId];
   const culture = cityCulture[selected];
-  const path = cityPaths[selected];
+  const path = pathCities[selected];
   const voice = voices[culture.voice];
   const atHome = s.city === selected;
   const blocked = moveBlocker(s, selected);
@@ -68,22 +68,21 @@ export function Places({s,l,onHolidays,onMove,...menu}: MenuControls & {
     <details className="detail-card city-details">
       <summary><Icon name="journal" size={17}/>{t("Училища и специалности","Schools and courses")}</summary>
       <div className="city-details-body">
-        {(["primary","secondary","higher"] as SchoolLevel[]).map(level => {
-          const schools=path.schools.filter(school => school.level===level);
-          if (!schools.length) return null;
-          const label = level==="primary" ? t("Начало на училище","Starting school")
-            : level==="secondary" ? t("След VII клас","Secondary studies") : t("Висше образование","Higher education");
-          return <div key={level} className="city-school-list"><h3>{label}</h3><ul>
-            {schools.map(school => <li key={school.name.en+"-"+school.field}><strong>{school.name[l]}</strong>
-              {level!=="primary" && <small>{studyFields[school.field][l]}</small>}</li>)}
-          </ul></div>;
-        })}
+        <div className="city-school-list"><h3>{t("Начало на училище","Starting school")}</h3><ul>
+          {path.schools.filter(school=>school.primary).map(school=><li key={school.id}><strong>{school.name[l]}</strong><small>{path.zones[school.zone][l]}</small></li>)}
+        </ul></div>
+        <div className="city-school-list"><h3>{t("След VII клас","Secondary school")}</h3><ul>
+          {path.schools.filter(school=>school.admission).map(school=><li key={school.id}><strong>{school.name[l]}</strong><small>{school.profile?.[l]}</small></li>)}
+        </ul></div>
+        {path.programs.length>0&&<div className="city-school-list"><h3>{t("Висше образование","Higher education")}</h3><ul>
+          {path.programs.map(program=><li key={program.id}><strong>{program.institution[l]}</strong><small>{program.title[l]}</small></li>)}
+        </ul></div>}
       </div>
     </details>
     <details className="detail-card city-details">
       <summary><Icon name="bag" size={17}/>{t("Работа в града","Local jobs")}</summary>
       <div className="city-details-body">
-        <ul>{path.jobs.map(id => <li key={id}>{jobTypes[id].label[l]} <small>· {money(jobTypes[id].pay,l)} / {t("година","year")}</small></li>)}</ul>
+        <ul>{path.jobs.map(job => <li key={job.id}>{job.title[l]}</li>)}</ul>
       </div>
     </details>
   </>;

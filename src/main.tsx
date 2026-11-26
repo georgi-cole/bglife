@@ -1,7 +1,9 @@
 import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
 import {createRoot} from "react-dom/client";
-import {choose,defaultPlayChoice,doAction,doLifeActivity,encodeSave,getPersonActivities,giveUp,nameNewborns,hasStartedLife,newProfileLife,playYear,type City,type GameState,type LifeActivityCategory,type LifeActivityOption} from "./engine.ts";
+import {choose,defaultPlayChoice,doAction,doLifeActivity,encodeSave,getPersonActivities,giveUp,nameNewborns,hasStartedLife,newProfileLife,playYear,doPathAction,startCareerLife,type City,type GameState,type LifeActivityCategory,type LifeActivityOption} from "./engine.ts";
 import {Album,Places} from "./Views.tsx";
+import {Career} from "./Career.tsx";
+import {isSchoolAge} from "./lifePath.ts";
 import {BirthNamingDialog} from "./BirthNamingDialog.tsx";
 import type {SurnameSource} from "./reproduction.ts";
 import {People} from "./People.tsx";
@@ -71,9 +73,10 @@ function App(){
   const endTarget=useRef<GameState|null>(null);
   const nextLogPosition=useRef<LogPosition|null>(null);
   const s=session.life,t=(bg:string,en:string)=>copy(l,bg,en);
-  const labels=tabLabels(l);
+  const labels=tabLabels(l,s.age);
   const menuDialog=dialog==="wallet"||dialog==="settings"||dialog==="guide";
   const showJournal=screen==="game"&&tab==="journal";
+  const showNav=screen==="game"&&(tab==="journal"||tab==="career");
   const dialogTitle=dialog==="wallet"?t("Портфейл","Wallet"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):dialog==="give-up"?t("Приключване на живота","End this life"):t("Нов живот","New life");
   function commit(next:Session){
     live.current=next;setSession(next);
@@ -82,7 +85,9 @@ function App(){
   useEffect(()=>{
     if(!persist(live.current))setNotice("temporary");
     function sync(e:StorageEvent){
-      if(e.key===SAVE_KEY&&e.newValue){const saved=deserialize(e.newValue);if(saved){live.current=saved;setSession(saved);}}
+      if(e.key===SAVE_KEY&&e.newValue){const saved=deserialize(e.newValue);if(saved){
+        const next={...saved,life:startCareerLife(saved.life)};live.current=next;setSession(next);
+      }}
       if(e.key===LANGUAGE_KEY&&(e.newValue==="bg"||e.newValue==="en"))setLanguage(e.newValue);
     }
     window.addEventListener("storage",sync);return ()=>window.removeEventListener("storage",sync);
@@ -236,7 +241,7 @@ function App(){
       requestAnimationFrame(()=>document.getElementById("scene-heading")?.focus());
       return;
     }
-    const latestEvent = next.history.slice(s.history.length).filter(entry => entry.kind === "event" || entry.kind === "end").at(-1);
+    const latestEvent = next.history.slice(s.history.length).filter(entry => entry.kind === "event" || entry.kind === "end" || entry.kind === "path").at(-1);
     nextLogPosition.current={age:latestEvent?.age ?? next.age,focus:true};
     commit({...current,life:next});
     setTab("journal");
@@ -264,7 +269,7 @@ function App(){
   }
   function startWithAvatar(draft:NewLifeDraft) {
     const current = live.current;
-    const life = newProfileLife(draft);
+    const life = startCareerLife(newProfileLife(draft));
     commit({ life, album: hasStartedLife(current.life) ? [...current.album, current.life] : current.album });
     openJournal(life, true);
   }
@@ -284,21 +289,23 @@ function App(){
     if(!importRef.current)return;
     const current=live.current,restored=importRef.current;
     const histories=new Map<string,GameState>();
-    const activeKey = encodeSave(restored.life);
+    const restoredLife = startCareerLife(restored.life);
+    const activeKey = encodeSave(restoredLife);
     for(const life of [...current.album,...restored.album,...(hasStartedLife(current.life)?[current.life]:[])]){
       const key = encodeSave(life);
       if(key !== activeKey) histories.set(key,life);
     }
-    commit({life:restored.life,album:[...histories.values()]});
+    commit({life:restoredLife,album:[...histories.values()]});
     close();
-    openJournal(restored.life);
+    openJournal(restoredLife);
   }
   const fallback = defaultPlayChoice(s);
   const playLabel = s.finished ? t("Нов живот","New life") : t("Следваща година","Next year");
   function navItem(k:Tab) {
-    return <button data-tab={k} className="nav-item" aria-current={tab===k?"page":undefined} onClick={()=>k==="more"?openMore():route(k)}><Icon name={k}/><span>{labels[k]}</span></button>;
+    const icon = k==="career" ? isSchoolAge(s.age) ? "school" : "bag" : k;
+    return <button data-tab={k} className="nav-item" aria-current={tab===k?"page":undefined} onClick={()=>k==="more"?openMore():route(k)}><Icon name={icon}/><span>{labels[k]}</span></button>;
   }
-  const closeLabel=screen==="album"?t("Към менюто","Back to main menu"):t("Към живота","Back to Life");
+  const closeLabel=screen==="album"?t("Към менюто","Back to main menu"):t("Към дневника","Back to journal");
   const closeMenu=()=>screen==="album"?openMenuScreen("home"):openJournal(live.current.life);
   const menuProps={onClose:closeMenu,closeLabel};
   const albumMenu=albumFromMore
@@ -308,7 +315,7 @@ function App(){
     people:t("Назад към Хора","Back to People"),
     places:t("Назад към Места","Back to Places"),
     wallet:t("Назад към портфейла","Back to Wallet"),
-    journal:t("Назад към Живот","Back to Life"),
+    journal:t("Назад към дневника","Back to journal"),
   }[moreMenu.parent];
   const toolbar = <div className="masthead-actions">
     <button className="lang-button" data-testid="language" onClick={setLocale} aria-label={t("Switch to English","Премини на български")}>{l==="bg"?"EN":"БГ"}</button>
@@ -330,15 +337,16 @@ function App(){
        screen==="avatar"?<AvatarCreator l={l} vip={vip} onVip={toggleTrialVip} onClose={cancelAvatarCreator} onStart={startWithAvatar}/>:
        screen==="album"?<Album {...menuProps} back s={s} archive={session.album} l={l}/>:
        tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>openGameMenu("wallet")} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore}/>:
+       tab==="career"?<Career s={s} l={l} onClose={closeMenu} onAction={id=>act(v=>doPathAction(v,id,s.age))}/>:
        tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family","people")} onActivity={openPersonAction}/>:tab==="places"?<Places {...menuProps} s={s} l={l} onHolidays={()=>openMore("holidays","places")} onMove={relocate}/>:
        tab==="more"?<More {...menuProps} key={moreMenu.version} life={s} l={l} initialCategory={moreMenu.category} animateEntry={slideMenu&&moreMenu.category===null}
         onActivity={id=>act(v=>doLifeActivity(v,id,s.age))} onGiveUp={requestGiveUp} onJournal={()=>openJournal(live.current.life,true)} onAlbum={()=>openAlbum(true)}
         onCategoryBack={moreMenu.category?backFromCategory:undefined} categoryBackLabel={categoryBackLabel}/>:
        <Album {...albumMenu} s={s} archive={session.album} l={l}/>}
     </main></div>
-    {showJournal&&!menuDialog&&<footer className="game-footer"><nav className="bottom-nav" aria-label={t("Навигация","Navigation")}>
+    {showNav&&!menuDialog&&<footer className="game-footer"><nav className="bottom-nav" aria-label={t("Навигация","Navigation")}>
       <div className="nav-inner">
-        {navItem("journal")}{navItem("people")}
+        {navItem("career")}{navItem("people")}
         <button className="play-control" data-testid="advance" onClick={nextYear}
           aria-label={fallback && tab!=="journal" ? playLabel + ". " + fallback.label[l] : playLabel}
           title={fallback ? playLabel + " · " + fallback.label[l] : playLabel}

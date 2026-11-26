@@ -5,8 +5,10 @@ import { cityPaths, jobTypes } from "./cityPaths.ts";
 import { bilingualName } from "./lifeProfile.ts";
 import type { GameState } from "./engine.ts";
 import type { Language } from "./session.ts";
+import { isSchoolAge, pathOccupation } from "./lifePath.ts";
 
 const paths = {
+  school:"m2 9 10-5 10 5-10 5L2 9Zm4 2v5c3 4 9 4 12 0v-5m4-2v7",
   journal:"M4 4h13a2 2 0 0 1 2 2v14H6a3 3 0 0 1-3-3V6a2 2 0 0 1 1-2Zm0 12h15M7 8h8m-8 3h6",
   people:"M15 20v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m14-6a4 4 0 0 1 3 4v2M13 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Zm3-3a3.5 3.5 0 0 1 0 7",
   places:"m3 5 6-2 6 2 6-2v15l-6 3-6-3-6 2V5Zm6-2v15m6-13v16",
@@ -67,6 +69,8 @@ export const money = (cents:number,l:Language) => new Intl.NumberFormat(l==="bg"
 export const occupation = (career:GameState["career"],l:Language, avatar:AvatarTraits | null) => career==="student"?copy(l,avatar?.presentation==="male"?"Ученик":"Ученичка","Student"):career==="woodcarver"?copy(l,avatar?.presentation==="male"?"Дърворезбар":"Дърворезбарка","Woodcarver"):career==="local-job"?copy(l,"Работа в града","Local job"):copy(l,"Софтуерно тестване","Software QA");
 
 export function lifeOccupation(s: GameState, l: Language): string {
+  const current = pathOccupation(s);
+  if (current) return current[l];
   if (s.retirement !== null) return copy(l,s.avatar?.presentation==="male"?"Пенсионер":"Пенсионерка","Retired");
   if (s.localJob) return jobTypes[s.localJob].label[l];
   if (s.age < 7) return getAvatarStage(s.age).label[l];
@@ -77,8 +81,11 @@ export function lifeOccupation(s: GameState, l: Language): string {
   return occupation(s.career, l, s.avatar);
 }
 export const homeName=(s:GameState,l:Language)=>({home:copy(l,"Семейният дом","Family home"),rumi:copy(l,"При леля Руми","Aunt Rumi’s flat"),shared:copy(l,"Споделена квартира","Shared flat")})[s.housing];
-export type Tab = "journal"|"people"|"places"|"more"|"album";
-export const tabLabels=(l:Language):Record<Tab,string>=>({journal:copy(l,"Живот","Life"),people:copy(l,"Хора","People"),places:copy(l,"Места","Places"),more:copy(l,"Още","More"),album:copy(l,"Албум","Album")});
+export type Tab = "journal"|"career"|"people"|"places"|"more"|"album";
+export const tabLabels=(l:Language,age:number):Record<Tab,string>=>({
+  journal:copy(l,"Дневник","Journal"), career:isSchoolAge(age)?copy(l,"Даскало","Education"):copy(l,"Кариера","Career"),
+  people:copy(l,"Хора","People"), places:copy(l,"Места","Places"), more:copy(l,"Още","More"), album:copy(l,"Албум","Album"),
+});
 export const lifeStatLabels=(l:Language):Record<keyof GameState["stats"],string>=>({
   health:copy(l,"Здраве","Health"),
   looks:copy(l,"Визия","Looks"),

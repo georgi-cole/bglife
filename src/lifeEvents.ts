@@ -112,18 +112,18 @@ function cityMoment(s: GameState): Memory | null {
 }
 
 export function yearlyMoment(s: GameState): Memory | null {
-  if (s.profile && s.enrollment?.graduationAge === s.age && s.age >= 20) {
+  if (!s.path && s.profile && s.enrollment?.graduationAge === s.age && s.age >= 20) {
     const school = cityPaths[s.enrollment.city].schools[s.enrollment.index];
     return entry(s, { id: "local-graduation", title: t("Завършване","Graduation"),
       text: t("Завърши обучението си в " + school.name.bg + ".", "You graduated from " + school.name.en + ".") });
   }
-  if (s.profile && s.age === 7) {
+  if (!s.path && s.profile && s.age === 7) {
     const school = cityPaths[s.city].schools[0];
     return entry(s, { id:"first-grade", title:t("Първи учебен ден","First day of school"),
       text:t("През септември те посрещнаха в " + school.name.bg + ".", "In September, " + school.name.en + " welcomed you into first grade.") });
   }
   const milestone = milestones[s.age];
-  if (milestone && (s.age !== 27 || s.storyRoute)) return entry(s, milestone);
+  if (milestone && (s.age !== 27 || s.storyRoute) && (!s.path || s.age !== 14)) return entry(s, milestone);
   const local = cityMoment(s);
   if (local) return local;
 

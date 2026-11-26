@@ -58,6 +58,16 @@ Each playable city has cultural content in `src/cityCulture.ts` and school, stud
 
 Profiles saved before this update keep their original family and avatar data. The new family model applies when starting a new life.
 
+## Education, work, and social insurance
+
+Every new life starts at birth. Education is available through childhood, with first-grade enrollment at age seven. From age 18, Career contains school, university, work, and social insurance. Annual outcomes appear in the journal and the wallet uses the same income and expenses as the yearly settlement.
+
+- School preparation and assessments contribute to admission and graduation. University outcomes use diploma grades and, where applicable, entrance exams. Tuition and scholarships enter the annual budget.
+- A local vacancy can lead to a callback, interview, and contract. Qualifications and, for some professions, registration affect eligibility. Contracts accumulate insured service for unemployment and retirement.
+- Career uses the 29 playable cities listed in `src/cities.ts`. `src/cityPaths.ts` supplies local institutions and roles. `src/pathCatalog.ts` adds neighborhood detail, career requirements, university programs, and district wage benchmarks. Extend these catalogs together when adding a city. Keep IDs used in existing saves stable.
+- Job offers, tuition, admission scores, and payments are game values. Salary bands use district averages from Q3 2026, and the insurance model uses the 2026 reference rules. [NSI district wages](https://www.nsi.bg/statistical-data/179/569) · [NSSI unemployment benefits](https://www.nssi.bg/fizicheski-lica/po-bg-zakonodatelstvo/pri-bezrabotitsa/) · [NSSI pension rules](https://www.nssi.bg/fizicheski-lica/pensii-bg/trudova-deinost-pridobivane-pravo/pensii-za-osig-staj-v-namalen-razmer/)
+- Existing saves replay their previous decisions and balances before the career system activates. Recorded study, jobs, and pension service carry forward. In-progress university enrollments from the previous game keep their tuition-free terms.
+
 ## Mobile wrappers
 
 Capacitor reads `capacitor.config.ts` and packages the contents of `dist/` as local app resources. The provisional local app identifier is `com.georgicole.bglife`. Choose the permanent identifier before registering store applications.
