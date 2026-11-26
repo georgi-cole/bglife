@@ -5,7 +5,7 @@ import {lifePartnerLabel,type City,type GameState,type PersonId} from "./engine.
 import type {Language} from "./session.ts";
 import {Icon,MenuTitle,ageLabel,copy,money,town} from "./ui.tsx";
 
-type MenuControls = {onClose:()=>void;closeLabel:string};
+type MenuControls = {onClose:()=>void;closeLabel:string;back?:boolean};
 
 export function People({s,l,onFamily,...menu}:MenuControls & {s:GameState;l:Language;onFamily:()=>void}) {
   const family=s.lifeSystems.family;

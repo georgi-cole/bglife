@@ -11,6 +11,7 @@ import {StartGuide,StartScreen} from "./StartScreen.tsx";
 
 type Dialog="wallet"|"settings"|"replay"|"guide"|"give-up"|null;
 type Screen = "home" | "game" | "album";
+type MoreParent = "journal" | "people" | "places" | "wallet";
 type LogPosition = {age: number; focus?: boolean};
 
 function lastLogPosition(life: GameState): LogPosition | null {
@@ -45,7 +46,8 @@ function App(){
   const [first]=useState(loadSession),[session,setSession]=useState(first.session),[notice,setNotice]=useState(first.notice);
   const [l,setLanguage]=useState(initialLanguage),[tab,setTab]=useState<Tab>("journal"),[dialog,setDialog]=useState<Dialog>(null);
   const [screen,setScreen]=useState<Screen>("home");
-  const [moreMenu,setMoreMenu]=useState<{category:LifeActivityCategory|null;version:number}>({category:null,version:0});
+  const [moreMenu,setMoreMenu]=useState<{category:LifeActivityCategory|null;parent:MoreParent;version:number}>({category:null,parent:"journal",version:0});
+  const [albumFromMore,setAlbumFromMore]=useState(false);
   const live=useRef(session),dialogRef=useRef<HTMLDialogElement>(null);
   const viewportRef=useRef<HTMLDivElement>(null);
   const mainRef=useRef<HTMLElement>(null);
@@ -121,9 +123,20 @@ function App(){
     if(tab!==which)focusScreen.current=true;
     setTab(which);
   }
-  function openMore(category:LifeActivityCategory|null=null){
-    setMoreMenu(menu=>({category,version:menu.version+1}));
+  function openMore(category:LifeActivityCategory|null=null,parent:MoreParent="journal"){
+    setMoreMenu(menu=>({category,parent,version:menu.version+1}));
     route("more");
+  }
+  function backFromCategory(){
+    const parent=moreMenu.parent;
+    if(parent==="wallet"){
+      route("journal");
+      setDialog("wallet");
+    }else route(parent);
+  }
+  function openAlbum(fromMore=false){
+    setAlbumFromMore(fromMore);
+    route("album");
   }
   function requestGiveUp(){
     if(live.current.life.finished)return;
@@ -201,6 +214,15 @@ function App(){
   const closeLabel=screen==="album"?t("Към менюто","Back to main menu"):t("Към живота","Back to Life");
   const closeMenu=()=>screen==="album"?openMenuScreen("home"):openJournal(live.current.life);
   const menuProps={onClose:closeMenu,closeLabel};
+  const albumMenu=albumFromMore
+    ? {onClose:()=>openMore(),closeLabel:t("Назад към Още","Back to More"),back:true}
+    : {...menuProps,back:true};
+  const categoryBackLabel={
+    people:t("Назад към Хора","Back to People"),
+    places:t("Назад към Места","Back to Places"),
+    wallet:t("Назад към портфейла","Back to Wallet"),
+    journal:t("Назад към Живот","Back to Life"),
+  }[moreMenu.parent];
   const toolbar = <div className="masthead-actions">
     <button className="lang-button" data-testid="language" onClick={setLocale} aria-label={t("Switch to English","Премини на български")}>{l==="bg"?"EN":"БГ"}</button>
     <button className="icon-button" data-testid="settings" onClick={()=>setDialog("settings")} aria-label={t("Настройки","Settings")}><Icon name="settings"/></button>
@@ -216,12 +238,13 @@ function App(){
       </div>}
       {screen==="home"?<StartScreen life={s} l={l} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
         onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</StartScreen>:
-       screen==="album"?<Album {...menuProps} s={s} archive={session.album} l={l}/>:
-       tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>setDialog("wallet")} onAlbum={()=>route("album")} onReplay={()=>setDialog("replay")} onMore={openMore}/>:
-       tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family")}/>:tab==="places"?<Places {...menuProps} s={s} l={l} onHolidays={()=>openMore("holidays")}/>:
+       screen==="album"?<Album {...menuProps} back s={s} archive={session.album} l={l}/>:
+       tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>setDialog("wallet")} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore}/>:
+       tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family","people")}/>:tab==="places"?<Places {...menuProps} s={s} l={l} onHolidays={()=>openMore("holidays","places")}/>:
        tab==="more"?<More {...menuProps} key={moreMenu.version} life={s} l={l} initialCategory={moreMenu.category}
-        onActivity={id=>act(v=>doLifeActivity(v,id,s.age))} onGiveUp={requestGiveUp} onJournal={()=>openJournal(live.current.life,true)} onAlbum={()=>route("album")}/>:
-       <Album {...menuProps} s={s} archive={session.album} l={l}/>}
+        onActivity={id=>act(v=>doLifeActivity(v,id,s.age))} onGiveUp={requestGiveUp} onJournal={()=>openJournal(live.current.life,true)} onAlbum={()=>openAlbum(true)}
+        onCategoryBack={moreMenu.category?backFromCategory:undefined} categoryBackLabel={categoryBackLabel}/>:
+       <Album {...albumMenu} s={s} archive={session.album} l={l}/>}
     </main></div>
     {showJournal&&!menuDialog&&<footer className="game-footer"><nav className="bottom-nav" aria-label={t("Навигация","Navigation")}>
       <div className="nav-inner">
@@ -238,8 +261,8 @@ function App(){
     {dialog&&<dialog key={dialog} ref={dialogRef} className={menuDialog?"modal-card game-menu-dialog":"modal-card"} onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}>
       {menuDialog&&screen!=="home"&&<div className="game-menu-profile"><CharacterHeader life={s} l={l}/></div>}
       <div className={menuDialog?"game-menu-content menu-enter":undefined}>
-      {menuDialog?<MenuTitle onClose={close} closeLabel={t("Затвори","Close")}><h2 id="dialog-heading">{dialogTitle}</h2></MenuTitle>:<div className="dialog-head"><h2 id="dialog-heading">{dialogTitle}</h2><button className="icon-button" aria-label={t("Затвори","Close")} onClick={close}><Icon name="close"/></button></div>}
-      {dialog==="wallet"?<Wallet s={s} l={l} onBank={()=>{close();openMore("bank");}}/>:
+      {menuDialog?<MenuTitle onClose={close} back={screen==="home"} closeLabel={screen==="home"?t("Назад към менюто","Back to main menu"):t("Затвори","Close")}><h2 id="dialog-heading">{dialogTitle}</h2></MenuTitle>:<div className="dialog-head"><h2 id="dialog-heading">{dialogTitle}</h2><button className="icon-button" aria-label={t("Затвори","Close")} onClick={close}><Icon name="close"/></button></div>}
+      {dialog==="wallet"?<Wallet s={s} l={l} onBank={()=>{close();openMore("bank","wallet");}}/>:
       dialog==="guide"?<StartGuide l={l}/>:dialog==="give-up"?<>
         <p>{t("Историята на Мила ще приключи на тази възраст. Дневникът остава достъпен в албума.","Mila’s story will end at her current age. Her journal will remain available in the album.")}</p>
         <div className="dialog-actions">

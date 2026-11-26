@@ -4,7 +4,7 @@ import {
   type GameState, type LifeActivityCategory, type LifeActivityOption, type LifeStat, type Memory,
 } from "./engine.ts";
 import type { Language } from "./session.ts";
-import { Icon, MenuTitle, copy, lifeStatLabels, money } from "./ui.tsx";
+import { Icon, MenuTitle, copy, lifeStatLabels, money, type IconName } from "./ui.tsx";
 import "./more.css";
 
 const categories = [
@@ -50,6 +50,8 @@ type MoreProps = {
   initialCategory?: LifeActivityCategory | null;
   onJournal?: () => void;
   onAlbum?: () => void;
+  onCategoryBack?: () => void;
+  categoryBackLabel: string;
 };
 
 function CategoryIcon({ category, size = 20 }: { category: Category; size?: number }) {
@@ -134,39 +136,52 @@ function ActivityFeedback({ feedback, onJournal, l }: { feedback: Memory; onJour
   </div>;
 }
 
-function ActivityCard({ option, feedback, onChoose, onJournal, l }: {
+const activityIcons: Record<string, IconName> = {
+  "family.tinder":"places", "family.dating-service":"people", "family.casual":"sun", "family.date-eli":"pin",
+  "family.time-together":"clock", "family.commit":"check", "family.engage":"key", "family.marry":"home",
+  "family.baby":"plus", "family.adopt":"people", "family.break-up":"back",
+  "hospital.gp":"people", "hospital.grandma":"home", "hospital.therapy":"journal", "hospital.eyes":"sun",
+  "pets.adopt":"home", "pets.vet":"plus", "pets.play":"sun",
+  "bank.open":"wallet", "bank.loan":"bag", "bank.mortgage":"home",
+};
+
+function ActivityCard({ category, option, feedback, onChoose, onJournal, l }: {
+  category: Category;
   option: LifeActivityOption; feedback?: Memory; onChoose: (id: string) => void; onJournal?: () => void; l: Language;
 }) {
   const t = (bg: string, en: string) => copy(l, bg, en);
   const labels = lifeStatLabels(l);
   const deltas = statOrder.filter(key => option.statDelta[key]);
+  const icon = activityIcons[option.id];
   const amount = option.cashDelta;
   const cost = amount === 0 ? t("Безплатно", "Free") : (amount > 0 ? "+" : "−") + money(Math.abs(amount), l);
 
   return <li className="activity-entry">
     <button type="button" className="activity-card" aria-disabled={!!option.blocked} tabIndex={option.blocked ? -1 : undefined}
       onClick={() => { if (!option.blocked) onChoose(option.id); }}>
-      <span className="activity-card-top">
+      <span className="activity-row-icon">{icon ? <Icon name={icon} size={24} /> : <CategoryIcon category={category} size={24} />}</span>
+      <span className="activity-row-copy">
         <strong>{option.label[l]}</strong>
-        <Icon name={option.blocked ? "key" : "next"} size={15} />
+        <span className="activity-description">{option.description[l]}</span>
+        <span className="activity-meta">
+          <span><Icon name="wallet" size={14} />{cost}</span>
+          {option.timeCost > 0 && <span><Icon name="clock" size={14} />{timeLabel(option.timeCost, l)}</span>}
+          {deltas.map(stat => {
+            const delta = option.statDelta[stat] ?? 0;
+            return <span key={stat} className={`activity-delta stat-${stat}`}>{labels[stat]} {delta > 0 ? "+" : "−"}{Math.abs(delta)}</span>;
+          })}
+        </span>
+        {option.blocked && <span className="activity-blocked">{option.blocked[l]}</span>}
       </span>
-      <span className="activity-description">{option.description[l]}</span>
-      <span className="activity-meta">
-        <span><Icon name="wallet" size={14} />{cost}</span>
-        {option.timeCost > 0 && <span><Icon name="clock" size={14} />{timeLabel(option.timeCost, l)}</span>}
-        {deltas.map(stat => {
-          const delta = option.statDelta[stat] ?? 0;
-          return <span key={stat} className={`activity-delta stat-${stat}`}>{labels[stat]} {delta > 0 ? "+" : "−"}{Math.abs(delta)}</span>;
-        })}
-      </span>
-      {option.blocked && <span className="activity-blocked">{option.blocked[l]}</span>}
+      <Icon name={option.blocked ? "key" : "next"} size={17} />
     </button>
     {feedback && <ActivityFeedback feedback={feedback} onJournal={onJournal} l={l} />}
   </li>;
 }
 
-export function More({ life, l, onActivity, onGiveUp, initialCategory = null, onJournal, onAlbum, onClose, closeLabel }: MoreProps) {
+export function More({ life, l, onActivity, onGiveUp, initialCategory = null, onJournal, onAlbum, onClose, closeLabel, onCategoryBack, categoryBackLabel }: MoreProps) {
   const [selected, setSelected] = useState(initialCategory);
+  const [platform, setPlatform] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<{ id: string; category: LifeActivityCategory | null; index: number } | null>(null);
   const focusHeading = useRef(initialCategory !== null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -182,11 +197,16 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, on
     focusHeading.current = false;
     screen.current?.scrollIntoView({ block: "start" });
     heading.current?.focus({ preventScroll: true });
-  }, [selected]);
+  }, [selected, platform]);
 
   function changeCategory(next: LifeActivityCategory | null) {
     focusHeading.current = true;
     setSelected(next);
+  }
+
+  function openPlatform(next: string | null) {
+    focusHeading.current = true;
+    setPlatform(next);
   }
 
   function chooseActivity(id: string) {
@@ -194,7 +214,7 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, on
     onActivity(id);
   }
 
-  if (!category) return <section key="directory" ref={screen} className="more-screen more-directory-screen menu-enter" aria-labelledby="more-heading">
+  if (!category) return <section key="directory" ref={screen} className="more-screen menu-enter" aria-labelledby="more-heading">
     <header className="more-heading">
       <MenuTitle onClose={onClose} closeLabel={closeLabel}><h1 ref={heading} id="more-heading" tabIndex={-1}>{t("Още", "More")}</h1></MenuTitle>
       <span className="more-resource"><Icon name="clock" size={15} />{t("Свободно време", "Free time")}: <strong>{availableTime}</strong></span>
@@ -224,45 +244,38 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, on
     else groups.set(key, [option]);
   }
 
-  return <section key={category.id} ref={screen} className={`more-screen menu-enter activity-${category.id}`} aria-labelledby="more-heading">
-    <button type="button" className="activity-back" onClick={() => changeCategory(null)}>
-      <Icon name="right" size={17} />{t("Още", "More")}
-    </button>
+  return <section key={platform ?? category.id} ref={screen} className={`more-screen menu-enter activity-${category.id}`} aria-labelledby="more-heading">
     <header className="more-heading">
-      <MenuTitle onClose={onClose} closeLabel={closeLabel}><h1 ref={heading} id="more-heading" tabIndex={-1}><span className="activity-category-icon">
-        <CategoryIcon category={category} size={23} />
-      </span>{category.title[l]}</h1></MenuTitle>
-      <div className="activity-resources">
-        <span className="more-resource"><Icon name="clock" size={15} />{t("Свободно време", "Free time")}: <strong>{availableTime}</strong></span>
-        <span className="more-resource"><Icon name="wallet" size={15} /><strong>{money(life.cash, l)}</strong></span>
-      </div>
+      <MenuTitle back onClose={platform ? () => openPlatform(null) : onCategoryBack ?? (() => changeCategory(null))}
+        closeLabel={platform ? t("Назад към Социални мрежи","Back to Social media") : onCategoryBack ? categoryBackLabel : t("Назад към Още","Back to More")}>
+        <h1 ref={heading} id="more-heading" tabIndex={-1}>{platform ?? category.title[l]}</h1>
+      </MenuTitle>
+      <span className="more-resource"><Icon name="clock" size={15} />{t("Свободно време", "Free time")}: <strong>{availableTime}</strong></span>
     </header>
-    <CategoryStatus life={life} category={category.id} l={l}/>
+    {!platform && <CategoryStatus life={life} category={category.id} l={l}/>}
     {!life.finished && life.choiceId === null && onJournal && <div className="activity-unlock">
       <span>{t("Първо вземи решението за тази година.", "Make this year’s story decision to unlock activities.")}</span>
       <button type="button" onClick={onJournal}>{t("Към решението", "Go to decision")}<Icon name="right" size={15} /></button>
     </div>}
     {feedback && !optionsForCategory.some(option => option.id === feedback.id) && <ActivityFeedback feedback={feedback} onJournal={onJournal} l={l} />}
-    {Array.from(groups, ([group, options]) => {
-      const platform = options[0].id.split(".")[1] as keyof typeof life.lifeSystems.social;
-      const profile = category.id === "social" ? life.lifeSystems.social[platform] : undefined;
-      const profileStatus = profile
-        ? profile.followers + " " + (profile.followers === 1 ? t("последовател", "follower") : t("последователи", "followers"))
-          + " · " + profile.posts + " " + (profile.posts === 1 ? t("публикация", "post") : t("публикации", "posts"))
-        : t("Нямаш профил", "No account");
-      const cards = <ul className="activity-list">{options.map(option => <ActivityCard option={option} key={option.id}
-        onChoose={chooseActivity} onJournal={onJournal} l={l} feedback={feedback?.id === option.id ? feedback : undefined} />)}</ul>;
-      if (category.id === "social" && group) return <details className="activity-platform" key={group} name="more-social-platforms">
-        <summary>
-          <span><strong>{group}</strong><small>{profileStatus}</small></span>
-          <Icon name="next" size={17} />
-        </summary>
-        {cards}
-      </details>;
-      return <div className="activity-group" key={group}>
-        {group && <h2>{group}</h2>}
-        {cards}
-      </div>;
-    })}
+    {category.id === "social" && !platform ? <div className="activity-directory">
+      {[...groups].map(([group, options]) => {
+        const key = options[0].id.split(".")[1] as keyof typeof life.lifeSystems.social;
+        const profile = life.lifeSystems.social[key];
+        const profileStatus = profile
+          ? profile.followers + " " + (profile.followers === 1 ? t("последовател", "follower") : t("последователи", "followers"))
+            + " · " + profile.posts + " " + (profile.posts === 1 ? t("публикация", "post") : t("публикации", "posts"))
+          : t("Нямаш профил", "No account");
+        return <button key={group} type="button" className="activity-category" onClick={() => openPlatform(group)}>
+          <span className="activity-category-icon"><CategoryIcon category={category}/></span>
+          <span className="activity-category-copy"><strong>{group}</strong><small>{profileStatus}</small></span>
+          <Icon name="next" size={17}/>
+        </button>;
+      })}
+    </div> : <ul className="activity-list">
+      {(platform ? groups.get(platform) ?? [] : optionsForCategory).map(option =>
+        <ActivityCard category={category} option={option} key={option.id} onChoose={chooseActivity} onJournal={onJournal} l={l}
+          feedback={feedback?.id === option.id ? feedback : undefined}/>)}
+    </ul>}
   </section>;
 }
