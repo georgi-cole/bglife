@@ -37,6 +37,14 @@ npm run build
 
 The production build creates **dist/** for static hosting or native wrapping, and **release/BgLife-Playable.html** for offline distribution. Serve the complete contents of `dist/` together. The local development server and a hosted deployment have separate saves. To create a ZIP containing the standalone game, compiled web build and complete source, run `python scripts/package.py` with Python 3.
 
+Pull requests into `main` run TypeScript, the simulation regression suite, and mobile browser smoke tests against the production build. The smoke tests use Chromium and WebKit to exercise the GitHub Pages path and the offline playtest. To run them locally, build the game and install the Playwright browsers.
+
+```sh
+npm run build
+npx playwright install chromium webkit
+npm run test:browser
+```
+
 The GitHub Pages workflow checks and builds every push to `main`, then publishes `dist/`. Repository Settings → Pages uses **GitHub Actions** as the publishing source.
 
 ## Population data
