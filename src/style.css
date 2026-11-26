@@ -38,7 +38,7 @@ img { display: block; max-width: 100%; }
   background: radial-gradient(ellipse 48rem 35rem at 50% 8rem, #2b2e44, transparent), var(--paper);
 }
 
-.masthead { grid-row: 1; background: #121621; border-bottom: 1px solid #ffffff12; padding: env(safe-area-inset-top, 0px) max(var(--gutter), env(safe-area-inset-right, 0px)) 0 max(var(--gutter), env(safe-area-inset-left, 0px)); }
+.masthead { grid-row: 1; background: var(--character-surface); border-bottom: 1px solid #44675f; padding: env(safe-area-inset-top, 0px) max(var(--gutter), env(safe-area-inset-right, 0px)) 0 max(var(--gutter), env(safe-area-inset-left, 0px)); }
 .masthead-inner { max-width: var(--measure); margin: auto; min-height: 3.9rem; display: flex; gap: 1rem; align-items: center; justify-content: space-between; }
 .wordmark { background: transparent; border: 0; padding: .2rem 0; font: 900 1.7rem/1 var(--sans); letter-spacing: -.08em; }
 .wordmark i { color: var(--coral); font-style: normal; }
@@ -47,7 +47,7 @@ img { display: block; max-width: 100%; }
 .lang-button { padding: 0 .53rem; font-weight: 800; font-size: .76rem; }
 .icon-button:hover, .lang-button:hover { background: #353c51; }
 
-.game-layout { grid-row: 3; min-width: 0; overflow: auto; overscroll-behavior-y: contain; padding: 1.25rem max(var(--gutter), env(safe-area-inset-right, 0px)) 1.85rem max(var(--gutter), env(safe-area-inset-left, 0px)); }
+.game-layout { grid-row: 3; min-width: 0; overflow: hidden auto; overscroll-behavior-y: contain; padding: 1.25rem max(var(--gutter), env(safe-area-inset-right, 0px)) 1.85rem max(var(--gutter), env(safe-area-inset-left, 0px)); }
 .main-column { display: grid; gap: .75rem; min-width: 0; max-width: var(--measure); margin: 0 auto; }
 .hero { position: relative; isolation: isolate; min-height: clamp(14rem, 29vw, 20.5rem); display: grid; align-items: end; overflow: hidden; background: #363248; border: 1px solid #ffffff23; border-radius: 1.18rem; box-shadow: 0 10px 28px #080a1152; }
 .hero-img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 60% center; }
@@ -246,6 +246,11 @@ summary::-webkit-details-marker { display: none; }
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
+:root {
+  --character-surface: radial-gradient(circle at 2px 2px, #9bc4a826 1px, transparent 1.45px) 0 0 / 13px 13px,
+    linear-gradient(108deg, #284940, #192c32 75%);
+}
+
 .character-header {
   max-width: var(--measure);
   min-height: 3.65rem;
@@ -262,8 +267,8 @@ summary::-webkit-details-marker { display: none; }
   width: 2.42rem;
   height: 2.42rem;
   border-radius: .75rem;
-  border: 1px solid #604b52;
-  background: #332937;
+  border: 1px solid #638075;
+  background: #243b39;
   font-size: 1.55rem;
   line-height: 1;
 }
@@ -292,10 +297,10 @@ summary::-webkit-details-marker { display: none; }
 .game-menu-content > .menu-title-row { margin-bottom: .6rem; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .menu-enter { animation: menu-enter .23s cubic-bezier(.2,.75,.25,1) both; }
+  .menu-enter { animation: menu-enter .27s cubic-bezier(.22,.75,.27,1); }
   @keyframes menu-enter {
-    from { opacity: 0; transform: translateY(.8rem); }
-    to { opacity: 1; transform: translateY(0); }
+    from { transform: translateX(clamp(2.5rem, 11vw, 6rem)); }
+    to { transform: translateX(0); }
   }
 }
 dialog.game-menu-dialog {
@@ -314,8 +319,8 @@ dialog.game-menu-dialog {
 }
 dialog.game-menu-dialog[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
 .game-menu-profile {
-  background: #121621;
-  border-bottom: 1px solid #ffffff12;
+  background: var(--character-surface);
+  border-bottom: 1px solid #44675f;
   padding-inline: max(var(--gutter), env(safe-area-inset-left, 0px)) max(var(--gutter), env(safe-area-inset-right, 0px));
 }
 .game-menu-content {
@@ -323,6 +328,6 @@ dialog.game-menu-dialog[open] { display: grid; grid-template-rows: auto minmax(0
   width: 100%;
   max-width: calc(var(--measure) + 2 * var(--gutter));
   margin-inline: auto;
-  overflow: auto;
+  overflow: hidden auto;
   padding: .8rem max(var(--gutter), env(safe-area-inset-right, 0px)) max(1rem, env(safe-area-inset-bottom, 0px)) max(var(--gutter), env(safe-area-inset-left, 0px));
 }
