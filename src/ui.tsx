@@ -38,9 +38,14 @@ export type IconName = keyof typeof paths;
 export function Icon({ name, size=20 }: { name: IconName; size?:number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>;
 }
+export function NavigationButton({label,onClick,back=false}: {label:string;onClick:()=>void;back?:boolean}) {
+  return <button type="button" className="navigation-button" aria-label={label} onClick={onClick}>
+    <span className="navigation-button-face"><Icon name={back?"back":"close"} size={15}/></span>
+  </button>;
+}
 export function MenuTitle({children,onClose,closeLabel,back=false}: {children:React.ReactNode;onClose:()=>void;closeLabel:string;back?:boolean}) {
   return <div className="menu-title-row">
-    <button type="button" className={back?"icon-button menu-back-button":"icon-button"} aria-label={closeLabel} onClick={onClose}><Icon name={back?"back":"close"} size={back?17:20}/></button>
+    <NavigationButton label={closeLabel} onClick={onClose} back={back}/>
     {children}
   </div>;
 }

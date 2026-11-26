@@ -53,8 +53,6 @@
   display: grid;
   grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem;
 }
-.more-heading .menu-title-row > button:not(.menu-back-button) { background: #202f49; border-color: #526984; }
-.more-heading .menu-title-row > button:not(.menu-back-button):hover { background: #3e5373; }
 .more-heading h1 {
   display: flex;
   align-items: center;

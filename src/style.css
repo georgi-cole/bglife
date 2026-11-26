@@ -292,24 +292,31 @@ summary::-webkit-details-marker { display: none; }
 .character-money strong { color: var(--mint); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .life-tools { display: flex; justify-content: space-between; gap: .5rem; }
 .menu-title-row { display: flex; align-items: center; gap: .7rem; min-width: 0; }
-.menu-title-row > button { flex: none; min-width: 2.75rem; min-height: 2.75rem; }
 .menu-title-row > :is(h1,h2) { min-width: 0; margin: 0; }
 .game-menu-content > .menu-title-row { margin-bottom: .6rem; }
-.menu-title-row > button.menu-back-button {
-  position: relative;
+.navigation-button {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  padding: 0;
   border: 0;
+  border-radius: .55rem;
+  color: inherit;
   background: transparent;
 }
-.menu-back-button::before {
-  content: "";
-  position: absolute;
-  inset: .42rem;
-  border-radius: 50%;
-  background: #ffffff0b;
-  border: 1px solid #ffffff30;
+.navigation-button-face {
+  display: grid;
+  place-items: center;
+  inline-size: 1.68rem;
+  block-size: 1.68rem;
+  border: 1px solid #ffffff24;
+  border-radius: .46rem;
+  background: #ffffff09;
 }
-.menu-back-button:hover::before { background: #ffffff26; }
-.menu-back-button > svg { position: relative; }
+.navigation-button:hover .navigation-button-face { background: #ffffff18; border-color: #ffffff42; }
+.navigation-button:active .navigation-button-face { background: #ffffff24; }
 
 @media (prefers-reduced-motion: no-preference) {
   .menu-enter { animation: menu-enter .24s cubic-bezier(.2,.65,.3,1); }
