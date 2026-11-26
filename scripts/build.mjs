@@ -1,4 +1,5 @@
 import { build, context } from 'esbuild';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -44,10 +45,22 @@ function page(style, script) {
     .replace('<!-- bglife:script -->', () => script);
 }
 
+async function writeWebEntry() {
+  const assets = ['app.css', 'app.js'];
+  const version = serve ? '' : '?v=' + createHash('sha256')
+    .update(await readFile(path.join(dist, assets[0])))
+    .update(await readFile(path.join(dist, assets[1])))
+    .digest('hex').slice(0, 12);
+  await writeFile(path.join(dist, 'index.html'), page(
+    '<link rel="stylesheet" href="./' + assets[0] + version + '">',
+    '<script src="./' + assets[1] + version + '"></script>',
+  ));
+}
+
 await mkdir(dist, { recursive: true });
-await writeFile(path.join(dist, 'index.html'), page('<link rel="stylesheet" href="./app.css">', '<script src="./app.js"></script>'));
 await writeFile(path.join(dist, 'CREDITS.txt'), notices);
 if (serve) {
+  await writeWebEntry();
   const port = Number(process.env.PORT || 4187);
   const ctx = await context(config);
   await ctx.watch();
@@ -55,6 +68,7 @@ if (serve) {
   console.log('BgLife is running at http://127.0.0.1:' + server.port + '/');
 } else {
   await build(config);
+  await writeWebEntry();
   const packed = await build({ ...config, write: false, loader: { '.webp': 'dataurl' } });
   const css = packed.outputFiles.find(f => f.path.endsWith('.css')).text.replace(/<\/style/gi, '<\\/style');
   const js = packed.outputFiles.find(f => f.path.endsWith('.js')).text.replace(/<\/script/gi, '<\\/script');
