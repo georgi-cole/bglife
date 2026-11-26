@@ -6,8 +6,10 @@ import {Journal,Wallet} from "./Journal.tsx";
 import {Icon,PlaySymbol,copy,tabLabels,type Tab} from "./ui.tsx";
 import {deserialize,initialLanguage,LANGUAGE_KEY,loadSession,persist,SAVE_KEY,serialize,type Session} from "./session.ts";
 import "./style.css";
+import {StartGuide,StartScreen} from "./StartScreen.tsx";
 
-type Dialog="wallet"|"settings"|"replay"|null;
+type Dialog="wallet"|"settings"|"replay"|"guide"|null;
+type Screen = "home" | "game" | "album";
 type LogPosition = {age: number; focus?: boolean};
 
 function lastLogPosition(life: GameState): LogPosition | null {
@@ -24,9 +26,12 @@ function scrollToLog(position: LogPosition) {
 function App(){
   const [first]=useState(loadSession),[session,setSession]=useState(first.session),[notice,setNotice]=useState(first.notice);
   const [l,setLanguage]=useState(initialLanguage),[tab,setTab]=useState<Tab>("journal"),[dialog,setDialog]=useState<Dialog>(null);
+  const [screen,setScreen]=useState<Screen>("home");
   const live=useRef(session),dialogRef=useRef<HTMLDialogElement>(null);
   const viewportRef=useRef<HTMLDivElement>(null);
-  const nextLogPosition=useRef<LogPosition|null>(lastLogPosition(first.session.life));
+  const mainRef=useRef<HTMLElement>(null);
+  const focusScreen=useRef(false);
+  const nextLogPosition=useRef<LogPosition|null>(null);
   const s=session.life,t=(bg:string,en:string)=>copy(l,bg,en);
   const labels=tabLabels(l);
   function commit(next:Session){
@@ -41,14 +46,24 @@ function App(){
     }
     window.addEventListener("storage",sync);return ()=>window.removeEventListener("storage",sync);
   },[]);
-  useEffect(()=>{document.documentElement.lang=l;document.title="BgLife · "+t("Животът на Мила","Mila’s life");},[l]);
+  useEffect(()=>{
+    document.documentElement.lang=l;
+    if(screen==="game")document.title="BgLife · "+t("Животът на Мила","Mila’s life");
+    else if(screen==="album")document.title="BgLife · "+t("Албум","Album");
+    else document.title="BgLife";
+  },[l,screen]);
   useLayoutEffect(()=>{
     const position=nextLogPosition.current;
-    if(tab==="journal"&&position){
+    if(focusScreen.current){
+      focusScreen.current=false;
+      viewportRef.current?.scrollTo(0,0);
+      if(!position?.focus)mainRef.current?.focus({preventScroll:true});
+    }
+    if(screen==="game"&&tab==="journal"&&position){
       nextLogPosition.current=null;
       scrollToLog(position);
     }
-  },[s,tab]);
+  },[s,tab,screen]);
   useEffect(()=>{
     if(!dialog||!dialogRef.current)return;
     const d=dialogRef.current;d.showModal();
@@ -57,6 +72,23 @@ function App(){
   function setLocale(){
     const next=l==="bg"?"en":"bg";setLanguage(next);
     try{localStorage.setItem(LANGUAGE_KEY,next)}catch{/* In-memory language still works. */}
+  }
+  function openMenuScreen(which:"home"|"album"){
+    if(screen===which)return;
+    nextLogPosition.current=null;
+    focusScreen.current=true;
+    setScreen(which);
+  }
+  function openJournal(life:GameState){
+    const position=lastLogPosition(life);
+    nextLogPosition.current=position && {...position,focus:true};
+    focusScreen.current=true;
+    setTab("journal");
+    setScreen("game");
+  }
+  function startLife(){
+    if(live.current.life.commands.length>0)setDialog("replay");
+    else openJournal(live.current.life);
   }
   function route(which:Tab){
     const position=which==="journal"?lastLogPosition(live.current.life):null;
@@ -91,8 +123,10 @@ function App(){
   }
   function replay(){
     const current=live.current;
-    commit({life:newLife(),album:current.life.history.length?[...current.album,current.life]:current.album});
-    setDialog(null);route("journal");
+    const life=newLife();
+    commit({life,album:current.life.history.length?[...current.album,current.life]:current.album});
+    close();
+    openJournal(life);
   }
   function exportSave(){
     const b=new Blob([serialize(live.current)],{type:"application/json"});
@@ -109,26 +143,34 @@ function App(){
       const key=v.seed+"-"+JSON.stringify(v.commands);
       if(v.seed!==restored.life.seed||JSON.stringify(v.commands)!==JSON.stringify(restored.life.commands))histories.set(key,v);
     }
-    nextLogPosition.current=lastLogPosition(restored.life);
-    if(!nextLogPosition.current)viewportRef.current?.scrollTo(0,0);
-    commit({life:restored.life,album:[...histories.values()]});close();setTab("journal");
+    commit({life:restored.life,album:[...histories.values()]});
+    close();
+    openJournal(restored.life);
   }
   const fallback = defaultPlayChoice(s);
   const playLabel = s.finished ? t("Нов живот","New life") : t("Следваща година","Next year");
   function navItem(k:Tab) {
     return <button data-tab={k} className="nav-item" aria-current={tab===k?"page":undefined} onClick={()=>route(k)}><Icon name={k}/><span>{labels[k]}</span></button>;
   }
-  return <div className="app-shell">
-    <header className="masthead"><div className="masthead-inner">
-      <button className="wordmark" aria-label={t("BgLife – към дневника","BgLife – open journal")} onClick={()=>route("journal")}><span>Bg<i>Life</i></span></button>
-      <div className="masthead-actions"><button className="lang-button" data-testid="language" onClick={setLocale} aria-label={t("Switch to English","Премини на български")}>{l==="bg"?"EN":"БГ"}</button><button className="icon-button" data-testid="settings" onClick={()=>setDialog("settings")} aria-label={t("Настройки","Settings")}><Icon name="settings"/></button></div>
-    </div></header>
+  const toolbar = <div className="masthead-actions">
+    <button className="lang-button" data-testid="language" onClick={setLocale} aria-label={t("Switch to English","Премини на български")}>{l==="bg"?"EN":"БГ"}</button>
+    <button className="icon-button" data-testid="settings" onClick={()=>setDialog("settings")} aria-label={t("Настройки","Settings")}><Icon name="settings"/></button>
+  </div>;
+  return <div className={screen==="home"?"app-shell app-shell--home":"app-shell"}>
+    {screen!=="home"&&<header className="masthead"><div className="masthead-inner">
+      <button className="icon-button menu-button" onClick={()=>openMenuScreen("home")}><Icon name="menu" size={18}/>{t("Меню","Menu")}</button>
+      {toolbar}
+    </div></header>}
     {notice&&<div className="save-notice" role="status"><span>{notice==="temporary"?t("Браузърът не запази играта. Можеш да изтеглиш копие от Настройки.","This browser couldn’t save your game. Download a backup in Settings."):notice==="recovered"?t("Дневникът е възстановен от предишния запис.","Your journal was restored from its previous save."):t("Предишният запис е повреден. Започваш нова глава.","The previous save was damaged. A new chapter has begun.")}</span><button aria-label={t("Затвори","Dismiss")} onClick={()=>setNotice(null)}><Icon name="close" size={16}/></button></div>}
-    <div className="game-layout" ref={viewportRef}><main className="main-column" id="main">
-      {tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>setDialog("wallet")} onAlbum={()=>route("album")} onReplay={()=>setDialog("replay")}/>:
+    <div className={screen==="game"?"game-layout":"game-layout start-layout"} ref={viewportRef}>
+      <main className={screen==="home"?"main-column start-column":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
+      {screen==="home"?<StartScreen life={s} l={l} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
+        onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</StartScreen>:
+       screen==="album"?<Album s={s} archive={session.album} l={l}/>:
+       tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>setDialog("wallet")} onAlbum={()=>route("album")} onReplay={()=>setDialog("replay")}/>:
        tab==="people"?<People s={s} l={l}/>:tab==="places"?<Places s={s} l={l}/>:<Album s={s} archive={session.album} l={l}/>}
     </main></div>
-    <nav className="bottom-nav" aria-label={t("Навигация","Navigation")}>
+    {screen==="game"&&<nav className="bottom-nav" aria-label={t("Навигация","Navigation")}>
       <div className="nav-inner">
         {navItem("journal")}{navItem("people")}
         <button className="play-control" data-testid="advance" onClick={nextYear}
@@ -139,15 +181,15 @@ function App(){
         </button>
         {navItem("places")}{navItem("album")}
       </div>
-    </nav>
-    {dialog&&<dialog key={dialog} ref={dialogRef} className="modal-card" onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}><div className="dialog-head"><h2 id="dialog-heading">{dialog==="wallet"?t("Портфейл","Wallet"):dialog==="settings"?t("Настройки","Settings"):t("Нов живот","Another life")}</h2><button className="icon-button" aria-label={t("Затвори","Close")} onClick={close}><Icon name="close"/></button></div>
-      {dialog==="wallet"?<Wallet s={s} l={l}/>:dialog==="replay"?<><p>{t("Започваш отново на 16 в Трявна. Написаните страници от този живот ще останат в албума.","Start again at sixteen in Tryavna. The pages from this life will stay in your album.")}</p><div className="dialog-actions"><button className="secondary-button" onClick={close}>{t("Назад","Back")}</button><button className="primary-button" data-testid="confirm-replay" onClick={replay}>{t("Започни отначало","Start again")}</button></div></>:
+    </nav>}
+    {dialog&&<dialog key={dialog} ref={dialogRef} className="modal-card" onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}><div className="dialog-head"><h2 id="dialog-heading">{dialog==="wallet"?t("Портфейл","Wallet"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):t("Нов живот","New life")}</h2><button className="icon-button" aria-label={t("Затвори","Close")} onClick={close}><Icon name="close"/></button></div>
+      {dialog==="wallet"?<Wallet s={s} l={l}/>:dialog==="guide"?<StartGuide l={l}/>:dialog==="replay"?<><p>{t("Започваш отново на 16 в Трявна. Написаните страници от този живот ще останат в албума.","Start again at sixteen in Tryavna. The pages from this life will stay in your album.")}</p><div className="dialog-actions"><button className="secondary-button" onClick={close}>{t("Назад","Back")}</button><button className="primary-button" data-testid="confirm-replay" onClick={replay}>{t("Започни отначало","Start again")}</button></div></>:
       <div className="settings-list"><button onClick={setLocale}>{t("Език","Language")}<strong>{l==="bg"?"Български → English":"English → Български"}</strong></button>
       <button onClick={exportSave}>{t("Изтегли резервно копие","Download a backup")}<Icon name="down"/></button>
       <label className="import-label">{t("Възстанови от файл","Restore from a file")}<input type="file" accept=".json,application/json" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;try{const value=file.size<5_000_000?deserialize(await file.text()):null;importRef.current=value;setImportMessage(value?"ready":"invalid")}catch{setImportMessage("invalid")}e.target.value=""}}/></label>
       {importMessage==="ready"&&<><p>{t("Текущият живот ще остане в албума.","Your current life will stay in the album.")}</p><button className="secondary-button" onClick={importBackup}>{t("Възстанови избрания запис","Restore selected save")}</button></>}
       {importMessage==="invalid"&&<p role="alert">{t("Този файл не е съвместим запис на BgLife.","This file is not a compatible BgLife save.")}</p>}
-      <button data-testid="replay" onClick={()=>{setDialog("replay");setImportMessage(null);importRef.current=null}}>{t("Започни друг живот","Start another life")}<Icon name="right"/></button></div>}
+      {screen==="game"&&<button data-testid="replay" onClick={()=>{setDialog("replay");setImportMessage(null);importRef.current=null}}>{t("Започни друг живот","Start another life")}<Icon name="right"/></button>}</div>}
     </dialog>}
   </div>;
 }
