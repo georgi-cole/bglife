@@ -35,19 +35,13 @@
   background: #344659;
 }
 .people-family-icon { display: grid; place-items: center; background: #473345; color: #f8aeca; }
-.people-meter {
-  display: grid;
-  grid-template-columns: auto minmax(1.6rem, 8rem) auto;
-  align-items: center;
-  gap: .36rem;
-  margin-top: .12rem;
-  font-size: .69rem;
-  color: #b9cad8;
-}
-.people-meter meter { width: 100%; height: .55rem; accent-color: #82c6ad; }
-.people-meter meter::-webkit-meter-bar { border: 0; border-radius: 1rem; background: #465060; }
-.people-meter meter::-webkit-meter-optimum-value { border-radius: 1rem; background: #82c6ad; }
-.people-meter strong { color: #e3f2ec; font-variant-numeric: tabular-nums; }
+.people-meter { display: block; width: min(100%, 9rem); height: .55rem; margin-top: .18rem; --bond-color: #80c5a9; accent-color: var(--bond-color); }
+.people-meter[data-level="neutral"] { --bond-color: #e3c465; }
+.people-meter[data-level="strained"] { --bond-color: #e6a064; }
+.people-meter[data-level="poor"] { --bond-color: #e47a82; }
+.people-meter::-webkit-meter-bar { border: 0; border-radius: 1rem; background: #465060; }
+.people-meter::-webkit-meter-optimum-value { border-radius: 1rem; background: var(--bond-color); }
+.people-meter::-moz-meter-bar { border-radius: 1rem; background: var(--bond-color); }
 .people-profile {
   display: flex;
   align-items: center;
@@ -91,4 +85,3 @@
 .people-action-cost, .people-action-cost span { display: flex; align-items: center; gap: .3rem; }
 .people-action-cost { gap: .65rem; color: #adc5d8; font-size: .68rem; }
 .people-action-copy .people-action-blocked { color: #e8c39b; }
-.people-action-outcome { margin: 0; padding: .48rem var(--gutter) .65rem; color: #b8e0d0; font-size: .79rem; line-height: 1.35; background: #253a3b; }

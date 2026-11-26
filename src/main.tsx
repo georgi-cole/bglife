@@ -1,8 +1,10 @@
 import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
 import {createRoot} from "react-dom/client";
-import {FIRST_AGE,choose,defaultPlayChoice,doAction,doLifeActivity,giveUp,newLife,playYear,type GameState,type LifeActivityCategory} from "./engine.ts";
+import {FIRST_AGE,choose,defaultPlayChoice,doAction,doLifeActivity,getPersonActivities,giveUp,newLife,playYear,type GameState,type LifeActivityCategory,type LifeActivityOption} from "./engine.ts";
 import {Album,Places} from "./Views.tsx";
 import {People} from "./People.tsx";
+import {BgLifeMark,PersonActionDialog,type PersonActionFlow} from "./PersonActionDialog.tsx";
+import {personRelationship,type PeopleId} from "./peopleIdentity.ts";
 import {Journal,Wallet} from "./Journal.tsx";
 import {More,StatsBars} from "./More.tsx";
 import {Icon,MenuTitle,NavigationButton,PlaySymbol,copy,money,name,occupation,tabLabels,type Tab} from "./ui.tsx";
@@ -16,7 +18,7 @@ import type {AvatarTraits} from "./avatar.ts";
 type Dialog="wallet"|"settings"|"replay"|"guide"|"give-up"|null;
 type Screen = "home" | "game" | "album" | "avatar";
 type MoreParent = "journal" | "people" | "places" | "wallet";
-type LogPosition = {age: number; focus?: boolean};
+type LogPosition = {age: number; focus?: boolean; activityId?: string};
 
 function lastLogPosition(life: GameState): LogPosition | null {
   const last = life.history.at(-1);
@@ -24,7 +26,8 @@ function lastLogPosition(life: GameState): LogPosition | null {
 }
 
 function scrollToLog(position: LogPosition) {
-  const heading = document.getElementById("life-year-" + position.age);
+  const entry = position.activityId ? document.getElementById("life-event-" + position.age + "-" + position.activityId) : null;
+  const heading = entry ?? document.getElementById("life-year-" + position.age);
   heading?.scrollIntoView({block:"start"});
   if(position.focus)heading?.focus({preventScroll:true});
 }
@@ -56,6 +59,7 @@ function App(){
   const [moreMenu,setMoreMenu]=useState<{category:LifeActivityCategory|null;parent:MoreParent;version:number}>({category:null,parent:"journal",version:0});
   const [albumFromMore,setAlbumFromMore]=useState(false);
   const [slideMenu,setSlideMenu]=useState(false);
+  const [personAction,setPersonAction]=useState<PersonActionFlow|null>(null);
   const live=useRef(session),dialogRef=useRef<HTMLDialogElement>(null);
   const viewportRef=useRef<HTMLDivElement>(null);
   const mainRef=useRef<HTMLElement>(null);
@@ -115,9 +119,9 @@ function App(){
     focusScreen.current=true;
     setScreen(which);
   }
-  function openJournal(life:GameState,currentYear=false){
+  function openJournal(life:GameState,currentYear=false,activityId?:string){
     const position=currentYear?{age:life.age}:lastLogPosition(life);
-    nextLogPosition.current=position && {...position,focus:true};
+    nextLogPosition.current=position && {...position,focus:true,activityId};
     focusScreen.current=true;
     setTab("journal");
     setScreen("game");
@@ -183,6 +187,31 @@ function App(){
     if(ended===current.life)return;
     commit({...current,life:ended});
     openJournal(ended);
+  }
+  function openPersonAction(contact:PeopleId,options:LifeActivityOption[]){
+    const firstOption=options[0];
+    if(!firstOption)return;
+    setPersonAction({contact,seed:s.seed,age:s.age,ids:options.map(option=>option.id),branch:firstOption.branch,
+      selected:firstOption.branch?null:firstOption.id,outcome:null});
+  }
+  function confirmPersonAction(){
+    const current=live.current;
+    if(!personAction||personAction.outcome||!personAction.selected||current.life!==s
+      ||s.seed!==personAction.seed||s.age!==personAction.age)return;
+    const option=getPersonActivities(s,personAction.contact).find(choice=>choice.id===personAction.selected);
+    if(!option||option.blocked)return;
+    const updated=doLifeActivity(s,option.id,s.age);
+    const entry=updated.history.at(-1);
+    if(updated===s||!entry)return;
+    const before=personRelationship(s,personAction.contact),after=personRelationship(updated,personAction.contact);
+    setPersonAction({...personAction,outcome:{entry,relationDelta:before!==null&&after!==null?after-before:null}});
+    commit({...current,life:updated});
+    openJournal(updated,true,entry.id);
+  }
+  function closePersonAction(){
+    const entry=personAction?.outcome?.entry;
+    setPersonAction(null);
+    if(entry)requestAnimationFrame(()=>scrollToLog({age:entry.age,activityId:entry.id,focus:true}));
   }
   function act(fn:(v:GameState)=>GameState){
     const current=live.current;
@@ -267,6 +296,7 @@ function App(){
       <main className={screen==="home"?"main-column start-column":(showJournal===false&&(tab==="people"||tab==="places")&&screen==="game"&&slideMenu)?"main-column menu-enter":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
       {showJournal&&<div className="life-tools">
         <button className="icon-button menu-button" onClick={()=>openMenuScreen("home")}><Icon name="menu" size={18}/>{t("Меню","Menu")}</button>
+        <BgLifeMark/>
         {toolbar}
       </div>}
       {screen==="home"?<StartScreen life={s} l={l} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
@@ -274,7 +304,7 @@ function App(){
        screen==="avatar"?<AvatarCreator l={l} startAge={FIRST_AGE} onClose={cancelAvatarCreator} onStart={startWithAvatar}/>:
        screen==="album"?<Album {...menuProps} back s={s} archive={session.album} l={l}/>:
        tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>openGameMenu("wallet")} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore}/>:
-       tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family","people")} onActivity={id=>act(v=>doLifeActivity(v,id,s.age))}/>:tab==="places"?<Places {...menuProps} s={s} l={l} onHolidays={()=>openMore("holidays","places")}/>:
+       tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family","people")} onActivity={openPersonAction}/>:tab==="places"?<Places {...menuProps} s={s} l={l} onHolidays={()=>openMore("holidays","places")}/>:
        tab==="more"?<More {...menuProps} key={moreMenu.version} life={s} l={l} initialCategory={moreMenu.category} animateEntry={slideMenu&&moreMenu.category===null}
         onActivity={id=>act(v=>doLifeActivity(v,id,s.age))} onGiveUp={requestGiveUp} onJournal={()=>openJournal(live.current.life,true)} onAlbum={()=>openAlbum(true)}
         onCategoryBack={moreMenu.category?backFromCategory:undefined} categoryBackLabel={categoryBackLabel}/>:
@@ -292,6 +322,8 @@ function App(){
         {navItem("places")}{navItem("more")}
       </div>
     </nav><StatsBars life={s} l={l}/></footer>}
+    {personAction&&<PersonActionDialog flow={personAction} life={s} l={l} onClose={closePersonAction}
+      onSelect={selected=>setPersonAction({...personAction,selected})} onConfirm={confirmPersonAction}/>}
     {dialog&&<dialog key={dialog} ref={dialogRef} className={menuDialog?"modal-card game-menu-dialog":"modal-card"} onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}>
       {menuDialog&&screen!=="home"&&<div className="game-menu-profile"><CharacterHeader life={s} l={l}/></div>}
       <div className={menuDialog?(slideMenu&&showJournal?"game-menu-content menu-enter":"game-menu-content"):undefined}>

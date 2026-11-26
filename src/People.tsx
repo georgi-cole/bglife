@@ -76,9 +76,8 @@ function getPeople(s: GameState, l: Language): Group[] {
 }
 
 function RelationshipMeter({score}: {score:NonNullable<Person["score"]>}) {
-  return <span className="people-meter">
-    <span>{score.label}</span><meter aria-label={score.label} min={0} max={100} value={score.value}/><strong>{score.value}%</strong>
-  </span>;
+  return <meter className="people-meter" aria-label={score.label} min={0} max={100} value={score.value}
+    data-level={score.value<25?"poor":score.value<45?"strained":score.value<60?"neutral":"good"}/>;
 }
 
 function Portrait({person,seed}: {person:Person;seed:number}) {
@@ -89,30 +88,34 @@ const actionIcons: Record<string,IconName> = {
   "voice-note":"phone", coffee:"food", game:"video", gaming:"video", basketball:"bolt", meme:"photo", cinema:"video",
   feedback:"journal", advice:"phone", "video-call":"phone", takeaway:"food", concert:"music", "check-in":"phone",
   park:"leaf", bedtime:"journal", playground:"sun", "board-game":"sparkle", skate:"shoes",
+  compliment:"sparkle", conversation:"people", gift:"bag", "give-money":"wallet", "ask-money":"wallet",
+  walk:"places", fitness:"bolt", insult:"bolt", argue:"live", persuade:"heart",
 };
 
-function ActionRow({action,l,onClick}: {action:LifeActivityOption;l:Language;onClick:()=>void}) {
-  const symbol=actionIcons[action.id.split(".")[2]]??"people";
-  return <button type="button" className="people-action" aria-disabled={!!action.blocked} onClick={()=>{if(!action.blocked)onClick()}}>
+function ActionRow({options,l,onClick}: {options:LifeActivityOption[];l:Language;onClick:()=>void}) {
+  const action=options[0],branch=action.branch;
+  const symbol=actionIcons[branch?.id??action.id.split(".")[2]]??"people";
+  const blocked=!branch&&action.blocked;
+  return <button type="button" className="people-action" data-action-group={branch?.id} aria-disabled={!!blocked}
+    onClick={()=>{if(!blocked)onClick()}}>
     <span className="people-action-icon"><Icon name={symbol} size={20}/></span>
     <span className="people-action-copy">
-      <strong>{action.label[l]}</strong>
-      <small>{action.description[l]}</small>
-      <span className="people-action-cost">
-        {action.cashDelta!==0&&<span><Icon name="wallet" size={13}/>{money(Math.abs(action.cashDelta),l)}</span>}
+      <strong>{(branch?.label??action.label)[l]}</strong>
+      <small>{(branch?.description??action.description)[l]}</small>
+      {!branch&&<span className="people-action-cost">
+        {action.cashDelta<0&&<span><Icon name="wallet" size={13}/>{money(-action.cashDelta,l)}</span>}
         {action.timeCost>0&&<span><Icon name="clock" size={13}/>{copy(l,action.timeCost+" ангажимент",action.timeCost+" time slot")}</span>}
-      </span>
-      {action.blocked&&<small className="people-action-blocked">{action.blocked[l]}</small>}
+      </span>}
+      {blocked&&<small className="people-action-blocked">{blocked[l]}</small>}
     </span>
-    <Icon name={action.blocked?"key":"next"} size={16}/>
+    <Icon name={blocked?"key":"next"} size={16}/>
   </button>;
 }
 
 export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
-  s:GameState;l:Language;onFamily:()=>void;onClose:()=>void;closeLabel:string;onActivity:(id:string)=>void;
+  s:GameState;l:Language;onFamily:()=>void;onClose:()=>void;closeLabel:string;onActivity:(contact:PeopleId,options:LifeActivityOption[])=>void;
 }) {
   const [selected,setSelected]=useState<PeopleId|null>(null);
-  const [chosen,setChosen]=useState<string|null>(null);
   const heading=useRef<HTMLHeadingElement>(null);
   const shouldFocus=useRef(false);
   const t=(bg:string,en:string)=>copy(l,bg,en);
@@ -120,8 +123,13 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
   const person=groups.flatMap(group=>group.people).find(row=>row.id===selected);
   const {partner,expecting}=s.lifeSystems.family;
   const actions=person?getPersonActivities(s,person.id):[];
-  const latest=s.history.at(-1);
-  const outcome=chosen && latest?.kind==="action" && latest.id===chosen ? latest : null;
+  const actionRows=new Map<string,LifeActivityOption[]>();
+  for(const action of actions){
+    const key=action.branch?.id??action.id;
+    const row=actionRows.get(key);
+    if(row)row.push(action);
+    else actionRows.set(key,[action]);
+  }
 
   useLayoutEffect(()=>{
     if(!shouldFocus.current)return;
@@ -132,7 +140,6 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
   },[selected]);
 
   function openPerson(id:PeopleId|null) {
-    setChosen(null);
     shouldFocus.current=true;
     setSelected(id);
   }
@@ -158,9 +165,8 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
           {t("Действия","Activities")}
           <span><Icon name="clock" size={14}/>{t("Свободно време","Free time")} <strong>{commitmentsLeft(s)}</strong></span>
         </h2>
-        {actions.map(action=><div className="people-action-entry" key={action.id}>
-          <ActionRow action={action} l={l} onClick={()=>{setChosen(action.id);onActivity(action.id);}}/>
-          {outcome?.id===action.id&&<p className="people-action-outcome" role="status">{outcome.text[l]}</p>}
+        {[...actionRows].map(([key,options])=><div className="people-action-entry" key={key}>
+          <ActionRow options={options} l={l} onClick={()=>onActivity(person.id,options)}/>
         </div>)}
       </section>
     </> : <>

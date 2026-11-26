@@ -182,3 +182,34 @@ test("child profiles offer age-appropriate actions that strengthen their bond", 
   assert.ok(getPersonActivities(s,"child-0").some(action=>action.id==="people.child-0.board-game"));
   assert.strictEqual(doLifeActivity(s,"people.child-0.park"),s);
 });
+
+test("branched walks respect locations and record the selected place and person", () => {
+  const town=pick(toAge(16));
+  const townChoices=getPersonActivities(town,"friend").filter(action=>action.branch?.id==="walk");
+  assert.ok(townChoices.find(action=>action.id.endsWith(".south-park")).blocked);
+  const walked=doLifeActivity(town,"people.friend.walk.tryavna-centre");
+  assert.ok(walked.history.at(-1).title.bg.includes("Часовниковата кула"));
+  assert.ok(walked.history.at(-1).text.bg.includes("Елица Петрова"));
+  assert.strictEqual(doLifeActivity(walked,"people.friend.walk.tryavna-river"),walked);
+  roundTrip(walked);
+  const sofia=choose(toAge(19),"rumi");
+  assert.equal(sofia.city,"sofia");
+  const route=getPersonActivities(sofia,"rumi").find(action=>action.id==="people.rumi.walk.ariana");
+  assert.equal(route.blocked,null);
+  roundTrip(doLifeActivity(sofia,route.id));
+});
+
+test("localized branch choices use actual wallet and relationship changes", () => {
+  const initial=pick(toAge(16));
+  const voucher=doLifeActivity(initial,"people.rumi.give-money.billa-voucher");
+  assert.equal(voucher.cash,initial.cash-1500);
+  assert.ok(voucher.history.at(-1).text.bg.includes("ваучера"));
+  assert.strictEqual(doLifeActivity(voucher,"people.rumi.give-money.old-leva"),voucher);
+  const insult=doLifeActivity(voucher,"people.rumi.insult.filmar");
+  assert.ok(insult.trust.rumi<voucher.trust.rumi);
+  const asked=doLifeActivity(initial,"people.rumi.ask-money.doner");
+  assert.ok([0,500].includes(asked.cash-initial.cash));
+  assert.equal(asked.history.at(-1).cashDelta,asked.cash-initial.cash);
+  roundTrip(asked);
+  roundTrip(insult);
+});

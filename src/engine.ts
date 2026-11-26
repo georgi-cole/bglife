@@ -1,4 +1,4 @@
-import type { PeopleId } from "./peopleIdentity.ts";
+import { personName, type PeopleId } from "./peopleIdentity.ts";
 import { actions, scenes } from "./story.ts";
 import { parseAvatar, type AvatarTraits } from "./avatar.ts";
 import {
@@ -274,15 +274,23 @@ export function doLifeActivity(s: GameState, id: string, expectedAge = s.age): G
   const activity = lifeActivityOption(s, definition, commitmentsLeft(s));
   if (activity.blocked) return s;
 
+  const resolution=definition.resolve?.(s);
+  const label=definition.branch ? {
+    bg: definition.branch.label.bg+" · "+definition.label.bg,
+    en: definition.branch.label.en+" · "+definition.label.en,
+  } : definition.label;
+  const narrative=resolution?.result ?? definition.result;
+  const contact=definition.contact ? personName(s.seed,definition.contact) : null;
   const option: Option = {
-    id: definition.id, label: definition.label, result: definition.result,
+    id: definition.id, label,
+    result: contact ? {bg: contact.bg+" · "+narrative.bg, en: contact.en+" · "+narrative.en} : narrative,
     effect: {
-      cash: activity.cashDelta, stats: definition.stats ?? {},
-      trust: definition.trust, person: definition.person,
+      cash: activity.cashDelta, stats: resolution?.stats ?? definition.stats ?? {},
+      trust: resolution?.trust ?? definition.trust, person: definition.person,
     },
   };
-  const result = applyOption(s, "action", option, definition.label);
-  const lifeSystems = definition.update?.(s) ?? s.lifeSystems;
+  const result = applyOption(s, "action", option, label);
+  const lifeSystems = resolution?.lifeSystems ?? definition.update?.(s) ?? s.lifeSystems;
   return { ...result, lifeSystems: definition.resolvesMedicalIssue ? { ...lifeSystems, medicalIssue: null } : lifeSystems };
 }
 

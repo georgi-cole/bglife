@@ -20,7 +20,9 @@ function StatChanges({delta, l}: {delta: Memory["statsDelta"]; l: Language}) {
 
 function LifeEvent({event, l, avatar}: {event: Memory; l: Language; avatar: GameState["avatar"]}) {
   const action = event.kind === "action";
-  return <li className={"life-event " + (action ? "life-action" : "life-decision")}>
+  const personEvent=action&&event.id.startsWith("people.");
+  return <li className={"life-event " + (action ? "life-action" : "life-decision")}
+    id={personEvent?"life-event-"+event.age+"-"+event.id:undefined} tabIndex={personEvent?-1:undefined} data-person-event={personEvent||undefined}>
     <span className="life-event-icon"><Icon name={action ? "clock" : event.kind === "end" ? "journal" : "check"} size={16}/></span>
     <div className="life-event-content">
       <h4>{event.title[l]}</h4>

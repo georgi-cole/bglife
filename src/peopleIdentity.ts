@@ -45,6 +45,12 @@ export function personName(seed: number, id: PeopleId): Text {
   return sex==="female"?{bg:bg+" Николова",en:en+" Nikolova"}:{bg:bg+" Николов",en:en+" Nikolov"};
 }
 
+export function personRelationship(s: GameState,id: PeopleId): number | null {
+  if(isChild(id))return s.lifeSystems.family.childProfiles[childIndex(id)]?.bond??null;
+  if(s.lifeSystems.family.partner===id)return s.lifeSystems.family.bond;
+  return id==="appMatch"||id==="serviceMatch"?null:s.trust[id];
+}
+
 export function personAge(s: GameState, id: PeopleId): number | null {
   if(!isChild(id))return s.age+ageOffset[id];
   const child=s.lifeSystems.family.childProfiles[childIndex(id)];

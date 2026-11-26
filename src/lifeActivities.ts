@@ -37,6 +37,9 @@ export type LifeSystems = {
   legacy: { heirs: Heir[]; prepared: boolean };
 };
 
+export type ActivityBranch = { id: string; label: Text; description: Text };
+export type ActivityResolution = { result: Text; stats?: StatDelta; trust?: Partial<Record<PersonId, number>>; lifeSystems?: LifeSystems };
+
 export type LifeActivityDefinition = {
   id: string;
   category: LifeActivityCategory;
@@ -56,9 +59,11 @@ export type LifeActivityDefinition = {
   resolvesMedicalIssue?: boolean;
   contact?: PeopleId;
   visible?: (s: GameState) => boolean;
+  branch?: ActivityBranch;
+  resolve?: (s: GameState) => ActivityResolution;
 };
 
-export type LifeActivityOption = Pick<LifeActivityDefinition, "id" | "category" | "label" | "description" | "minAge"> & {
+export type LifeActivityOption = Pick<LifeActivityDefinition, "id" | "category" | "label" | "description" | "minAge" | "branch"> & {
   group?: Text;
   cashDelta: number;
   timeCost: number;
@@ -133,7 +138,11 @@ function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: nu
   const requirement = definition.requires?.(s);
   if (requirement) return requirement;
   if (s.choiceId === null && definition.time !== 0) return { bg: "Първо вземи решението за тази година в „Живот“.", en: "Make this year’s decision in Life first." };
-  if (s.usedActions.includes(definition.id)) return {
+  const alreadyUsed = s.usedActions.includes(definition.id) || (definition.branch && s.usedActions.some(id => {
+    const used = byId.get(id);
+    return used?.contact === definition.contact && used?.branch?.id === definition.branch?.id;
+  }));
+  if (alreadyUsed) return {
     bg: "Вече е направено тази година.", en: "Already done this year.",
   };
   if ((definition.time ?? 1) > timeLeft) return { bg: "Тази година няма достатъчно свободно време.", en: "There isn’t enough free time this year." };
@@ -146,7 +155,7 @@ export function lifeActivityOption(s: GameState, definition: LifeActivityDefinit
   const platform = definition.category === "social" ? platformNames[definition.id.split(".")[1] as Platform] : undefined;
   return {
     id: definition.id, category: definition.category, label: definition.label, description: definition.description,
-    minAge: definition.minAge,
+    minAge: definition.minAge, branch: definition.branch,
     group: platform ? { bg: platform, en: platform } : undefined,
     timeCost: definition.time ?? 1, cashDelta,
     statDelta: statsChange(s.stats, applyStats(s.stats, definition.stats ?? {})),
