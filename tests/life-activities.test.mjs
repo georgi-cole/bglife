@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   advance, annualBudget, choose, commitmentsLeft, decodeSave, doAction, doLifeActivity, encodeSave,
-  getChoices, getEstate, getLifeActivities, giveUp, lifeStatKeys, newLife, playYear,
+  getChoices, getEstate, getLifeActivities, getPersonActivities, giveUp, lifeStatKeys, newLife, playYear,
 } from "../src/engine.ts";
 
 const option = (s, id) => getLifeActivities(s).find(activity => activity.id === id);
@@ -112,7 +112,7 @@ test("relationships mature into a family and an estate plan splits the remaining
   s = doActivity(s, "legacy.add.partner");
   s = pick(advance(s));
   assert.equal(s.lifeSystems.family.children, 1);
-  assert.deepEqual(s.lifeSystems.family.childrenJoinedAt, [s.age]);
+  assert.deepEqual(s.lifeSystems.family.childProfiles, [{ joinedAt: s.age, ageAtJoin: 0, bond: 60 }]);
   assert.equal(s.lifeSystems.family.expecting, false);
   s = doActivity(s, "legacy.add.children");
   s = doActivity(s, "legacy.prepare");
@@ -151,4 +151,34 @@ test("platform options require an account and posts have persistent followers an
   assert.ok(after.lifeSystems.social.tiktok.followers > 0);
   assert.ok(after.stats.influence > s.stats.influence);
   roundTrip(after);
+});
+
+test("profile actions use time, money and trust and replay with the same outcome", () => {
+  const s=pick(toAge(16));
+  assert.ok(getPersonActivities(s,"niki").some(action=>action.id==="people.niki.game"));
+  assert.ok(!getPersonActivities(s,"niki").some(action=>action.id==="people.niki.gaming"));
+  assert.deepEqual(getPersonActivities(s,"appMatch"), []);
+  assert.strictEqual(doLifeActivity(s,"people.appMatch.video-call"),s);
+  assert.ok(!getLifeActivities(s).some(action=>action.id.startsWith("people.")));
+  const after=doLifeActivity(s,"people.rumi.coffee");
+  assert.equal(after.trust.rumi,s.trust.rumi+7);
+  assert.equal(after.cash,s.cash-800);
+  assert.equal(commitmentsLeft(after),commitmentsLeft(s)-1);
+  assert.equal(after.history.at(-1).person,"rumi");
+  assert.strictEqual(doLifeActivity(after,"people.rumi.coffee"),after);
+  roundTrip(after);
+});
+
+test("child profiles offer age-appropriate actions that strengthen their bond", () => {
+  let s=pick(toAge(21));
+  assert.deepEqual(getPersonActivities(s,"child-0"),[]);
+  s=doActivity(s,"family.adopt");
+  assert.ok(getPersonActivities(s,"child-0").some(action=>action.id==="people.child-0.playground"));
+  assert.ok(!getPersonActivities(s,"child-0").some(action=>action.id==="people.child-0.board-game"));
+  s=doLifeActivity(s,"people.child-0.bedtime");
+  assert.equal(s.lifeSystems.family.childProfiles[0].bond,53);
+  roundTrip(s);
+  while(s.age<23)s=pick(advance(s));
+  assert.ok(getPersonActivities(s,"child-0").some(action=>action.id==="people.child-0.board-game"));
+  assert.strictEqual(doLifeActivity(s,"people.child-0.park"),s);
 });

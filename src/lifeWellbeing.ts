@@ -39,7 +39,8 @@ export function settleWellbeing(s: GameState, bank: LifeSystems["bank"], unpaidC
   };
 
   const { family, pets, legacy } = s.lifeSystems;
-  const bondChange = family.stage === "single" || familyActivity ? 0 : -2;
+  const spentTimeWithPartner = family.partner && used.some(id => id.startsWith("people." + family.partner + "."));
+  const bondChange = family.stage === "single" || familyActivity || spentTimeWithPartner ? 0 : -2;
   const children = family.children + Number(family.expecting);
   if (family.expecting) {
     wellbeing.joy = (wellbeing.joy ?? 0) + 8;
@@ -75,7 +76,9 @@ export function settleWellbeing(s: GameState, bank: LifeSystems["bank"], unpaidC
       ...s.lifeSystems, bank, medicalIssue: issue,
       family: {
         ...family, bond: boundStat(family.bond + bondChange), children, expecting: false,
-        childrenJoinedAt: family.expecting ? [...family.childrenJoinedAt, s.age + Number(!closingChapter)] : family.childrenJoinedAt,
+        childProfiles: family.expecting
+          ? [...family.childProfiles, { joinedAt: s.age + Number(!closingChapter), ageAtJoin: 0, bond: 60 }]
+          : family.childProfiles,
       },
       pets: petBond === pets.bond ? pets : { ...pets, bond: petBond },
       legacy,

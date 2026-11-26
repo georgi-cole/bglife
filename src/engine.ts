@@ -1,3 +1,4 @@
+import type { PeopleId } from "./peopleIdentity.ts";
 import { actions, scenes } from "./story.ts";
 import { parseAvatar, type AvatarTraits } from "./avatar.ts";
 import {
@@ -257,7 +258,13 @@ export function doAction(s: GameState, actionId: string, expectedAge = s.age): G
 
 export function getLifeActivities(s: GameState): LifeActivityOption[] {
   const timeLeft = commitmentsLeft(s);
-  return activityDefinitions.map(definition => lifeActivityOption(s, definition, timeLeft));
+  return activityDefinitions.filter(definition => !definition.contact).map(definition => lifeActivityOption(s, definition, timeLeft));
+}
+
+export function getPersonActivities(s: GameState, contact: PeopleId): LifeActivityOption[] {
+  const timeLeft = commitmentsLeft(s);
+  return activityDefinitions.filter(definition => definition.contact === contact && definition.visible?.(s))
+    .map(definition => lifeActivityOption(s, definition, timeLeft));
 }
 
 export function doLifeActivity(s: GameState, id: string, expectedAge = s.age): GameState {

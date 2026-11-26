@@ -128,7 +128,7 @@ const familyActivities: LifeActivityDefinition[] = [
     cost: 50_000, stats: { joy: 10, health: -2, influence: 2 },
     update: s => updateFamily(s, {
       children: s.lifeSystems.family.children + 1,
-      childrenJoinedAt: [...s.lifeSystems.family.childrenJoinedAt, s.age],
+      childProfiles: [...s.lifeSystems.family.childProfiles, { joinedAt: s.age, ageAtJoin: 3, bond: 45 }],
     }),
   }, {
     id: "family.break-up", category: "family", minAge: 18, requires: withPartner,

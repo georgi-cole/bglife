@@ -1,4 +1,6 @@
 import type { City, GameState, PersonId, Text } from "./engine.ts";
+import { peopleActivities } from "./peopleActivities.ts";
+import type { PeopleId } from "./peopleIdentity.ts";
 import { lifeBank } from "./lifeEconomy.ts";
 import { lifeFamily } from "./lifeFamily.ts";
 import { lifeLeisure } from "./lifeLeisure.ts";
@@ -16,13 +18,15 @@ export type Heir = "partner" | "children" | "rumi" | "friend";
 
 export type PartnerId = PersonId | "appMatch" | "serviceMatch";
 
+export type ChildProfile = { joinedAt: number; ageAtJoin: number; bond: number };
+
 export type LifeSystems = {
   medicalIssue: "routine" | "urgent" | null;
   pets: { adopted: boolean; rescued: boolean; bond: number };
   family: {
     partner: PartnerId | null;
     formerPartners: { id: PartnerId; endedAt: number }[];
-    childrenJoinedAt: number[];
+    childProfiles: ChildProfile[];
     stage: "single" | "dating" | "committed" | "engaged" | "married";
     bond: number;
     children: number;
@@ -50,6 +54,8 @@ export type LifeActivityDefinition = {
   requires?: (s: GameState) => Text | null;
   update?: (s: GameState) => LifeSystems;
   resolvesMedicalIssue?: boolean;
+  contact?: PeopleId;
+  visible?: (s: GameState) => boolean;
 };
 
 export type LifeActivityOption = Pick<LifeActivityDefinition, "id" | "category" | "label" | "description" | "minAge"> & {
@@ -68,7 +74,7 @@ export function startingLifeSystems(): LifeSystems {
   return {
     medicalIssue: null,
     pets: { adopted: false, rescued: false, bond: 0 },
-    family: { partner: null, formerPartners: [], childrenJoinedAt: [], stage: "single", bond: 0, children: 0, expecting: false },
+    family: { partner: null, formerPartners: [], childProfiles: [], stage: "single", bond: 0, children: 0, expecting: false },
     bank: { accountOpen: false, balance: 0, loan: 0, mortgage: 0, ownsHome: false },
     social: {},
     legacy: { heirs: [], prepared: false },
@@ -103,7 +109,7 @@ const platformNames = {
   youtube: "YouTube", vbox7: "Vbox7", onlyfans: "OnlyFans",
 };
 export const activityDefinitions: LifeActivityDefinition[] = [
-  ...lifeLeisure, ...lifeFamily, ...lifeBank, ...lifeSocial,
+  ...lifeLeisure, ...lifeFamily, ...lifeBank, ...lifeSocial, ...peopleActivities,
 ];
 
 const byId = new Map(activityDefinitions.map(definition => [definition.id, definition]));
@@ -115,6 +121,7 @@ export function spentActivityTime(s: GameState): number {
 }
 
 function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: number, timeLeft: number): Text | null {
+  if (definition.visible && !definition.visible(s)) return { bg: "Това действие не е достъпно за този човек.", en: "This action is not available for this person." };
   if (s.finished) return { bg: "Тази история е приключила.", en: "This story has ended." };
   if (definition.minAge && s.age < definition.minAge) return {
     bg: `Достъпно от ${definition.minAge} г.`,
