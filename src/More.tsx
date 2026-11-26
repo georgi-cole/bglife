@@ -194,7 +194,7 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, on
     onActivity(id);
   }
 
-  if (!category) return <section key="directory" ref={screen} className="more-screen menu-enter" aria-labelledby="more-heading">
+  if (!category) return <section key="directory" ref={screen} className="more-screen more-directory-screen menu-enter" aria-labelledby="more-heading">
     <header className="more-heading">
       <MenuTitle onClose={onClose} closeLabel={closeLabel}><h1 ref={heading} id="more-heading" tabIndex={-1}>{t("Още", "More")}</h1></MenuTitle>
       <span className="more-resource"><Icon name="clock" size={15} />{t("Свободно време", "Free time")}: <strong>{availableTime}</strong></span>

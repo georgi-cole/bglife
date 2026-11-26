@@ -208,7 +208,7 @@ function App(){
   return <div className={screen==="home"?"app-shell app-shell--home":"app-shell"}>
     {screen!=="home"&&<header className="masthead"><CharacterHeader life={s} l={l}/></header>}
     {notice&&<div className="save-notice" role="status"><span>{notice==="temporary"?t("Браузърът не запази играта. Можеш да изтеглиш копие от Настройки.","This browser couldn’t save your game. Download a backup in Settings."):notice==="recovered"?t("Дневникът е възстановен от предишния запис.","Your journal was restored from its previous save."):t("Предишният запис е повреден. Започваш нова глава.","The previous save was damaged. A new chapter has begun.")}</span><button aria-label={t("Затвори","Dismiss")} onClick={()=>setNotice(null)}><Icon name="close" size={16}/></button></div>}
-    <div className={screen==="game"?"game-layout":"game-layout start-layout"} ref={viewportRef}>
+    <div className={screen==="game"?(tab==="more"?"game-layout more-layout":"game-layout"):"game-layout start-layout"} ref={viewportRef}>
       <main className={screen==="home"?"main-column start-column":(screen==="album"||(!showJournal&&tab!=="more"))?"main-column menu-enter":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
       {showJournal&&<div className="life-tools">
         <button className="icon-button menu-button" onClick={()=>openMenuScreen("home")}><Icon name="menu" size={18}/>{t("Меню","Menu")}</button>
