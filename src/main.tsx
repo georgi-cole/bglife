@@ -4,7 +4,7 @@ import {choose,defaultPlayChoice,doAction,doLifeActivity,giveUp,newLife,playYear
 import {Album,People,Places} from "./Views.tsx";
 import {Journal,Wallet} from "./Journal.tsx";
 import {More,StatsBars} from "./More.tsx";
-import {Icon,PlaySymbol,copy,tabLabels,type Tab} from "./ui.tsx";
+import {Icon,PlaySymbol,copy,money,name,occupation,tabLabels,type Tab} from "./ui.tsx";
 import {deserialize,initialLanguage,LANGUAGE_KEY,loadSession,persist,SAVE_KEY,serialize,type Session} from "./session.ts";
 import "./style.css";
 import {StartGuide,StartScreen} from "./StartScreen.tsx";
@@ -24,6 +24,23 @@ function scrollToLog(position: LogPosition) {
   if(position.focus)heading?.focus({preventScroll:true});
 }
 
+function CharacterHeader({ life, l }: { life: GameState; l: Parameters<typeof name>[0] }) {
+  return <div className="character-header">
+    <span className="character-avatar" aria-hidden="true">👩🏻</span>
+    <div className="character-identity">
+      <div className="character-name">
+        <span className="character-flag" role="img" aria-label={copy(l,"България","Bulgaria")}/>
+        <strong>{name(l)}</strong>
+      </div>
+      <span className="character-occupation">{occupation(life.career,l)}</span>
+    </div>
+    <div className="character-money">
+      <strong>{money(life.cash,l)}</strong>
+      <span>{copy(l,"Налични пари","Cash balance")}</span>
+    </div>
+  </div>;
+}
+
 function App(){
   const [first]=useState(loadSession),[session,setSession]=useState(first.session),[notice,setNotice]=useState(first.notice);
   const [l,setLanguage]=useState(initialLanguage),[tab,setTab]=useState<Tab>("journal"),[dialog,setDialog]=useState<Dialog>(null);
@@ -37,6 +54,9 @@ function App(){
   const nextLogPosition=useRef<LogPosition|null>(null);
   const s=session.life,t=(bg:string,en:string)=>copy(l,bg,en);
   const labels=tabLabels(l);
+  const menuDialog=dialog==="wallet"||dialog==="settings"||dialog==="guide";
+  const showJournal=screen==="game"&&tab==="journal";
+  const dialogTitle=dialog==="wallet"?t("Портфейл","Wallet"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):dialog==="give-up"?t("Приключване на живота","End this life"):t("Нов живот","New life");
   function commit(next:Session){
     live.current=next;setSession(next);
     if(!persist(next))setNotice("temporary");
@@ -98,6 +118,7 @@ function App(){
     if(!position)viewportRef.current?.scrollTo(0,0);
     else if(tab==="journal")scrollToLog(position);
     nextLogPosition.current=tab===which?null:position;
+    if(tab!==which)focusScreen.current=true;
     setTab(which);
   }
   function openMore(category:LifeActivityCategory|null=null){
@@ -182,13 +203,20 @@ function App(){
     <button className="icon-button" data-testid="settings" onClick={()=>setDialog("settings")} aria-label={t("Настройки","Settings")}><Icon name="settings"/></button>
   </div>;
   return <div className={screen==="home"?"app-shell app-shell--home":"app-shell"}>
-    {screen!=="home"&&<header className="masthead"><div className="masthead-inner">
-      <button className="icon-button menu-button" onClick={()=>openMenuScreen("home")}><Icon name="menu" size={18}/>{t("Меню","Menu")}</button>
-      {toolbar}
-    </div></header>}
+    {screen!=="home"&&<header className="masthead"><CharacterHeader life={s} l={l}/>
+      {!showJournal&&<div className="section-close">
+        <button className="icon-button menu-button" onClick={()=>screen==="album"?openMenuScreen("home"):openJournal(live.current.life)}>
+          <Icon name="close" size={18}/>{screen==="album"?t("Към менюто","Back to main menu"):t("Към живота","Back to Life")}
+        </button>
+      </div>}
+    </header>}
     {notice&&<div className="save-notice" role="status"><span>{notice==="temporary"?t("Браузърът не запази играта. Можеш да изтеглиш копие от Настройки.","This browser couldn’t save your game. Download a backup in Settings."):notice==="recovered"?t("Дневникът е възстановен от предишния запис.","Your journal was restored from its previous save."):t("Предишният запис е повреден. Започваш нова глава.","The previous save was damaged. A new chapter has begun.")}</span><button aria-label={t("Затвори","Dismiss")} onClick={()=>setNotice(null)}><Icon name="close" size={16}/></button></div>}
     <div className={screen==="game"?"game-layout":"game-layout start-layout"} ref={viewportRef}>
       <main className={screen==="home"?"main-column start-column":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
+      {showJournal&&<div className="life-tools">
+        <button className="icon-button menu-button" onClick={()=>openMenuScreen("home")}><Icon name="menu" size={18}/>{t("Меню","Menu")}</button>
+        {toolbar}
+      </div>}
       {screen==="home"?<StartScreen life={s} l={l} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
         onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</StartScreen>:
        screen==="album"?<Album s={s} archive={session.album} l={l}/>:
@@ -198,7 +226,7 @@ function App(){
         onActivity={id=>act(v=>doLifeActivity(v,id,s.age))} onGiveUp={requestGiveUp} onJournal={()=>openJournal(live.current.life,true)} onAlbum={()=>route("album")}/>:
        <Album s={s} archive={session.album} l={l}/>}
     </main></div>
-    {screen==="game"&&<footer className="game-footer"><nav className="bottom-nav" aria-label={t("Навигация","Navigation")}>
+    {showJournal&&!menuDialog&&<footer className="game-footer"><nav className="bottom-nav" aria-label={t("Навигация","Navigation")}>
       <div className="nav-inner">
         {navItem("journal")}{navItem("people")}
         <button className="play-control" data-testid="advance" onClick={nextYear}
@@ -210,7 +238,9 @@ function App(){
         {navItem("places")}{navItem("more")}
       </div>
     </nav><StatsBars life={s} l={l}/></footer>}
-    {dialog&&<dialog key={dialog} ref={dialogRef} className="modal-card" onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}><div className="dialog-head"><h2 id="dialog-heading">{dialog==="wallet"?t("Портфейл","Wallet"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):dialog==="give-up"?t("Приключване на живота","End this life"):t("Нов живот","New life")}</h2><button className="icon-button" aria-label={t("Затвори","Close")} onClick={close}><Icon name="close"/></button></div>
+    {dialog&&<dialog key={dialog} ref={dialogRef} className={menuDialog?"modal-card game-menu-dialog":"modal-card"} onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}>
+      {menuDialog&&screen!=="home"&&<div className="game-menu-profile"><CharacterHeader life={s} l={l}/></div>}
+      <div className={menuDialog?"game-menu-content":undefined}><div className="dialog-head"><h2 id="dialog-heading">{dialogTitle}</h2><button className="icon-button" aria-label={t("Затвори","Close")} onClick={close}><Icon name="close"/></button></div>
       {dialog==="wallet"?<Wallet s={s} l={l} onBank={()=>{close();openMore("bank");}}/>:
       dialog==="guide"?<StartGuide l={l}/>:dialog==="give-up"?<>
         <p>{t("Историята на Мила ще приключи на тази възраст. Дневникът остава достъпен в албума.","Mila’s story will end at her current age. Her journal will remain available in the album.")}</p>
@@ -225,7 +255,7 @@ function App(){
       {importMessage==="ready"&&<><p>{t("Текущият живот ще остане в албума.","Your current life will stay in the album.")}</p><button className="secondary-button" onClick={importBackup}>{t("Възстанови избрания запис","Restore selected save")}</button></>}
       {importMessage==="invalid"&&<p role="alert">{t("Този файл не е съвместим запис на BgLife.","This file is not a compatible BgLife save.")}</p>}
       {screen==="game"&&<button data-testid="replay" onClick={()=>{setDialog("replay");setImportMessage(null);importRef.current=null}}>{t("Започни друг живот","Start another life")}<Icon name="right"/></button>}</div>}
-    </dialog>}
+    </div></dialog>}
   </div>;
 }
 const root=document.getElementById("root");

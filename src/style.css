@@ -245,3 +245,73 @@ summary::-webkit-details-marker { display: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+.character-header {
+  max-width: var(--measure);
+  min-height: 3.65rem;
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: clamp(.45rem, 2.2vw, .85rem);
+  padding-block: .48rem;
+}
+.character-avatar {
+  display: grid;
+  place-items: center;
+  width: 2.42rem;
+  height: 2.42rem;
+  border-radius: .75rem;
+  border: 1px solid #604b52;
+  background: #332937;
+  font-size: 1.55rem;
+  line-height: 1;
+}
+.character-name { display: flex; align-items: center; gap: .42rem; }
+.character-name strong, .character-money strong { font-size: clamp(.84rem, 3.6vw, 1.11rem); line-height: 1.18; }
+.character-flag {
+  flex: 0 0 1.12rem;
+  height: .76rem;
+  border-radius: .16rem;
+  box-shadow: 0 0 0 1px #ffffff26;
+  background: linear-gradient(to bottom, #fff 0 33.33%, #17946a 33.33% 66.67%, #d63139 66.67% 100%);
+}
+.character-occupation, .character-money span {
+  display: block;
+  margin-top: .16rem;
+  color: var(--secondary);
+  font-size: .72rem;
+  line-height: 1.15;
+}
+.character-money { text-align: end; }
+.character-money strong { color: var(--mint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.life-tools { display: flex; justify-content: space-between; gap: .5rem; }
+.section-close { display: flex; max-width: var(--measure); margin-inline: auto; padding-block: .35rem .48rem; border-top: 1px solid #ffffff12; }
+dialog.game-menu-dialog {
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100vh;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: env(safe-area-inset-top, 0px) 0 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--paper);
+  overflow: hidden;
+}
+dialog.game-menu-dialog[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.game-menu-profile {
+  background: #121621;
+  border-bottom: 1px solid #ffffff12;
+  padding-inline: max(var(--gutter), env(safe-area-inset-left, 0px)) max(var(--gutter), env(safe-area-inset-right, 0px));
+}
+.game-menu-content {
+  grid-row: 2;
+  width: 100%;
+  max-width: calc(var(--measure) + 2 * var(--gutter));
+  margin-inline: auto;
+  overflow: auto;
+  padding: .8rem max(var(--gutter), env(safe-area-inset-right, 0px)) max(1rem, env(safe-area-inset-bottom, 0px)) max(var(--gutter), env(safe-area-inset-left, 0px));
+}
