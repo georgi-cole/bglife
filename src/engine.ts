@@ -46,6 +46,8 @@ export type Memory = {
   person?: PersonId;
   witnesses: PersonId[];
   cashDelta: number;
+  movedTo?: City;
+  startedCareer?: Career;
 };
 
 export type GameState = {
@@ -195,6 +197,8 @@ function applyOption(s: GameState, kind: "choice" | "action", option: Option, ti
     age: s.age, city: result.city, kind, id: option.id, title, text: option.result,
     person: option.effect?.person, witnesses, cashDelta: result.cash - s.cash,
   };
+  if (result.city !== s.city) memory.movedTo = result.city;
+  if (result.career !== s.career) memory.startedCareer = result.career;
   return {
     ...result,
     choiceId: kind === "choice" ? option.id : s.choiceId,

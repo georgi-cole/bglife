@@ -30,7 +30,7 @@ export const town = (s:GameState["city"],l:Language) => s==="sofia"?copy(l,"Со
 export const name = (l:Language) => copy(l,"Мила Николова","Mila Nikolova");
 export const ageLabel=(age:number,l:Language)=>copy(l,age+" г.","Age "+age);
 export const money = (cents:number,l:Language) => new Intl.NumberFormat(l==="bg"?"bg-BG":"en-IE",{style:"currency",currency:"EUR",minimumFractionDigits:cents%100===0?0:2, maximumFractionDigits:2}).format(cents/100);
-export const occupation = (s:GameState,l:Language) => s.career==="student"?copy(l,"Ученичка","Student"):s.career==="woodcarver"?copy(l,"Дърворезбарка","Woodcarver"):copy(l,"Софтуерно тестване","Software QA");
+export const occupation = (career:GameState["career"],l:Language) => career==="student"?copy(l,"Ученичка","Student"):career==="woodcarver"?copy(l,"Дърворезбарка","Woodcarver"):copy(l,"Софтуерно тестване","Software QA");
 export const homeName=(s:GameState,l:Language)=>({home:copy(l,"Семейният дом","Family home"),rumi:copy(l,"При леля Руми","Aunt Rumi’s flat"),shared:copy(l,"Споделена квартира","Shared flat")})[s.housing];
 export type Tab = "journal"|"people"|"places"|"album";
 export const tabLabels=(l:Language):Record<Tab,string>=>({journal:copy(l,"Живот","Life"),people:copy(l,"Хора","People"),places:copy(l,"Места","Places"),album:copy(l,"Албум","Album")});

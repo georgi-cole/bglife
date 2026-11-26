@@ -74,8 +74,8 @@ button.hud-stat:hover { background: var(--raised); }
 .hud-stat strong { font-weight: 750; font-size: 1rem; line-height: 1.13; }
 .hud-stat > svg, .hud-stat > .time-ticks { margin-inline-start: auto; color: var(--secondary); }
 .hud-icon { display: grid; place-content: center; width: 2.12rem; height: 2.12rem; border-radius: .64rem; flex: 0 0 auto; }
-.hud-icon.wallet, .recap-icon.year { color: var(--gold); background: #453929; }
-.hud-icon.time, .recap-icon.action { color: #b8c2ff; background: #353b63; }
+.hud-icon.wallet { color: var(--gold); background: #453929; }
+.hud-icon.time { color: #b8c2ff; background: #353b63; }
 .time-ticks { display: flex; gap: 3px; }
 .time-ticks i { width: .31rem; height: 1rem; border-radius: 4px; background: #424960; }
 .time-ticks .lit { background: #aab4fb; }
@@ -84,8 +84,8 @@ button.hud-stat:hover { background: var(--raised); }
 .story-card { padding: clamp(.9rem, 3.4vw, 1.6rem); }
 .section-kicker { color: var(--coral-strong); display: flex; align-items: center; gap: .4rem; font-size: .73rem; font-weight: 800; margin: 0; }
 .section-kicker svg { width: 1rem; height: 1rem; }
-.story-card h2, .detail-card h2, .page-head h1, .modal-card h2 { letter-spacing: -.035em; line-height: 1.16; overflow-wrap: anywhere; }
-.story-card h2 { font-size: clamp(1.4rem, 4.2vw, 2.2rem); margin: .35rem 0 .4rem; }
+.story-card h4, .detail-card h2, .page-head h1, .modal-card h2 { letter-spacing: -.035em; line-height: 1.16; overflow-wrap: anywhere; }
+.story-card h4 { font-size: clamp(1.3rem, 4.2vw, 1.9rem); margin: .12rem 0 .45rem; }
 .story-body, .page-head > p:not(.section-kicker), .detail-card > p { line-height: 1.5; color: #d0d5e2; max-width: 68ch; margin: .35rem 0 .95rem; overflow-wrap: anywhere; }
 .choices { display: grid; gap: .46rem; }
 .choice { display: flex; align-items: center; gap: .65rem; width: 100%; border: 1px solid #495370; border-radius: .64rem; min-height: 3rem; background: linear-gradient(116deg, #333d55, #2b3248); color: #fbf8f2; text-align: left; padding: .65rem .85rem; font-size: .94rem; line-height: 1.3; }
@@ -97,11 +97,42 @@ button.hud-stat:hover { background: var(--raised); }
 .play-default { display: flex; align-items: baseline; flex-wrap: wrap; gap: .2rem .36rem; font-size: .74rem; line-height: 1.35; margin: .72rem 0 0; color: var(--secondary); }
 .play-default strong { color: #dedff1; }
 .play-default .play-symbol { color: var(--coral); width: .52rem; height: .6rem; }
-.result-note, .activity-result { display: flex; gap: .65rem; line-height: 1.5; }
-.result-note { background: #293c3c; color: #dcf2e8; border: 1px solid #78c9a34a; border-radius: .62rem; padding: .72rem .8rem; margin-top: .75rem; }
-.result-note svg, .activity-result svg { color: var(--mint); margin-top: .12rem; }
-.result-note p, .activity-result p { margin: 0; overflow-wrap: anywhere; }
-.activity-result { margin: .65rem 0; color: #d0d5e2; }
+.life-timeline { --journal-line: #454e68; min-width: 0; margin-top: .32rem; }
+.timeline-heading { display: flex; gap: .46rem; align-items: center; margin: .15rem 0 .6rem; color: var(--secondary); font-size: .86rem; font-weight: 750; }
+.timeline-heading svg { color: var(--coral); }
+.life-year { border-inline-start: 1px solid var(--journal-line); padding-inline-start: .82rem; padding-bottom: .9rem; margin-inline-start: .35rem; }
+.life-year:last-child { padding-bottom: .15rem; }
+.life-year-title {
+  display: flex; align-items: center; justify-content: space-between; gap: .6rem; position: relative;
+  margin: 0 0 .58rem; padding: .48rem .7rem; border: 1px solid #46516b; border-radius: .56rem;
+  color: #e5ecfa; background: #252d41; font-size: .98rem; font-weight: 800; scroll-margin-top: .5rem;
+}
+.life-year-title::before { content: ""; position: absolute; inset-inline-start: -1.12rem; width: .55rem; height: .55rem; border: 2px solid #58647f; border-radius: 50%; background: var(--paper); }
+.life-year-title:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.life-year-latest .life-year-title { background: #3a2c3b; border-color: #9e6767; color: #ffd5bf; }
+.life-year-latest .life-year-title::before { background: var(--coral); border-color: var(--paper); box-shadow: 0 0 0 1px var(--coral); }
+.life-year-title small { color: #ffc3a5; font-size: .72rem; }
+.life-entries { display: grid; gap: .13rem; list-style: none; margin: 0 0 .42rem; padding: 0; }
+.life-event { display: flex; align-items: flex-start; gap: .57rem; min-width: 0; padding: .45rem .05rem; }
+.life-event-icon { flex: 0 0 1.7rem; height: 1.7rem; display: grid; place-items: center; border-radius: .46rem; background: #2c473f; color: var(--mint); }
+.life-action .life-event-icon { background: #353b63; color: #bec7ff; }
+.life-event-content { min-width: 0; }
+.life-event h4 { margin: .14rem 0; font-size: .92rem; line-height: 1.32; }
+.life-event p, .life-year-budget p { margin: .19rem 0 0; color: #cdd5e5; font-size: .9rem; line-height: 1.47; overflow-wrap: anywhere; }
+.life-event-changes { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .39rem; }
+.life-event-changes > span { display: inline-flex; align-items: center; gap: .24rem; border-radius: .3rem; padding: .18rem .34rem; background: #2a344a; color: #d5dfff; font-size: .73rem; font-weight: 670; }
+.life-event-changes .move-event { background: #29404e; color: #bbe1f1; }
+.life-event-changes .career-event { background: #403754; color: #e5d6fb; }
+.cash-in, .life-event-changes .cash-in { color: var(--mint); }
+.cash-out, .life-event-changes .cash-out { color: #ffb3a0; }
+.life-year-budget { color: #e4d8c3; background: #2d2a30; border: 1px solid #554641; border-radius: .5rem; }
+.life-year-budget summary { display: flex; flex-wrap: wrap; align-items: center; gap: .16rem .43rem; min-height: 2.75rem; padding: .36rem .55rem; font-size: .8rem; list-style: none; }
+.life-year-budget summary > span:first-of-type { flex: 1; }
+.life-year-budget summary strong { color: var(--gold); }
+.life-year-budget summary svg:first-child { color: var(--gold); }
+.life-year-budget[open] summary svg:last-child { transform: rotate(180deg); }
+.life-year-budget p { margin: 0; padding: 0 .55rem .55rem; }
+.life-year .ending-card { margin-top: .66rem; }
 .commitments { border-top: 1px solid var(--rule); margin-top: .8rem; }
 summary { cursor: pointer; }
 .commitments > summary, .mem-details > summary, .year-page > summary { display: flex; align-items: center; gap: .5rem; min-height: 2.8rem; font-weight: 650; list-style: none; }
@@ -164,18 +195,6 @@ summary::-webkit-details-marker { display: none; }
 .dialog-head h2 { font-size: clamp(1.32rem,4vw,1.8rem); margin: 0; }
 .dialog-head button { flex: none; }
 .modal-card p { line-height: 1.48; }
-.recap-dialog { border-top: 3px solid var(--coral); animation: recap-arrive .21s ease-out both; }
-@keyframes recap-arrive { from { opacity:.4; transform: translateY(16px) scale(.98); } to { opacity:1; transform: translateY(0) scale(1); } }
-.recap-age { color: var(--coral-strong); font-weight: 800; font-size: .86rem; margin: .3rem 0 .8rem; }
-.recap-list { list-style: none; padding: 0; margin: 0; display: grid; gap: .45rem; }
-.recap-list li { display: flex; gap: .64rem; align-items: flex-start; border: 1px solid var(--rule); background: #232a3b; padding: .66rem; border-radius: .64rem; }
-.recap-list strong { font-size: .93rem; }
-.recap-list p { color: #cdd4e5; font-size: .9rem; margin: .24rem 0 0; overflow-wrap: anywhere; }
-.recap-icon { display: grid; place-items: center; width: 1.95rem; height: 1.95rem; flex: none; border-radius: .56rem; color: var(--mint); background: #344a47; }
-.recap-wallet { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin: .62rem 0; }
-.recap-wallet > span { background: #282c3d; padding: .53rem .62rem; border-radius: .58rem; color: var(--secondary); font-size: .72rem; }
-.recap-wallet strong { display: block; font-size: 1rem; color: var(--gold); }
-.recap-continue { width: 100%; }
 .balance-total { font-size: 2.45rem; line-height: 1.1; font-weight: 800; margin: .8rem 0 0; color: var(--gold); }
 .stat-row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .52rem; padding: .55rem 0; border-top: 1px solid var(--rule); }
 .settings-list { margin-top: .7rem; }

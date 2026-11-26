@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   advance, annualBudget, choose, commitmentsLeft, decodeSave, doAction, encodeSave,
-  getActions, getChoices, getScene, newLife,
+  getActions, getChoices, getScene, newLife, playYear, yearRecap,
 } from "../src/engine.ts";
 import { actions, scenes } from "../src/story.ts";
 
@@ -80,6 +80,28 @@ test("the move quotes agree with the ledger and the Friday agreement reserves ti
     assert.deepEqual(decodeSave(encodeSave(state)), state);
     assert.deepEqual(decodeSave(encodeSave(next)), next);
   }
+});
+
+test("the life journal retains choices, milestones and the balance for the year they happened", () => {
+  const original = toAge(19);
+  const shared = choose(original, "shared");
+  const firstAction = getActions(shared)[0];
+  const withAction = doAction(shared, firstAction.id);
+  const next = playYear(withAction);
+  assert.equal(next.age, 20);
+  const recap = yearRecap(next, 19);
+  assert.deepEqual(recap.entries.map(event => event.kind), ["choice", "action", "year"]);
+  assert.equal(recap.entries[0].movedTo, "sofia");
+  assert.equal(recap.entries[0].startedCareer, "qa");
+  assert.equal(recap.closingCash, next.cash);
+  assert.equal(recap.cashDelta, next.cash - original.cash);
+  assert.deepEqual(yearRecap(playYear(next), 19), recap);
+  assert.deepEqual(yearRecap(decodeSave(encodeSave(next)), 19), recap);
+
+  const stayed = playYear(original);
+  const stayedEvent = yearRecap(stayed, 19).entries[0];
+  assert.equal(stayedEvent.movedTo, undefined);
+  assert.equal(stayedEvent.startedCareer, "woodcarver");
 });
 
 test("an optional commitment can be spent once, cannot overdraw capacity, and resets next year", () => {
