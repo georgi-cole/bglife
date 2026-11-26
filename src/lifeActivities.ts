@@ -48,7 +48,7 @@ export type LifeActivityDefinition = {
   resolvesMedicalIssue?: boolean;
 };
 
-export type LifeActivityOption = Pick<LifeActivityDefinition, "id" | "category" | "label" | "description"> & {
+export type LifeActivityOption = Pick<LifeActivityDefinition, "id" | "category" | "label" | "description" | "minAge"> & {
   group?: Text;
   cashDelta: number;
   timeCost: number;
@@ -135,6 +135,7 @@ export function lifeActivityOption(s: GameState, definition: LifeActivityDefinit
   const platform = definition.category === "social" ? platformNames[definition.id.split(".")[1] as Platform] : undefined;
   return {
     id: definition.id, category: definition.category, label: definition.label, description: definition.description,
+    minAge: definition.minAge,
     group: platform ? { bg: platform, en: platform } : undefined,
     timeCost: definition.time ?? 1, cashDelta,
     statDelta: statsChange(s.stats, applyStats(s.stats, definition.stats ?? {})),

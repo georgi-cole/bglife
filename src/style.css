@@ -295,8 +295,21 @@ summary::-webkit-details-marker { display: none; }
 .menu-title-row > button { flex: none; min-width: 2.75rem; min-height: 2.75rem; }
 .menu-title-row > :is(h1,h2) { min-width: 0; margin: 0; }
 .game-menu-content > .menu-title-row { margin-bottom: .6rem; }
-.menu-dialog-title { display: flex; align-items: center; gap: .45rem; }
-.menu-dialog-title svg { color: var(--coral); }
+.menu-title-row > button.menu-back-button {
+  position: relative;
+  border: 0;
+  background: transparent;
+}
+.menu-back-button::before {
+  content: "";
+  position: absolute;
+  inset: .42rem;
+  border-radius: 50%;
+  background: #ffffff0b;
+  border: 1px solid #ffffff30;
+}
+.menu-back-button:hover::before { background: #ffffff26; }
+.menu-back-button > svg { position: relative; }
 
 @media (prefers-reduced-motion: no-preference) {
   .menu-enter { animation: menu-enter .27s cubic-bezier(.22,.75,.27,1); }

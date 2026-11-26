@@ -40,7 +40,7 @@ export function Icon({ name, size=20 }: { name: IconName; size?:number }) {
 }
 export function MenuTitle({children,onClose,closeLabel,back=false}: {children:React.ReactNode;onClose:()=>void;closeLabel:string;back?:boolean}) {
   return <div className="menu-title-row">
-    <button type="button" className="icon-button" aria-label={closeLabel} onClick={onClose}><Icon name={back?"back":"close"} size={20}/></button>
+    <button type="button" className={back?"icon-button menu-back-button":"icon-button"} aria-label={closeLabel} onClick={onClose}><Icon name={back?"back":"close"} size={back?17:20}/></button>
     {children}
   </div>;
 }

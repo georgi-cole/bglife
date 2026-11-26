@@ -162,8 +162,12 @@ const socialActionIcons: Record<string, IconName> = {
   duet:"people", short:"video", clip:"video", series:"album", collab:"people",
 };
 
-function ActivityCard({ category, option, feedback, onChoose, onJournal, l }: {
+const rowTones = ["rose", "teal", "amber", "indigo", "sage", "violet"] as const;
+
+function ActivityCard({ category, option, feedback, onChoose, onJournal, l, tone, ageLock }: {
   category: Category;
+  tone: typeof rowTones[number];
+  ageLock?: number;
   option: LifeActivityOption; feedback?: Memory; onChoose: (id: string) => void; onJournal?: () => void; l: Language;
 }) {
   const t = (bg: string, en: string) => copy(l, bg, en);
@@ -177,11 +181,14 @@ function ActivityCard({ category, option, feedback, onChoose, onJournal, l }: {
   return <li className="activity-entry">
     <button type="button" className="activity-card" aria-disabled={!!option.blocked} tabIndex={option.blocked ? -1 : undefined}
       onClick={() => { if (!option.blocked) onChoose(option.id); }}>
-      <span className="activity-row-icon">{icon ? <Icon name={icon} size={24} /> : <CategoryIcon category={category} size={24} />}</span>
       <span className="activity-row-copy">
-        <strong>{option.label[l]}</strong>
+        <strong className="activity-row-title">
+          <span className="activity-row-icon" data-tone={tone}>{icon ? <Icon name={icon} size={15} /> : <CategoryIcon category={category} size={15} />}</span>
+          <span>{option.label[l]}</span>
+        </strong>
         <span className="activity-description">{option.description[l]}</span>
         <span className="activity-meta">
+          {ageLock && <span className="activity-age" aria-label={t("Достъпно от "+ageLock+" г.","Available from age "+ageLock)}>{ageLock}+</span>}
           <span><Icon name="wallet" size={14} />{cost}</span>
           {option.timeCost > 0 && <span><Icon name="clock" size={14} />{timeLabel(option.timeCost, l)}</span>}
           {deltas.map(stat => {
@@ -189,7 +196,7 @@ function ActivityCard({ category, option, feedback, onChoose, onJournal, l }: {
             return <span key={stat} className={`activity-delta stat-${stat}`}>{labels[stat]} {delta > 0 ? "+" : "−"}{Math.abs(delta)}</span>;
           })}
         </span>
-        {option.blocked && <span className="activity-blocked">{option.blocked[l]}</span>}
+        {option.blocked && !ageLock && <span className="activity-blocked">{option.blocked[l]}</span>}
       </span>
       <Icon name={option.blocked ? "key" : "next"} size={17} />
     </button>
@@ -267,7 +274,6 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, on
       <MenuTitle back onClose={platform ? () => openPlatform(null) : onCategoryBack ?? (() => changeCategory(null))}
         closeLabel={platform ? t("Назад към Социални мрежи","Back to Social media") : onCategoryBack ? categoryBackLabel : t("Назад към Още","Back to More")}>
         <h1 ref={heading} id="more-heading" tabIndex={-1}>
-          <span className="submenu-title-icon">{platform ? <Icon name={platformIcons[platform] ?? "more"} size={19}/> : <CategoryIcon category={category} size={19}/>}</span>
           {platform ?? category.title[l]}
         </h1>
       </MenuTitle>
@@ -294,8 +300,9 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, on
         </button>;
       })}
     </div> : <ul className="activity-list">
-      {(platform ? groups.get(platform) ?? [] : optionsForCategory).map(option =>
-        <ActivityCard category={category} option={option} key={option.id} onChoose={chooseActivity} onJournal={onJournal} l={l}
+      {(platform ? groups.get(platform) ?? [] : optionsForCategory).map((option, index) =>
+        <ActivityCard category={category} option={option} tone={rowTones[index % rowTones.length]}
+          ageLock={!life.finished && option.minAge !== undefined && life.age < option.minAge ? option.minAge : undefined} key={option.id} onChoose={chooseActivity} onJournal={onJournal} l={l}
           feedback={feedback?.id === option.id ? feedback : undefined}/>)}
     </ul>}
   </section>;
