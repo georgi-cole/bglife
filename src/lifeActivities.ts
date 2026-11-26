@@ -1,4 +1,8 @@
+import { cities, inCityBg } from "./cities.ts";
 import type { City, GameState, PersonId, Text } from "./engine.ts";
+import type { HealthCondition } from "./lifeHealth.ts";
+import { isKin, type KinId } from "./birthFamily.ts";
+import { talentBonus } from "./lifeProfile.ts";
 import type { AvatarPresentation } from "./avatar.ts";
 import { peopleActivities } from "./peopleActivities.ts";
 import type { PeopleId } from "./peopleIdentity.ts";
@@ -23,6 +27,8 @@ export type ChildProfile = { joinedAt: number; ageAtJoin: number; bond: number; 
 
 export type LifeSystems = {
   medicalIssue: "routine" | "urgent" | null;
+  healthCondition?: HealthCondition | null;
+  kinBonds?: Partial<Record<KinId, number>>;
   pets: { adopted: boolean; rescued: boolean; bond: number };
   family: {
     partner: PartnerId | null;
@@ -33,7 +39,7 @@ export type LifeSystems = {
     children: number;
     expecting: boolean;
   };
-  bank: { accountOpen: boolean; balance: number; loan: number; mortgage: number; ownsHome: boolean };
+  bank: { accountOpen: boolean; balance: number; loan: number; mortgage: number; ownsHome: boolean; homeCity?: City };
   social: Partial<Record<Platform, { followers: number; posts: number }>>;
   legacy: { heirs: Heir[]; prepared: boolean };
 };
@@ -119,6 +125,9 @@ export const activityDefinitions: LifeActivityDefinition[] = [
 ];
 
 const byId = new Map(activityDefinitions.map(definition => [definition.id, definition]));
+const categoryAge: Partial<Record<LifeActivityCategory, number>> = {
+  gym: 12, pets: 7, holidays: 7, aesthetics: 12, fun: 7, social: 13,
+};
 export function getLifeActivityDefinition(id: string): LifeActivityDefinition | undefined {
   return byId.get(id);
 }
@@ -127,18 +136,25 @@ export function spentActivityTime(s: GameState): number {
 }
 
 function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: number, timeLeft: number): Text | null {
-  if (definition.visible && !definition.visible(s)) return { bg: "Това действие не е достъпно за този човек.", en: "This action is not available for this person." };
+  if ((definition.contact && s.deceased[definition.contact]) || (definition.visible && !definition.visible(s))) return { bg: "Това действие не е достъпно за този човек.", en: "This action is not available for this person." };
   if (s.finished) return { bg: "Тази история е приключила.", en: "This story has ended." };
-  if (definition.minAge && s.age < definition.minAge) return {
-    bg: `Достъпно от ${definition.minAge} г.`,
-    en: `Available from age ${definition.minAge}.`,
+  const earlyActivity = definition.id === "gym.walk" || definition.id === "fun.child-play";
+  const care = definition.id === "hospital.clinic" || definition.id === "hospital.emergency";
+  const specificAge = earlyActivity || (definition.contact && isKin(definition.contact)) ? 4
+    : definition.contact || (definition.category === "hospital" && !care) ? 7
+    : categoryAge[definition.category] ?? 0;
+  const minAge = Math.max(definition.minAge ?? 0, s.lifespanStart !== null ? specificAge : 0);
+  if (s.age < minAge) return {
+    bg: `Достъпно от ${minAge} г.`,
+    en: `Available from age ${minAge}.`,
   };
-  if (definition.city && s.city !== definition.city) return definition.city === "sofia"
-    ? { bg: "Достъпно в София.", en: "Available in Sofia." }
-    : { bg: "Достъпно в Трявна.", en: "Available in Tryavna." };
+  if (definition.city && s.city !== definition.city) {
+    const town = cities[definition.city].name;
+    return { bg: "Достъпно " + inCityBg(definition.city) + ".", en: "Available in " + town.en + "." };
+  }
   const requirement = definition.requires?.(s);
   if (requirement) return requirement;
-  if (s.choiceId === null && definition.time !== 0) return { bg: "Първо вземи решението за тази година в „Живот“.", en: "Make this year’s decision in Life first." };
+  if (s.sceneId && s.choiceId === null && definition.time !== 0) return { bg: "Първо вземи решението за тази година в „Живот“.", en: "Make this year’s decision in Life first." };
   const alreadyUsed = s.usedActions.includes(definition.id) || (definition.branch && s.usedActions.some(id => {
     const used = byId.get(id);
     return used?.contact === definition.contact && used?.branch?.id === definition.branch?.id;
@@ -159,7 +175,7 @@ export function lifeActivityOption(s: GameState, definition: LifeActivityDefinit
     minAge: definition.minAge, branch: definition.branch,
     group: platform ? { bg: platform, en: platform } : undefined,
     timeCost: definition.time ?? 1, cashDelta,
-    statDelta: statsChange(s.stats, applyStats(s.stats, definition.stats ?? {})),
+    statDelta: statsChange(s.stats, applyStats(applyStats(s.stats, definition.stats ?? {}), talentBonus(s.profile?.talent, definition.id))),
     blocked: blocked(s, definition, cashDelta, timeLeft),
   };
 }

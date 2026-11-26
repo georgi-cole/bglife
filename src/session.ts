@@ -1,7 +1,8 @@
-import { decodeSave, encodeSave, newLife, type GameState } from "./engine.ts";
+import { continueLife, decodeSave, encodeSave, newLife, type GameState } from "./engine.ts";
 
 export const SAVE_KEY = "bglife.journal.v1";
 export const LANGUAGE_KEY = "bglife.language";
+export const VIP_TRIAL_KEY = "bglife.preview.vip";
 export type Session = { life: GameState; album: GameState[] };
 export type Language = "bg" | "en";
 
@@ -16,7 +17,7 @@ export function deserialize(raw: string | null): Session | null {
     if (value?.version !== 1 || typeof value.life !== "string" || !Array.isArray(value.album)) return null;
     const life = decodeSave(value.life);
     const album = value.album.map((entry: unknown) => typeof entry === "string" ? decodeSave(entry) : null);
-    return life && album.every((entry: GameState | null) => entry !== null) ? {life, album} : null;
+    return life && album.every((entry: GameState | null) => entry !== null) ? {life: continueLife(life), album} : null;
   } catch { return null; }
 }
 
@@ -40,6 +41,11 @@ export function persist(session: Session): boolean {
     localStorage.setItem(SAVE_KEY,next);
     return true;
   } catch { return false; }
+}
+
+export function initialTrialVip(): boolean {
+  try { return localStorage.getItem(VIP_TRIAL_KEY) === "on"; }
+  catch { return false; }
 }
 
 export function initialLanguage(): Language {

@@ -23,6 +23,50 @@ function electiveProcedure(s: GameState) {
 
 export const lifeLeisure: LifeActivityDefinition[] = [
   {
+    id: "fun.practice-music", category: "fun", minAge: 7,
+    label: text("Свири или пей", "Practise music"),
+    description: text("Упражни любима мелодия.", "Practise a favourite melody."),
+    result: text("Изсвири мелодията от начало до край.", "You played the melody from start to finish."),
+    stats: { joy: 3 }, visible: s => Boolean(s.profile),
+  },
+  {
+    id: "fun.drawing", category: "fun", minAge: 7,
+    label: text("Направи рисунка", "Draw something"),
+    description: text("Нарисувай място, което познаваш.", "Draw a place you know."),
+    result: text("Върна се към рисунката и добави детайл, който беше пропуснал.", "You went back to the drawing and added a detail you had missed."),
+    stats: { joy: 3 }, visible: s => Boolean(s.profile),
+  },
+  {
+    id: "fun.digital-project", category: "fun", minAge: 12,
+    label: text("Направи дигитален проект", "Make a digital project"),
+    description: text("Сглоби малък проект от идея до готов резултат.", "Take a small project from an idea to a working result."),
+    result: text("Поправи първата грешка и успя да довършиш проекта.", "You fixed the first issue and finished the project."),
+    stats: { brains: 3 }, visible: s => Boolean(s.profile),
+  },
+  {
+    id: "fun.language-exchange", category: "fun", minAge: 12,
+    label: text("Упражни чужд език", "Practise a language"),
+    description: text("Избери тема и проведи кратък разговор.", "Pick a topic and have a short conversation."),
+    result: text("Употреби две нови думи в разговор и ги запомни.", "You used two new words in conversation and remembered them."),
+    stats: { brains: 3 }, visible: s => Boolean(s.profile),
+  },
+  {
+    id: "gym.walk", category: "gym", minAge: 4,
+    label: text("Излез на разходка", "Go for a walk"),
+    description: text("Раздвижи се със свое темпо.", "Get moving at your own pace."),
+    result: text("Избра познат маршрут и се прибра в по-добро настроение.", "You took a familiar route and came home feeling better."),
+    stats: { health: 5, joy: 2 },
+    visible: s => s.lifespanStart !== null,
+  },
+  {
+    id: "fun.child-play", category: "fun", minAge: 4,
+    label: text("Поиграй навън", "Play outside"),
+    description: text("Излез на площадката и измислете игра.", "Go to the playground and make up a game."),
+    result: text("Тръгна за малко, а се прибра чак когато започна да се стъмва.", "You went out for a little while and only came home as it got dark."),
+    stats: { health: 3, joy: 5 },
+    visible: s => s.lifespanStart !== null && s.age < 13,
+  },
+  {
     id: "hospital.gp", category: "hospital",
     label: text("Обади се на личния лекар", "Call your GP"),
     description: text("Обсъди как се чувстваш и уговори преглед при нужда.", "Talk about how you have been feeling and arrange a check-up if needed."),
@@ -42,6 +86,7 @@ export const lifeLeisure: LifeActivityDefinition[] = [
     description: text("Отиди на преглед за неспешен здравословен проблем.", "Get checked for a non-emergency health issue."),
     result: text("В поликлиниката те прегледаха. След прегледа успя да се върнеш към обичайното си ежедневие.", "You had a check-up at the clinic and were able to return to your usual routine."),
     cost: 2_000, stats: { health: 8 },
+    walletDelta: s => s.lifespanStart !== null && s.age < 16 ? 0 : -2_000,
     requires: s => s.lifeSystems.medicalIssue === "urgent"
       ? text("Има спешен случай. Използвай „Обади се на 112“.", "There is an emergency. Use “Call 112”.")
       : null,

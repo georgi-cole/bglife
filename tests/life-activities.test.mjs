@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   advance, annualBudget, choose, commitmentsLeft, decodeSave, doAction, doLifeActivity, encodeSave,
-  getChoices, getEstate, getLifeActivities, getPersonActivities, giveUp, lifeStatKeys, newLife, playYear,
+  getChoices, getEstate, getLifeActivities, getPersonActivities, giveUp, lifeStatKeys, newChapterLife as newLife, playYear,
 } from "../src/engine.ts";
 import { personAvatarTraits, personName } from "../src/peopleIdentity.ts";
 
