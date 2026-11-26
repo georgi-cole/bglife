@@ -1,0 +1,89 @@
+:root {
+  --bg-white: #fbfaf2;
+  --bg-green: #149964;
+  --bg-red: #d63b3d;
+  --bg-tricolor: linear-gradient(to bottom,
+    var(--bg-white) 0 calc(100% / 3),
+    var(--bg-green) calc(100% / 3) calc(200% / 3),
+    var(--bg-red) calc(200% / 3) 100%);
+}
+
+.kolequant-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  isolation: isolate;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.kolequant-splash-backdrop {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 49%, #17271d 0%, #0c130f 35%, #080c09 73%);
+}
+
+.kolequant-splash-brand {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  width: max-content;
+}
+
+.kolequant-splash-symbol {
+  width: clamp(2.9rem, 14vmin, 4.35rem);
+  aspect-ratio: 126 / 264;
+  background: var(--bg-tricolor);
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+}
+
+.kolequant-splash-wordmark {
+  position: absolute;
+  top: calc(100% + 1.35rem);
+  width: clamp(7.2rem, 33vmin, 10.1rem);
+  max-width: none;
+  height: auto;
+}
+
+.kolequant-splash-canvas {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.kolequant-splash[data-phase="morph"] .kolequant-splash-backdrop {
+  animation: kolequant-reveal var(--splash-duration) both;
+}
+
+.kolequant-splash[data-phase="morph"] .kolequant-splash-symbol {
+  animation: kolequant-fade 120ms linear both;
+}
+
+.kolequant-splash[data-phase="morph"] .kolequant-splash-wordmark {
+  animation: kolequant-fade 230ms ease-out both;
+}
+
+.kolequant-splash[data-phase="fade"] {
+  animation: kolequant-fade var(--splash-duration) ease-out both;
+}
+
+@keyframes kolequant-fade {
+  to { opacity: 0; }
+}
+
+@keyframes kolequant-reveal {
+  0%, 19% { opacity: 1; }
+  87%, 100% { opacity: 0; }
+}

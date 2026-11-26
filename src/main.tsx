@@ -1,4 +1,4 @@
-import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
+import React,{useCallback,useEffect,useLayoutEffect,useRef,useState} from "react";
 import {createRoot} from "react-dom/client";
 import {choose,defaultPlayChoice,doAction,doLifeActivity,encodeSave,getPersonActivities,giveUp,nameNewborns,hasStartedLife,newProfileLife,playYear,doPathAction,startCareerLife,type City,type GameState,type LifeActivityCategory,type LifeActivityOption} from "./engine.ts";
 import {Album,Places} from "./Views.tsx";
@@ -60,6 +60,8 @@ function App(){
   const [first]=useState(loadSession),[session,setSession]=useState(first.session),[notice,setNotice]=useState(first.notice);
   const [l,setLanguage]=useState(initialLanguage),[tab,setTab]=useState<Tab>("journal"),[dialog,setDialog]=useState<Dialog>(null);
   const [screen,setScreen]=useState<Screen>("home");
+  const [homeIntro,setHomeIntro]=useState(()=>!window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const finishHomeIntro=useCallback(()=>setHomeIntro(false),[]);
   const [vip,setVip]=useState(initialTrialVip);
   const [moreMenu,setMoreMenu]=useState<{category:LifeActivityCategory|null;parent:MoreParent;version:number}>({category:null,parent:"journal",version:0});
   const [albumFromMore,setAlbumFromMore]=useState(false);
@@ -332,7 +334,7 @@ function App(){
         <BgLifeMark/>
         {toolbar}
       </div>}
-      {screen==="home"?<HomeHub life={s} l={l} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
+      {screen==="home"?<HomeHub life={s} l={l} intro={homeIntro} onIntroEnd={finishHomeIntro} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
         onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</HomeHub>:
        screen==="avatar"?<AvatarCreator l={l} vip={vip} onVip={toggleTrialVip} onClose={cancelAvatarCreator} onStart={startWithAvatar}/>:
        screen==="album"?<Album {...menuProps} back s={s} archive={session.album} l={l}/>:
