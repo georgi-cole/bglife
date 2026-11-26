@@ -64,7 +64,7 @@
 .more-resource strong { color: var(--ink); }
 .more-resource svg { color: var(--coral); }
 
-.activity-directory { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .52rem; }
+.activity-directory { display: grid; grid-template-columns: minmax(0, 1fr); gap: .52rem; }
 .activity-category {
   appearance: none;
   display: grid;
@@ -241,13 +241,6 @@
   .life-status-title { display: grid; justify-content: stretch; text-align: center; font-size: .64rem; line-height: 1.1; }
   .life-status-title strong { font-size: .75rem; }
   .activity-list { grid-template-columns: minmax(0, 1fr); }
-}
-
-@media (max-width: 395px) {
-  .activity-category { grid-template-columns: auto minmax(0, 1fr); }
-  .activity-category > svg { display: none; }
-  .activity-category-copy strong { font-size: .84rem; }
-  .activity-category-copy small { font-size: .65rem; }
 }
 
 @media (max-width: 355px) {
