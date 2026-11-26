@@ -31,8 +31,9 @@ export function StatsBars({ life, l }: { life: GameState; l: Language }) {
         const value = life.stats[stat];
         return <div key={stat} className={`life-status-item stat-${stat}`}
           role="meter" aria-label={labels[stat]} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} aria-valuetext={`${value}%`}>
-          <div className="life-status-title" aria-hidden="true"><span>{labels[stat]}</span><strong>{value}%</strong></div>
+          <span className="life-status-label" aria-hidden="true">{labels[stat]}</span>
           <div className="life-status-track" aria-hidden="true"><span style={{ width: value + "%" }} /></div>
+          <strong className="life-status-value" aria-hidden="true">{value}%</strong>
         </div>;
       })}
     </div>

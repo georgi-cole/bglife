@@ -5,8 +5,8 @@
 
 .life-status-inner {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: clamp(.48rem, 1.3vw, .85rem);
+  grid-template-columns: minmax(0, 1fr);
+  gap: .12rem;
   max-width: var(--measure);
   margin-inline: auto;
   padding: .53rem .67rem .62rem;
@@ -15,19 +15,18 @@
   border-top-color: #313951;
 }
 
-.life-status-item { min-width: 0; }
-.life-status-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: .12rem .28rem;
-  margin-bottom: .26rem;
-  font-size: .69rem;
-  font-weight: 650;
+.life-status-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr) 2.65rem;
+  align-items: center;
+  column-gap: .65rem;
+  min-height: 1rem;
+  font-size: .75rem;
   line-height: 1.15;
-  color: #c8cede;
 }
-.life-status-title strong { color: var(--ink); font-size: .76rem; font-variant-numeric: tabular-nums; }
+.life-status-label { color: #c8cede; font-weight: 650; }
+.life-status-value { text-align: end; color: var(--ink); font-variant-numeric: tabular-nums; }
 .life-status-track { height: .26rem; border-radius: 1rem; background: #30384b; overflow: hidden; }
 .life-status-track span { display: block; height: 100%; border-radius: inherit; background: var(--stat-color); transition: width .24s ease; }
 
@@ -238,14 +237,12 @@
 @media (max-width: 610px) {
   .life-status { padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px); background: #101522; }
   .life-status-inner { border-inline: 0; border-bottom: 0; }
-  .life-status-title { display: grid; justify-content: stretch; text-align: center; font-size: .64rem; line-height: 1.1; }
-  .life-status-title strong { font-size: .75rem; }
   .activity-list { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 355px) {
-  .life-status-inner { gap: .35rem; padding-inline: .42rem; }
-  .life-status-title { font-size: .6rem; }
+  .life-status-inner { padding-inline: .55rem; }
+  .life-status-item { column-gap: .45rem; }
   .activity-category-icon { width: 1.85rem; height: 1.85rem; }
   .activity-category-icon svg { width: 1.05rem; height: 1.05rem; }
 }
