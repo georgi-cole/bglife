@@ -1,9 +1,9 @@
 import type {GameState,PersonId,Text} from "./engine.ts";
+import {partnerIntimacy} from "./lifeReproduction.ts";
 import type {ActivityBranch,LifeActivityDefinition,LifeSystems} from "./lifeActivities.ts";
 import {childIndex,isChild,personAge,personRelationship,personSeed,type PeopleId} from "./peopleIdentity.ts";
 
 const t = (bg:string, en:string):Text => ({bg,en});
-const contactIds = ["rumi","niki","mentor","friend","appMatch","serviceMatch","child-0","child-1"] as const;
 type Context = "relative" | "cousin" | "mentor" | "friend" | "partner" | "former" | "child";
 
 function context(s:GameState,id:PeopleId):Context|null {
@@ -77,7 +77,7 @@ function changeBond(s:GameState,id:PeopleId,amount:number):LifeSystems {
   return {...s.lifeSystems,family:{...family,bond:Math.max(0,Math.min(100,family.bond+amount))}};
 }
 
-const contextualActivities: LifeActivityDefinition[] = contactIds.flatMap(contact=>
+const contextualActivities = (contact: PeopleId): LifeActivityDefinition[] =>
   (Object.entries(actions) as Array<[Context,Interaction[]]>).flatMap(([kind,options])=>options.map(row=>{
     const knownContact: PersonId|undefined=contact==="rumi"||contact==="niki"||contact==="mentor"||contact==="friend"?contact:undefined;
     const trackBond=kind==="partner"||kind==="child";
@@ -92,7 +92,7 @@ const contextualActivities: LifeActivityDefinition[] = contactIds.flatMap(contac
       trust:knownContact&&!trackBond?{[knownContact]:row.bond}:undefined,
       update:trackBond?s=>changeBond(s,contact,row.bond):undefined,
     } satisfies LifeActivityDefinition;
-  })));
+  }));
 
 type BranchVariant = {
   id:string;label:Text;description:Text;city?:"sofia"|"tryavna";cost?:number;request?:number;
@@ -191,7 +191,7 @@ function reaction(s:GameState,contact:PeopleId,group:BranchGroup,choice:BranchVa
         t("Жестът беше приет спокойно.","They acknowledged it quietly."))};
 }
 
-const branchActivities = contactIds.flatMap(contact=>groups.flatMap(group=>group.variants.map(choice=>{
+const branchActivities = (contact: PeopleId): LifeActivityDefinition[] => groups.flatMap(group=>group.variants.map(choice=>{
   const knownContact:PersonId|undefined=contact==="rumi"||contact==="niki"||contact==="mentor"||contact==="friend"?contact:undefined;
   return {
     id:"people."+contact+"."+group.id+"."+choice.id, category:"family", contact, branch:{id:group.id,label:group.label,description:group.description},
@@ -214,6 +214,8 @@ const branchActivities = contactIds.flatMap(contact=>groups.flatMap(group=>group
       };
     },
   } satisfies LifeActivityDefinition;
-})));
+}));
 
-export const peopleActivities: LifeActivityDefinition[] = [...contextualActivities,...branchActivities];
+export function getPeopleActivityDefinitions(contact: PeopleId): LifeActivityDefinition[] {
+  return [...partnerIntimacy(contact), ...contextualActivities(contact), ...branchActivities(contact)];
+}

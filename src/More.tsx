@@ -3,6 +3,8 @@ import {
   annualBudget, commitmentsLeft, getEstate, getLifeActivities, lifeHeirLabel, lifePartnerLabel,
   type GameState, type LifeActivityCategory, type LifeActivityOption, type LifeStat, type Memory,
 } from "./engine.ts";
+import { canAccessAdoption, canAccessFertility } from "./lifeReproduction.ts";
+import { adoptionStatus, pregnancyStatus } from "./reproduction.ts";
 import type { Language } from "./session.ts";
 import { avatarTreatments, getAvatarStage, getAvatarTreatments } from "./avatar.ts";
 import { LifePortrait } from "./AvatarPortrait.tsx";
@@ -15,6 +17,8 @@ const categories = [
   { id: "pets", title: { bg: "Домашни любимци", en: "Pets" }, clue: { bg: "Осиновяване и грижи", en: "Adoption and care" }, path: "M12 21c-2 0-2.8-1.1-4.5-1.1C4.7 19.9 4 17 6 15l3.2-3.4a3.6 3.6 0 0 1 5.6 0L18 15c2 2 1.3 4.9-1.5 4.9-1.7 0-2.5 1.1-4.5 1.1ZM5.6 10.2a2 2 0 1 1-4-1 2 2 0 0 1 4 1ZM11 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm6 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm5.4 3.2a2 2 0 1 1-4 1 2 2 0 0 1 4-1Z" },
   { id: "holidays", title: { bg: "Почивки", en: "Holidays" }, clue: { bg: "Уикенди и пътувания", en: "Weekends and travel" }, path: "M4 8h16v12H4zM9 8V5h6v3M8 10v8m8-8v8M2 11v6m20-6v6" },
   { id: "family", title: { bg: "Любов и семейство", en: "Love and family" }, clue: { bg: "Срещи, партньор и деца", en: "Dating, partners and children" }, path: "M20.5 5.7a4.7 4.7 0 0 0-6.7 0L12 7.5l-1.8-1.8a4.7 4.7 0 0 0-6.7 6.6l8.5 8.2 8.5-8.2a4.7 4.7 0 0 0 0-6.6Z" },
+  { id: "fertility", title: { bg: "Фертилност", en: "Fertility" }, clue: { bg: "Консултация и лечение", en: "Consultation and treatment" }, path: "M12 21c-4.4-2.7-7-6.2-7-10a7 7 0 0 1 14 0c0 3.8-2.6 7.3-7 10zM9 11h6m-3-3v6" },
+  { id: "adoption", title: { bg: "Осиновяване", en: "Adoption" }, clue: { bg: "Кандидатура и предложения", en: "Application and matches" }, path: "M3 11 12 4l9 7M5 10v10h14V10m-10 6 2 2 4-4" },
   { id: "bank", title: { bg: "Банка", en: "Bank" }, clue: { bg: "Сметки, заеми и ипотека", en: "Accounts, loans and mortgages" }, path: "m3 8 9-5 9 5v2H3zm3 2v8m6-8v8m6-8v8M3 18h18v3H3z" },
   { id: "aesthetics", title: { bg: "Визия и грижа", en: "Aesthetics" }, clue: { bg: "Салони и процедури", en: "Salons and treatments" }, path: "M12 3c0 5-2 7-7 7 5 0 7 2 7 7 0-5 2-7 7-7-5 0-7-2-7-7ZM5 14v6m-3-3h6m12-4v6m-3-3h6" },
   { id: "fun", title: { bg: "Забавления", en: "Fun" }, clue: { bg: "Кино, концерти и излизания", en: "Films, concerts and nights out" }, path: "M4 8h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4V8Zm10 0v2m0 2v2m0 2v2m-5-7 1 2 2 .3-1.5 1.4.4 2-1.9-1-1.9 1 .4-2L6 13.3l2-.3z" },
@@ -23,6 +27,8 @@ const categories = [
 ] as const satisfies ReadonlyArray<{id: LifeActivityCategory; title: Record<Language, string>; clue: Record<Language, string>; path: string}>;
 
 type Category = typeof categories[number];
+const nestedParents = { fertility: "hospital", adoption: "family" } as const;
+const directory = categories.filter(item => !(item.id in nestedParents));
 const statOrder = ["health", "looks", "joy", "brains", "influence"] as const satisfies readonly LifeStat[];
 
 export function StatsBars({ life, l }: { life: GameState; l: Language }) {
@@ -89,7 +95,21 @@ function CategoryStatus({ life, category, l }: { life: GameState; category: Life
       if (partner) fields.push({ label: t("Партньор","Partner"), value: partner[l] },
         { label: t("Близост","Bond"), value: family.bond + "%" });
       fields.push({ label: t("Деца","Children"), value: family.children });
-      if (family.expecting) fields.push({ label: t("Семейство","Family"), value: t("Очакваш дете","Expecting a child") });
+      const pregnancy = pregnancyStatus(life);
+      if (pregnancy) fields.push({ label: t("Бременност","Pregnancy"), value: pregnancy[l] });
+      break;
+    }
+    case "fertility": {
+      const { evaluationAt, treatmentUntil } = life.lifeSystems.reproduction;
+      fields = [{ label: t("Консултация","Consultation"), value: evaluationAt === null ? t("Предстои","Pending") : t("Проведена","Complete") }];
+      if (treatmentUntil >= life.age) fields.push({ label: t("Лечение","Treatment"), value: t("В ход","Active") });
+      const pregnancy = pregnancyStatus(life);
+      if (pregnancy) fields.push({ label: t("Бременност","Pregnancy"), value: pregnancy[l] });
+      break;
+    }
+    case "adoption": {
+      const pending = adoptionStatus(life);
+      fields = [{ label: t("Кандидатура","Application"), value: pending?.[l] ?? t("Няма подадено заявление","No application submitted") }];
       break;
     }
     case "bank":
@@ -163,7 +183,9 @@ const activityIcons: Record<string, IconName> = {
   "pets.adopt":"home", "pets.rescue":"heart", "pets.vet":"plus", "pets.play":"sun",
   "family.tinder":"phone", "family.dating-service":"people", "family.casual":"sparkle", "family.date-eli":"heart",
   "family.time-together":"clock", "family.commit":"check", "family.engage":"ring", "family.marry":"home",
-  "family.baby":"heart", "family.adopt":"people", "family.break-up":"back",
+  "family.break-up":"back", "fertility.checkup":"plus", "fertility.treatment":"heart",
+  "fertility.iui":"plus", "fertility.ivf":"heart", "fertility.donor-ivf":"heart",
+  "adoption.apply":"journal", "adoption.accept":"people", "adoption.decline":"clock", "adoption.withdraw":"close",
   "bank.open":"wallet", "bank.deposit":"plus", "bank.withdraw":"down", "bank.loan":"bag",
   "bank.pay-loan":"check", "bank.mortgage":"home", "bank.pay-mortgage":"key",
   "legacy.add":"plus", "legacy.remove":"close", "legacy.prepare":"journal",
@@ -232,6 +254,11 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
   const screen = useRef<HTMLElement>(null);
   const t = (bg: string, en: string) => copy(l, bg, en);
   const category = categories.find(item => item.id === selected);
+  const parent = selected === "fertility" || selected === "adoption" ? nestedParents[selected] : null;
+  const child = categories.find(item =>
+    (selected === "hospital" && item.id === "fertility" && canAccessFertility(life)) ||
+    (selected === "family" && item.id === "adoption" && canAccessAdoption(life)));
+  const parentTitle = categories.find(item => item.id === parent)?.title[l];
   const availableTime = commitmentsLeft(life);
   const memory = life.history.at(-1);
   const feedback = lastAction && lastAction.category === selected && lastAction.index === life.commands.length && lastAction.id === memory?.id ? memory : undefined;
@@ -266,7 +293,7 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
       <span className="more-resource"><Icon name="clock" size={15} />{t("Свободно време", "Free time")}: <strong>{availableTime}</strong></span>
     </header>
     <div className="activity-directory">
-      {categories.map(item => <button type="button" key={item.id} data-category={item.id}
+      {directory.map(item => <button type="button" key={item.id} data-category={item.id}
         className={`activity-category activity-${item.id}`} onClick={() => changeCategory(item.id)}>
         <span className="activity-category-icon"><CategoryIcon category={item} /></span>
         <span className="activity-category-copy"><strong>{item.title[l]}</strong><small>{item.clue[l]}</small></span>
@@ -292,8 +319,8 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
 
   return <section key={platform ?? category.id} ref={screen} className={`more-screen activity-${category.id}`} aria-labelledby="more-heading">
     <header className="more-heading">
-      <MenuTitle back onClose={platform ? () => openPlatform(null) : onCategoryBack ?? (() => changeCategory(null))}
-        closeLabel={platform ? t("Назад към Социални мрежи","Back to Social media") : onCategoryBack ? categoryBackLabel : t("Назад към Още","Back to More")}>
+      <MenuTitle back onClose={platform ? () => openPlatform(null) : parent ? () => changeCategory(parent) : onCategoryBack ?? (() => changeCategory(null))}
+        closeLabel={platform ? t("Назад към Социални мрежи","Back to Social media") : parentTitle ? t("Назад към " + parentTitle, "Back to " + parentTitle) : onCategoryBack ? categoryBackLabel : t("Назад към Още","Back to More")}>
         <h1 ref={heading} id="more-heading" tabIndex={-1}>
           {platform ?? category.title[l]}
         </h1>
@@ -301,7 +328,12 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
       <span className="more-resource"><Icon name="clock" size={15} />{t("Свободно време", "Free time")}: <strong>{availableTime}</strong></span>
     </header>
     {!platform && <CategoryStatus life={life} category={category.id} l={l}/>}
-    {!life.finished && life.choiceId === null && onJournal && <div className="activity-unlock">
+    {child && <button type="button" data-category={child.id} className={`activity-category activity-${child.id}`} onClick={()=>changeCategory(child.id)}>
+      <span className="activity-category-icon"><CategoryIcon category={child}/></span>
+      <span className="activity-category-copy"><strong>{child.title[l]}</strong><small>{child.id === "adoption" ? adoptionStatus(life)?.[l] ?? child.clue[l] : child.clue[l]}</small></span>
+      <Icon name="next" size={16}/>
+    </button>}
+    {!life.finished && life.sceneId && life.choiceId === null && onJournal && <div className="activity-unlock">
       <span>{t("Първо вземи решението за тази година.", "Make this year’s story decision to unlock activities.")}</span>
       <button type="button" onClick={onJournal}>{t("Към решението", "Go to decision")}<Icon name="right" size={15} /></button>
     </div>}

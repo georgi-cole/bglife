@@ -1,7 +1,9 @@
 import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
 import {createRoot} from "react-dom/client";
-import {FIRST_AGE,choose,defaultPlayChoice,doAction,doLifeActivity,getPersonActivities,giveUp,newLife,playYear,type GameState,type LifeActivityCategory,type LifeActivityOption} from "./engine.ts";
+import {FIRST_AGE,choose,defaultPlayChoice,doAction,doLifeActivity,getPersonActivities,giveUp,nameNewborns,newLife,playYear,type GameState,type LifeActivityCategory,type LifeActivityOption} from "./engine.ts";
 import {Album,Places} from "./Views.tsx";
+import {BirthNamingDialog} from "./BirthNamingDialog.tsx";
+import type {SurnameSource} from "./reproduction.ts";
 import {People} from "./People.tsx";
 import {BgLifeMark,PersonActionDialog,type PersonActionFlow} from "./PersonActionDialog.tsx";
 import {personRelationship,type PeopleId} from "./peopleIdentity.ts";
@@ -226,16 +228,25 @@ function App(){
   function nextYear(){
     const current=live.current;
     if(current.life!==s)return;
-    if(s.finished){setDialog("replay");return;}
+    if(s.finished&&s.endReason!=="chapter"){setDialog("replay");return;}
     const next=playYear(s);
     if(next===s){
       route("journal");
       requestAnimationFrame(()=>document.getElementById("scene-heading")?.focus());
       return;
     }
-    nextLogPosition.current={age:s.age,focus:true};
+    const event=next.history.at(-1);
+    nextLogPosition.current={age:event?.kind==="event"?event.age:s.age,focus:true};
     commit({...current,life:next});
     setTab("journal");
+  }
+  function saveBabyNames(names:string[],surname:SurnameSource){
+    const current=live.current;
+    if(current.life!==s)return;
+    const updated=nameNewborns(s,names,surname,s.age);
+    if(updated===s)return;
+    commit({...current,life:updated});
+    openJournal(updated,true);
   }
   function startWithAvatar(avatar:AvatarTraits){
     const current=live.current;
@@ -268,7 +279,8 @@ function App(){
     openJournal(restored.life);
   }
   const fallback = defaultPlayChoice(s);
-  const playLabel = s.finished ? t("Нов живот","New life") : t("Следваща година","Next year");
+  const isLifeOver = s.finished && s.endReason !== "chapter";
+  const playLabel = isLifeOver ? t("Нов живот","New life") : t("Следваща година","Next year");
   function navItem(k:Tab) {
     return <button data-tab={k} className="nav-item" aria-current={tab===k?"page":undefined} onClick={()=>k==="more"?openMore():route(k)}><Icon name={k}/><span>{labels[k]}</span></button>;
   }
@@ -303,7 +315,7 @@ function App(){
         onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</StartScreen>:
        screen==="avatar"?<AvatarCreator l={l} startAge={FIRST_AGE} onClose={cancelAvatarCreator} onStart={startWithAvatar}/>:
        screen==="album"?<Album {...menuProps} back s={s} archive={session.album} l={l}/>:
-       tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>openGameMenu("wallet")} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore}/>:
+       tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>openGameMenu("wallet")} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore} onContinue={nextYear}/>:
        tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family","people")} onActivity={openPersonAction}/>:tab==="places"?<Places {...menuProps} s={s} l={l} onHolidays={()=>openMore("holidays","places")}/>:
        tab==="more"?<More {...menuProps} key={moreMenu.version} life={s} l={l} initialCategory={moreMenu.category} animateEntry={slideMenu&&moreMenu.category===null}
         onActivity={id=>act(v=>doLifeActivity(v,id,s.age))} onGiveUp={requestGiveUp} onJournal={()=>openJournal(live.current.life,true)} onAlbum={()=>openAlbum(true)}
@@ -317,11 +329,13 @@ function App(){
           aria-label={fallback && tab!=="journal" ? playLabel + ". " + fallback.label[l] : playLabel}
           title={fallback ? playLabel + " · " + fallback.label[l] : playLabel}
           aria-describedby={fallback && tab==="journal" ? "play-default" : undefined}>
-          <span className="play-face" aria-hidden="true"><PlaySymbol/></span><span>{s.finished ? playLabel : "+1 " + t("година","year")}</span>
+          <span className="play-face" aria-hidden="true"><PlaySymbol/></span><span>{isLifeOver ? playLabel : "+1 " + t("година","year")}</span>
         </button>
         {navItem("places")}{navItem("more")}
       </div>
     </nav><StatsBars life={s} l={l}/></footer>}
+    {screen==="game"&&!dialog&&!personAction&&s.lifeSystems.reproduction.naming&&
+      <BirthNamingDialog key={s.seed+"-"+s.age} life={s} birth={s.lifeSystems.reproduction.naming} l={l} onSave={saveBabyNames}/>}
     {personAction&&<PersonActionDialog flow={personAction} life={s} l={l} onClose={closePersonAction}
       onSelect={selected=>setPersonAction({...personAction,selected})} onConfirm={confirmPersonAction}/>}
     {dialog&&<dialog key={dialog} ref={dialogRef} className={menuDialog?"modal-card game-menu-dialog":"modal-card"} onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}>

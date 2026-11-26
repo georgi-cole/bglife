@@ -1,25 +1,29 @@
 import type { City, GameState, PersonId, Text } from "./engine.ts";
 import type { AvatarPresentation } from "./avatar.ts";
-import { peopleActivities } from "./peopleActivities.ts";
-import type { PeopleId } from "./peopleIdentity.ts";
+import { getPeopleActivityDefinitions } from "./peopleActivities.ts";
+import { isPeopleId, type PeopleId } from "./peopleIdentity.ts";
 import { lifeBank } from "./lifeEconomy.ts";
 import { lifeFamily } from "./lifeFamily.ts";
+import { lifeReproduction } from "./lifeReproduction.ts";
+import { startingReproduction, type Reproduction } from "./reproduction.ts";
 import { lifeLeisure } from "./lifeLeisure.ts";
 import { lifeSocial } from "./lifeSocial.ts";
 import { personProfiles } from "./story.ts";
+import { applyStats, statsChange, type StatDelta } from "./lifeStats.ts";
 
-export const lifeStatKeys = ["health", "looks", "joy", "brains", "influence"] as const;
-export type LifeStat = typeof lifeStatKeys[number];
-export type LifeStats = Record<LifeStat, number>;
-export type StatDelta = Partial<LifeStats>;
+export { applyStats, boundStat, lifeStatKeys, startingStats, statsChange } from "./lifeStats.ts";
+export type { LifeStat, LifeStats, StatDelta } from "./lifeStats.ts";
 
-export type LifeActivityCategory = "hospital" | "gym" | "pets" | "holidays" | "family" | "bank" | "aesthetics" | "fun" | "social" | "legacy";
+export type LifeActivityCategory = "hospital" | "fertility" | "adoption" | "gym" | "pets" | "holidays" | "family" | "bank" | "aesthetics" | "fun" | "social" | "legacy";
 export type Platform = "instagram" | "facebook" | "tiktok" | "youtube" | "vbox7" | "onlyfans";
 export type Heir = "partner" | "children" | "rumi" | "friend";
 
 export type PartnerId = PersonId | "appMatch" | "serviceMatch";
 
-export type ChildProfile = { joinedAt: number; ageAtJoin: number; bond: number; gender: AvatarPresentation };
+export type ChildProfile = {
+  joinedAt: number; ageAtJoin: number; bond: number; gender: AvatarPresentation;
+  name?: Text; origin?: "birth" | "adoption";
+};
 
 export type LifeSystems = {
   medicalIssue: "routine" | "urgent" | null;
@@ -33,6 +37,7 @@ export type LifeSystems = {
     children: number;
     expecting: boolean;
   };
+  reproduction: Reproduction;
   bank: { accountOpen: boolean; balance: number; loan: number; mortgage: number; ownsHome: boolean };
   social: Partial<Record<Platform, { followers: number; posts: number }>>;
   legacy: { heirs: Heir[]; prepared: boolean };
@@ -61,6 +66,8 @@ export type LifeActivityDefinition = {
   contact?: PeopleId;
   visible?: (s: GameState) => boolean;
   branch?: ActivityBranch;
+  exclusive?: string;
+  replayOnly?: true;
   resolve?: (s: GameState) => ActivityResolution;
 };
 
@@ -72,42 +79,16 @@ export type LifeActivityOption = Pick<LifeActivityDefinition, "id" | "category" 
   blocked: Text | null;
 };
 
-export function startingStats(): LifeStats {
-  return { health: 76, looks: 55, joy: 66, brains: 63, influence: 24 };
-}
-
 export function startingLifeSystems(): LifeSystems {
   return {
     medicalIssue: null,
     pets: { adopted: false, rescued: false, bond: 0 },
     family: { partner: null, formerPartners: [], childProfiles: [], stage: "single", bond: 0, children: 0, expecting: false },
+    reproduction: startingReproduction(),
     bank: { accountOpen: false, balance: 0, loan: 0, mortgage: 0, ownsHome: false },
     social: {},
     legacy: { heirs: [], prepared: false },
   };
-}
-
-export function applyStats(stats: LifeStats, delta: StatDelta): LifeStats {
-  return {
-    health: boundStat(stats.health + (delta.health ?? 0)),
-    looks: boundStat(stats.looks + (delta.looks ?? 0)),
-    joy: boundStat(stats.joy + (delta.joy ?? 0)),
-    brains: boundStat(stats.brains + (delta.brains ?? 0)),
-    influence: boundStat(stats.influence + (delta.influence ?? 0)),
-  };
-}
-
-export function statsChange(before: LifeStats, after: LifeStats): StatDelta {
-  const change: StatDelta = {};
-  for (const key of lifeStatKeys) {
-    const delta = after[key] - before[key];
-    if (delta !== 0) change[key] = delta;
-  }
-  return change;
-}
-
-export function boundStat(value: number): number {
-  return Math.max(0, Math.min(100, value));
 }
 
 const platformNames = {
@@ -115,20 +96,25 @@ const platformNames = {
   youtube: "YouTube", vbox7: "Vbox7", onlyfans: "OnlyFans",
 };
 export const activityDefinitions: LifeActivityDefinition[] = [
-  ...lifeLeisure, ...lifeFamily, ...lifeBank, ...lifeSocial, ...peopleActivities,
+  ...lifeLeisure, ...lifeFamily, ...lifeBank, ...lifeSocial, ...lifeReproduction,
 ];
 
 const byId = new Map(activityDefinitions.map(definition => [definition.id, definition]));
 export function getLifeActivityDefinition(id: string): LifeActivityDefinition | undefined {
-  return byId.get(id);
+  const standard = byId.get(id);
+  if (standard) return standard;
+  const [scope, contact] = id.split(".");
+  return scope === "people" && isPeopleId(contact) ? getPeopleActivityDefinitions(contact).find(option => option.id === id) : undefined;
 }
+
 export function spentActivityTime(s: GameState): number {
-  return s.usedActions.reduce((used, id) => used + (byId.get(id)?.time ?? 1), 0);
+  return s.usedActions.reduce((used, id) => used + (getLifeActivityDefinition(id)?.time ?? 1), 0);
 }
 
 function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: number, timeLeft: number): Text | null {
   if (definition.visible && !definition.visible(s)) return { bg: "Това действие не е достъпно за този човек.", en: "This action is not available for this person." };
   if (s.finished) return { bg: "Тази история е приключила.", en: "This story has ended." };
+  if (s.lifeSystems.reproduction.naming) return { bg: "Първо запиши името на бебето.", en: "Name the new baby first." };
   if (definition.minAge && s.age < definition.minAge) return {
     bg: `Достъпно от ${definition.minAge} г.`,
     en: `Available from age ${definition.minAge}.`,
@@ -138,10 +124,11 @@ function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: nu
     : { bg: "Достъпно в Трявна.", en: "Available in Tryavna." };
   const requirement = definition.requires?.(s);
   if (requirement) return requirement;
-  if (s.choiceId === null && definition.time !== 0) return { bg: "Първо вземи решението за тази година в „Живот“.", en: "Make this year’s decision in Life first." };
-  const alreadyUsed = s.usedActions.includes(definition.id) || (definition.branch && s.usedActions.some(id => {
-    const used = byId.get(id);
-    return used?.contact === definition.contact && used?.branch?.id === definition.branch?.id;
+  if (s.sceneId && s.choiceId === null && definition.time !== 0) return { bg: "Първо вземи решението за тази година в „Живот“.", en: "Make this year’s decision in Life first." };
+  const exclusive = definition.branch?.id ?? definition.exclusive;
+  const alreadyUsed = s.usedActions.includes(definition.id) || (exclusive && s.usedActions.some(id => {
+    const used = getLifeActivityDefinition(id);
+    return used?.contact === definition.contact && (used?.branch?.id ?? used?.exclusive) === exclusive;
   }));
   if (alreadyUsed) return {
     bg: "Вече е направено тази година.", en: "Already done this year.",

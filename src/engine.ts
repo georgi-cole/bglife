@@ -1,3 +1,6 @@
+import { cleanFirstName } from "./babyNames.ts";
+import { getPeopleActivityDefinitions } from "./peopleActivities.ts";
+import { applyNewbornNames, settleReproductionYear, type SurnameSource } from "./reproduction.ts";
 import { personName, type PeopleId } from "./peopleIdentity.ts";
 import { actions, scenes } from "./story.ts";
 import { parseAvatar, type AvatarTraits } from "./avatar.ts";
@@ -48,11 +51,14 @@ export type Scene = {
 };
 export type Action = Option & { minAge?: number; maxAge?: number };
 
-export type Command = { age: number; kind: "choice" | "action"; id: string } | { age: number; kind: "year" | "end" };
+export type Command =
+  | { age: number; kind: "choice" | "action"; id: string }
+  | { age: number; kind: "year" | "end" | "continue" }
+  | { age: number; kind: "name-children"; names: string[]; surname: SurnameSource };
 export type Memory = {
   age: number;
   city: City;
-  kind: Command["kind"];
+  kind: "choice" | "action" | "year" | "end" | "event";
   id: string;
   title: Text;
   text: Text;
@@ -81,19 +87,20 @@ export type GameState = {
   choiceId: string | null;
   commands: Command[];
   finished: boolean;
-  endReason: "chapter" | "gaveUp" | null;
+  endReason: "chapter" | "gaveUp" | "lifespan" | null;
   stats: LifeStats;
   lifeSystems: LifeSystems;
 };
 
 export const FIRST_AGE = 16;
-const FINAL_AGE = 26;
+export const CHAPTER_END_AGE = 26;
+const LAST_AGE = 100;
 const SHARED_DEPOSIT = 40_000;
 const FORMAT = "bglife.chapter";
 const CONTENT = "tryavna-sofia-1";
 const YEARLY_TIME = 2;
-// Per year: one choice, up to two discretionary activities, a possible emergency, and the year close.
-const MAX_COMMANDS = (FINAL_AGE - FIRST_AGE + 1) * (YEARLY_TIME + 3) + 1;
+// Allow room for time-free actions and birth naming as well as the annual commands.
+const MAX_COMMANDS = (LAST_AGE - FIRST_AGE + 1) * (YEARLY_TIME + 8);
 const PEOPLE: PersonId[] = ["rumi", "niki", "mentor", "friend"];
 
 function eligible(s: GameState, filter?: Condition): boolean {
@@ -144,7 +151,7 @@ function available(s: GameState, option: Option): boolean {
 }
 
 export function getChoices(s: GameState): Option[] {
-  if (s.finished || s.choiceId !== null) return [];
+  if (s.finished || s.choiceId !== null || s.lifeSystems.reproduction.naming) return [];
   return getScene(s)?.choices.filter((option) => available(s, option)) ?? [];
 }
 
@@ -159,8 +166,10 @@ export function defaultPlayChoice(s: GameState): Option | undefined {
 }
 
 export function playYear(s: GameState, expectedAge = s.age): GameState {
-  if (s.age !== expectedAge || s.finished) return s;
-  if (s.choiceId !== null) return advance(s, expectedAge);
+  if (s.age !== expectedAge || s.lifeSystems.reproduction.naming) return s;
+  if (s.endReason === "chapter") return continueLife(s, expectedAge);
+  if (s.finished) return s;
+  if (!s.sceneId || s.choiceId !== null) return advance(s, expectedAge);
   const option = defaultPlayChoice(s);
   return option ? advance(choose(s, option.id, expectedAge), expectedAge) : s;
 }
@@ -181,9 +190,9 @@ export function commitmentsLeft(s: GameState): number {
 }
 
 export function getActions(s: GameState): Action[] {
-  if (s.finished || s.choiceId === null || commitmentsLeft(s) === 0) return [];
+  if (s.finished || s.choiceId === null || s.lifeSystems.reproduction.naming || commitmentsLeft(s) === 0) return [];
   return actions.filter((action) =>
-    s.age >= (action.minAge ?? FIRST_AGE) && s.age <= (action.maxAge ?? FINAL_AGE)
+    s.age >= (action.minAge ?? FIRST_AGE) && s.age <= (action.maxAge ?? CHAPTER_END_AGE)
     && !s.usedActions.includes(action.id) && available(s, action),
   );
 }
@@ -258,19 +267,24 @@ export function doAction(s: GameState, actionId: string, expectedAge = s.age): G
 
 export function getLifeActivities(s: GameState): LifeActivityOption[] {
   const timeLeft = commitmentsLeft(s);
-  return activityDefinitions.filter(definition => !definition.contact).map(definition => lifeActivityOption(s, definition, timeLeft));
+  return activityDefinitions.filter(definition => !definition.replayOnly && (definition.visible?.(s) ?? true))
+    .map(definition => lifeActivityOption(s, definition, timeLeft));
 }
 
 export function getPersonActivities(s: GameState, contact: PeopleId): LifeActivityOption[] {
   const timeLeft = commitmentsLeft(s);
-  return activityDefinitions.filter(definition => definition.contact === contact && definition.visible?.(s))
+  return getPeopleActivityDefinitions(contact).filter(definition => definition.visible?.(s))
     .map(definition => lifeActivityOption(s, definition, timeLeft));
 }
 
 export function doLifeActivity(s: GameState, id: string, expectedAge = s.age): GameState {
+  return applyLifeActivity(s, id, expectedAge);
+}
+
+function applyLifeActivity(s: GameState, id: string, expectedAge: number, replaying = false): GameState {
   if (s.age !== expectedAge) return s;
   const definition = getLifeActivityDefinition(id);
-  if (!definition) return s;
+  if (!definition || (definition.replayOnly && (!replaying || s.age > CHAPTER_END_AGE))) return s;
   const activity = lifeActivityOption(s, definition, commitmentsLeft(s));
   if (activity.blocked) return s;
 
@@ -294,8 +308,25 @@ export function doLifeActivity(s: GameState, id: string, expectedAge = s.age): G
   return { ...result, lifeSystems: definition.resolvesMedicalIssue ? { ...lifeSystems, medicalIssue: null } : lifeSystems };
 }
 
+export function nameNewborns(s: GameState, names: string[], surname: SurnameSource, expectedAge = s.age): GameState {
+  const naming = s.lifeSystems.reproduction.naming;
+  if (s.finished || s.age !== expectedAge || !naming || names.length !== naming.newborns.length) return s;
+  const clean = names.map(cleanFirstName).filter((name): name is string => name !== null);
+  if (clean.length !== names.length) return s;
+  const next = applyNewbornNames(s, clean, surname);
+  return next === s ? s : { ...next, commands: [...s.commands, { age: s.age, kind: "name-children", names: clean, surname }] };
+}
+
+function continueLife(s: GameState, expectedAge: number): GameState {
+  if (s.endReason !== "chapter" || s.age !== expectedAge) return s;
+  return settleReproductionYear({
+    ...s, age: s.age + 1, finished: false, endReason: null,
+    commands: [...s.commands, { age: s.age, kind: "continue" }],
+  });
+}
+
 export function giveUp(s: GameState, expectedAge = s.age): GameState {
-  if (s.finished || s.age !== expectedAge) return s;
+  if (s.finished || s.age !== expectedAge || s.lifeSystems.reproduction.naming) return s;
   const memory: Memory = {
     age: s.age, city: s.city, kind: "end", id: "end-" + s.age, witnesses: [], cashDelta: 0,
     title: { bg: "Край на историята", en: "End of the story" },
@@ -316,9 +347,10 @@ function currency(amount: number, locale: keyof typeof formatters): string {
 }
 
 export function advance(s: GameState, expectedAge = s.age): GameState {
-  if (s.finished || s.age !== expectedAge || s.choiceId === null) return s;
+  if (s.finished || s.age !== expectedAge || (s.sceneId && s.choiceId === null) || s.lifeSystems.reproduction.naming) return s;
   const { budget, bank, unpaidCare, unpaidDebt } = annualFinances(s);
-  const finished = s.age === FINAL_AGE;
+  const endReason = s.age === CHAPTER_END_AGE ? "chapter" : s.age === LAST_AGE ? "lifespan" : null;
+  const finished = endReason !== null;
   const { stats, lifeSystems, notes } = settleWellbeing(s, bank, unpaidCare, unpaidDebt, finished);
   if (budget.obligations > 0) notes.unshift(billText(budget.obligations));
   const summary: Text = s.age < 19
@@ -340,10 +372,11 @@ export function advance(s: GameState, expectedAge = s.age): GameState {
     ...s, age: finished ? s.age : s.age + 1, cash: s.cash + budget.net,
     history: [...s.history, memory], commands: [...s.commands, { age: s.age, kind: "year" }],
     usedActions: [], choiceId: null, finished, sceneId: "",
-    endReason: finished ? "chapter" : null, stats, lifeSystems,
+    endReason, stats, lifeSystems,
   };
-  if (!finished) next.sceneId = sceneForYear(next);
-  return next;
+  if (finished) return next;
+  if (next.age <= CHAPTER_END_AGE) next.sceneId = sceneForYear(next);
+  return settleReproductionYear(next);
 }
 
 /** Store the portrait's starting traits and replay the commands that shaped the life. */
@@ -359,7 +392,7 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 export function decodeSave(raw: string): GameState | null {
-  if (typeof raw !== "string" || raw.length > 32_768) return null;
+  if (typeof raw !== "string" || raw.length > 65_536) return null;
   try {
     const saved: unknown = JSON.parse(raw);
     if (!object(saved) || saved.format !== FORMAT || saved.content !== CONTENT) return null;
@@ -371,15 +404,20 @@ export function decodeSave(raw: string): GameState | null {
     if ("avatar" in saved && !avatar) return null;
     let s = newLife(saved.seed, avatar);
     for (const c of saved.commands) {
-      if (!object(c) || c.age !== s.age || s.finished) return null;
+      if (!object(c) || c.age !== s.age) return null;
       let next: GameState;
-      if (c.kind === "year" || c.kind === "end") {
+      if (c.kind === "year" || c.kind === "end" || c.kind === "continue") {
         if ("id" in c) return null;
-        next = c.kind === "year" ? advance(s, s.age) : giveUp(s, s.age);
+        next = c.kind === "year" ? advance(s, s.age) : c.kind === "continue" ? continueLife(s, s.age) : giveUp(s, s.age);
+      } else if (c.kind === "name-children") {
+        if (!Array.isArray(c.names) || !c.names.every(name => typeof name === "string")
+          || (c.surname !== "mother" && c.surname !== "father")) return null;
+        next = nameNewborns(s, c.names, c.surname, s.age);
       } else {
         if (typeof c.id !== "string" || c.id.length > 100) return null;
         if (c.kind === "choice") next = choose(s, c.id, s.age);
-        else if (c.kind === "action") next = doAction(s, c.id, s.age);
+        else if (c.kind === "action") next = getLifeActivityDefinition(c.id)?.replayOnly
+          ? applyLifeActivity(s, c.id, s.age, true) : doAction(s, c.id, s.age);
         else return null;
       }
       if (next === s) return null;

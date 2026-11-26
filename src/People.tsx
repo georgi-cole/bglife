@@ -3,6 +3,7 @@ import {AvatarPortrait} from "./AvatarPortrait.tsx";
 import {getAvatarLook} from "./avatar.ts";
 import {commitmentsLeft,getPersonActivities,type GameState,type LifeActivityOption,type PersonId} from "./engine.ts";
 import {personAge,personAvatarTraits,personName,type PeopleId} from "./peopleIdentity.ts";
+import {pregnancyStatus} from "./reproduction.ts";
 import type {Language} from "./session.ts";
 import {personProfiles} from "./story.ts";
 import {Icon,MenuTitle,ageLabel,copy,money,town,type IconName} from "./ui.tsx";
@@ -74,7 +75,7 @@ const actionIcons: Record<string,IconName> = {
   feedback:"journal", advice:"phone", "video-call":"phone", takeaway:"food", concert:"music", "check-in":"phone",
   park:"leaf", bedtime:"journal", playground:"sun", "board-game":"sparkle", skate:"shoes",
   compliment:"sparkle", conversation:"people", gift:"bag", "give-money":"wallet", "ask-money":"wallet",
-  walk:"places", fitness:"bolt", insult:"bolt", argue:"live", persuade:"heart",
+  walk:"places", fitness:"bolt", insult:"bolt", argue:"live", persuade:"heart", intimacy:"heart",
 };
 
 function ActionRow({options,l,onClick}: {options:LifeActivityOption[];l:Language;onClick:()=>void}) {
@@ -106,7 +107,8 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
   const t=(bg:string,en:string)=>copy(l,bg,en);
   const groups=getPeople(s,l);
   const person=groups.flatMap(group=>group.people).find(row=>row.id===selected);
-  const {partner,expecting}=s.lifeSystems.family;
+  const {partner}=s.lifeSystems.family;
+  const pregnancy=pregnancyStatus(s);
   const actions=person?getPersonActivities(s,person.id):[];
   const actionRows=new Map<string,LifeActivityOption[]>();
   for(const action of actions){
@@ -172,7 +174,7 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
             <span className="people-family-icon"><Icon name="heart" size={21}/></span>
             <span className="people-row-copy">
               <strong>{t("Любов и семейство","Love and Family")}</strong>
-              {expecting?<small>{t("Очаквате дете","Expecting a child")}</small>:!partner&&<small>{t("Без връзка","Single")}</small>}
+              {pregnancy?<small>{pregnancy[l]}</small>:!partner&&<small>{t("Без връзка","Single")}</small>}
             </span>
             <Icon name="next" size={16}/>
           </button>}

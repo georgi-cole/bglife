@@ -1,0 +1,108 @@
+.birth-naming {
+  width: min(27rem, calc(100% - 1.4rem));
+}
+
+.birth-naming-header {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  margin-bottom: 1rem;
+}
+
+.birth-naming-header h2 {
+  margin: 0;
+}
+
+.birth-naming-icon {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  flex: none;
+  border-radius: .72rem;
+  background: #473141;
+  color: #f5b6d1;
+}
+
+.birth-surname-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .48rem;
+  padding: 0;
+  margin: 0 0 .9rem;
+  border: 0;
+  min-width: 0;
+}
+
+.birth-surname-options legend {
+  font-weight: 700;
+  margin-bottom: .4rem;
+}
+
+.birth-surname-option {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: 3rem;
+  padding: .43rem;
+  background: #181e2b;
+  border: 1px solid var(--rule);
+  border-radius: .55rem;
+  overflow-wrap: anywhere;
+}
+
+.birth-surname-option:has(:checked) {
+  border-color: #e5b48a;
+}
+
+.birth-surname-option input {
+  flex: none;
+  accent-color: var(--gold);
+}
+
+.birth-surname-option small,
+.birth-name-field small {
+  display: block;
+  color: var(--secondary);
+  font-size: .78rem;
+}
+
+.birth-name-fields {
+  display: grid;
+  gap: .7rem;
+}
+
+.birth-name-field {
+  display: grid;
+  gap: .3rem;
+  overflow-wrap: anywhere;
+}
+
+.birth-name-field > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-weight: 700;
+}
+
+.birth-name-field input {
+  width: 100%;
+  font: inherit;
+  font-size: 1rem;
+  min-height: 2.55rem;
+  padding: .48rem .65rem;
+  background: #151b28;
+  color: var(--ink);
+  border: 1px solid #647190;
+  border-radius: .5rem;
+}
+
+.birth-name-field input[aria-invalid="true"] {
+  border-color: #ed9a99;
+}
+
+.birth-name-save {
+  justify-content: center;
+  width: 100%;
+  margin-top: .8rem;
+}

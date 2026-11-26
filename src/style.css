@@ -150,6 +150,7 @@ summary::-webkit-details-marker { display: none; }
 .journal-links .secondary-button { min-height: 2.75rem; font-size: .82rem; }
 .journal-health-alert { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .63rem .72rem; border: 1px solid #746247; border-radius: .74rem; background: #302a2c; }
 .journal-health-alert.urgent { border-color: #9a5d5e; background: #3b272d; }
+.journal-family-alert { border-color: #74586a; background: #312832; }
 .journal-health-alert strong, .journal-health-alert small { display: block; }
 .journal-health-alert small { margin-top: .2rem; color: var(--secondary); font-size: .78rem; }
 .journal-health-alert .secondary-button { min-height: 2.75rem; font-size: .82rem; }

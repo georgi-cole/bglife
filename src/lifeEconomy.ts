@@ -100,7 +100,8 @@ export function billText(obligations: number): Text {
 export function settleFinances(s: GameState, baseNet: number) {
   const bank = s.lifeSystems.bank;
   const { adopted, rescued } = s.lifeSystems.pets;
-  const careDue = (Number(adopted) + Number(rescued)) * 24_000 + s.lifeSystems.family.children * 84_000;
+  const childrenInCare = s.lifeSystems.family.childProfiles.filter(child => child.ageAtJoin + s.age - child.joinedAt < 18).length;
+  const careDue = (Number(adopted) + Number(rescued)) * 24_000 + childrenInCare * 84_000;
   const loan = bank.loan + Math.ceil(bank.loan * 0.05);
   const mortgage = bank.mortgage + Math.ceil(bank.mortgage * 0.027);
   const loanDue = Math.min(LOAN_INSTALLMENT, loan);
