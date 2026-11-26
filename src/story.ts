@@ -29,7 +29,7 @@ export const personProfiles: Record<PersonId, { name: Text; role: Text; detail: 
   },
 };
 
-export const placeProfiles: Record<City, { name: Text; detail: Text; venues: Text[] }> = {
+export const placeProfiles: Record<"sofia" | "tryavna", { name: Text; detail: Text; venues: Text[] }> = {
   tryavna: {
     name: t('Трявна', 'Tryavna'),
     detail: t('Работилницата, съботният пазар и читалището са на един разговор разстояние.', 'A workshop by the river, a Saturday market and a community arts centre where you know the faces.'),

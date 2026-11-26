@@ -1,3 +1,4 @@
+import { conditionLabel } from "./lifeHealth.ts";
 import React, { useLayoutEffect, useRef, useState } from "react";
 import {
   annualBudget, commitmentsLeft, getEstate, getLifeActivities, lifeHeirLabel, lifePartnerLabel,
@@ -63,7 +64,7 @@ function CategoryIcon({ category, size = 20 }: { category: Category; size?: numb
 }
 
 function CategoryStatus({ life, category, l }: { life: GameState; category: LifeActivityCategory; l: Language }) {
-  const { bank, family, legacy, medicalIssue, pets, social } = life.lifeSystems;
+  const { bank, family, legacy, medicalIssue, healthCondition, pets, social } = life.lifeSystems;
   const t = (bg: string, en: string) => copy(l, bg, en);
   let fields: { label: string; value: string | number }[];
 
@@ -71,7 +72,9 @@ function CategoryStatus({ life, category, l }: { life: GameState; category: Life
     case "hospital":
       fields = [{ label: t("Състояние","Condition"), value: medicalIssue === "urgent"
         ? t("Спешен случай в играта","In-game emergency")
-        : medicalIssue === "routine" ? t("Нужен е преглед","Checkup needed") : t("Няма активен проблем","No active concern") }];
+        : medicalIssue === "routine" ? t("Нужен е преглед","Checkup needed")
+        : healthCondition ? t("Под наблюдение","Under monitoring") : t("Няма активен проблем","No active concern") }];
+      if (healthCondition) fields.push({ label: t("Здравословен проблем", "Health condition"), value: conditionLabel(healthCondition)[l] });
       break;
     case "pets": {
       const count = Number(pets.adopted) + Number(pets.rescued);

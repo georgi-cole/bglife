@@ -1,8 +1,10 @@
 import {useLayoutEffect,useRef,useState} from "react";
+import {currentCaregiver,relativeLabel,type KinRole,type Relative} from "./birthFamily.ts";
 import {AvatarPortrait} from "./AvatarPortrait.tsx";
 import {getAvatarLook} from "./avatar.ts";
 import {commitmentsLeft,getPersonActivities,type GameState,type LifeActivityOption,type PersonId} from "./engine.ts";
-import {personAge,personAvatarTraits,personName,type PeopleId} from "./peopleIdentity.ts";
+import {isKnownPerson,personAge,personAvatarTraits,personCity,personName,personRelationship,type PeopleId} from "./peopleIdentity.ts";
+import {deathCauses,type Death} from "./mortality.ts";
 import type {Language} from "./session.ts";
 import {personProfiles} from "./story.ts";
 import {Icon,MenuTitle,ageLabel,copy,money,town,type IconName} from "./ui.tsx";
@@ -16,6 +18,7 @@ type Person = {
   status: string;
   score?: { label: string; value: number };
   portraitAge: number;
+  death?: Death;
 };
 type Group = { title: string; people: Person[]; dating?: boolean };
 
@@ -30,7 +33,7 @@ function getPeople(s: GameState, l: Language): Group[] {
     const profile = personProfiles[id];
     const trust = s.trust[id];
     return {
-      id, name:personName(s,id)[l], status:profile.role[l]+" · "+town(profile.city,l),
+      id, name:personName(s,id)[l], status:profile.role[l]+" · "+town(personCity(s,id),l),
       score:{label:t("Доверие","Trust"),value:trust}, portraitAge:personAge(s,id)??0,
     };
   }
@@ -41,8 +44,24 @@ function getPeople(s: GameState, l: Language): Group[] {
 
   const former = formerPartners.filter(row=>row.id!==partner).slice().reverse();
   const friends = partner==="friend" || former.some(row=>row.id==="friend") ? [] : [contact("friend")];
-  return [
-    {title:t("Семейство","Family"),people:[contact("rumi"),contact("niki")]},
+  const relativeGroups: { title: string; roles: KinRole[] }[] = [
+    { title: t("Родители","Parents"), roles: ["mother","father"] },
+    { title: t("Братя и сестри","Siblings"), roles: ["sibling"] },
+    { title: t("Баби и дядовци","Grandparents"), roles: ["grandmother","grandfather"] },
+    { title: t("Лели, чичовци и вуйчовци","Aunts and uncles"), roles: ["aunt","uncle","maternal-uncle"] },
+  ];
+  const caregiver = currentCaregiver(s)?.id;
+  function relativeCard(relative: Relative): Person {
+    let status = relativeLabel(relative)[l];
+    if (s.age < 18 && relative.id === caregiver) status += " · " + t("Грижи се за теб","Your caregiver");
+    else if (s.age < 18 && relative.household) status += " · " + t("У дома","At home");
+    return { id: relative.id, name: relative.name[l], status, portraitAge: personAge(s,relative.id) ?? 0,
+      score: { label: t("Близост","Bond"), value: personRelationship(s,relative.id) ?? relative.bond } };
+  }
+  const groups: Group[] = [
+    ...relativeGroups.map(group => ({ title: group.title, people: (s.birthFamily?.relatives ?? [])
+      .filter(relative => group.roles.includes(relative.role)).map(relativeCard) })),
+    {title:t("Леля и братовчед","Aunt and cousin"),people:[contact("rumi"),contact("niki")]},
     {title:t("Деца","Children"),people:childProfiles.map(({bond},index)=>{
       const id=`child-${index}` as const;
       return {
@@ -50,14 +69,20 @@ function getPeople(s: GameState, l: Language): Group[] {
         score:{label:t("Близост","Bond"),value:bond},
       };
     })},
-    {title:t("Любов","Love"),dating:true,people:partner?[{
+    {title:t("Любов","Love"),dating:s.age>=18,people:partner?[{
       ...knownPartner(partner,stages[stage]),score:{label:t("Близост","Bond"),value:bond},
     }]:[]},
     {title:t("Приятели","Friends"),people:friends},
     {title:t("Наставници","Mentors"),people:[contact("mentor")]},
     {title:t("Бивши партньори","Former partners"),people:former.map(({id,endedAt})=>
       knownPartner(id,t("Разделихте се на "+endedAt+" г.","Relationship ended at age "+endedAt)))},
-  ];
+  ].map(group => ({ ...group, people: group.people.filter(person => isKnownPerson(s,person.id) && !s.deceased[person.id]) }));
+  const remembered: Person[] = [];
+  for (const [id, death] of Object.entries(s.deceased) as [PeopleId,Death][]) {
+    remembered.push({ id, death, name: personName(s,id)[l], portraitAge: death.age,
+      status: t("Почина на " + death.age + " г.", "Died at age " + death.age) });
+  }
+  return [...groups, { title: t("В памет", "In memory"), people: remembered }];
 }
 
 function RelationshipMeter({score}: {score:NonNullable<Person["score"]>}) {
@@ -75,6 +100,7 @@ const actionIcons: Record<string,IconName> = {
   park:"leaf", bedtime:"journal", playground:"sun", "board-game":"sparkle", skate:"shoes",
   compliment:"sparkle", conversation:"people", gift:"bag", "give-money":"wallet", "ask-money":"wallet",
   walk:"places", fitness:"bolt", insult:"bolt", argue:"live", persuade:"heart",
+  "family-time":"heart", "family-story":"journal",
 };
 
 function ActionRow({options,l,onClick}: {options:LifeActivityOption[];l:Language;onClick:()=>void}) {
@@ -141,11 +167,12 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
         <Portrait person={person} life={s}/>
         <div className="people-profile-copy">
           <h2>{person.name}</h2>
-          <small>{ageLabel(person.portraitAge,l)} · {person.status}</small>
+          <small>{person.death ? person.status : ageLabel(person.portraitAge,l) + " · " + person.status}</small>
+          {person.death && <small>{deathCauses[person.death.cause][l]}</small>}
           {person.score&&<RelationshipMeter score={person.score}/>}
         </div>
       </div>
-      <section className="people-actions" aria-labelledby="people-actions-title">
+      {!person.death && <section className="people-actions" aria-labelledby="people-actions-title">
         <h2 id="people-actions-title" className="people-group-heading">
           {t("Действия","Activities")}
           <span><Icon name="clock" size={14}/>{t("Свободно време","Free time")} <strong>{commitmentsLeft(s)}</strong></span>
@@ -153,8 +180,11 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
         {[...actionRows].map(([key,options])=><div className="people-action-entry" key={key}>
           <ActionRow options={options} l={l} onClick={()=>onActivity(person.id,options)}/>
         </div>)}
-      </section>
+      </section>}
     </> : <>
+      {s.birthFamily && s.age < 18 && !currentCaregiver(s) && <p className="people-care-note">
+        {t("За теб се грижи приемно семейство.","A foster family is looking after you.")}
+      </p>}
       {groups.map(group=>{
         const love=group.dating;
         if(!group.people.length&&!love)return null;

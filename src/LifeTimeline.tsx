@@ -1,5 +1,5 @@
 import React, {type ReactNode} from "react";
-import { yearRecap, type GameState, type Memory } from "./engine.ts";
+import type { GameState, Memory } from "./engine.ts";
 import type { Language } from "./session.ts";
 import { Icon, copy, lifeStatLabels, money, occupation, town } from "./ui.tsx";
 
@@ -21,9 +21,11 @@ function StatChanges({delta, l}: {delta: Memory["statsDelta"]; l: Language}) {
 function LifeEvent({event, l, avatar}: {event: Memory; l: Language; avatar: GameState["avatar"]}) {
   const action = event.kind === "action";
   const personEvent=action&&event.id.startsWith("people.");
-  return <li className={"life-event " + (action ? "life-action" : "life-decision")}
+  const loss = event.kind === "end" || event.id.startsWith("loss-");
+  const health = event.id.startsWith("health-");
+  return <li className={"life-event " + (loss ? "life-loss" : health ? "life-health" : action ? "life-action" : "life-decision")}
     id={personEvent?"life-event-"+event.age+"-"+event.id:undefined} tabIndex={personEvent?-1:undefined} data-person-event={personEvent||undefined}>
-    <span className="life-event-icon"><Icon name={action ? "clock" : event.kind === "end" ? "journal" : "check"} size={16}/></span>
+    <span className="life-event-icon"><Icon name={loss ? "journal" : health ? "heart" : action ? "clock" : event.kind === "event" ? "sparkle" : "check"} size={16}/></span>
     <div className="life-event-content">
       <h4>{event.title[l]}</h4>
       <p>{event.text[l]}</p>
@@ -39,18 +41,22 @@ function LifeEvent({event, l, avatar}: {event: Memory; l: Language; avatar: Game
 
 export function LifeTimeline({s, l, children}: {s: GameState; l: Language; children: ReactNode}) {
   const eventsByAge = new Map<number, Memory[]>();
+  let totalDelta = 0;
   for (const event of s.history) {
+    totalDelta += event.cashDelta;
     const existing = eventsByAge.get(event.age);
     if (existing) existing.push(event);
     else eventsByAge.set(event.age, [event]);
   }
   if (!eventsByAge.has(s.age)) eventsByAge.set(s.age, []);
+  let yearBalance = s.cash - totalDelta;
 
   return <section className="life-timeline" aria-labelledby="timeline-heading">
     <h2 id="timeline-heading" className="timeline-heading"><Icon name="journal" size={18}/>{copy(l, "Дневник на живота", "Life journal")}</h2>
     {[...eventsByAge].map(([age, events]) => {
       const latest = age === s.age;
-      const recap = yearRecap(s, age);
+      const cashDelta = events.reduce((sum, event) => sum + event.cashDelta, 0);
+      yearBalance += cashDelta;
       const eventsToShow = events.filter(event => event.kind !== "year");
       const budget = events.find(event => event.kind === "year");
       return <section className={"life-year" + (latest ? " life-year-latest" : "")} key={age} data-life-year={age} aria-labelledby={"life-year-" + age}>
@@ -61,12 +67,12 @@ export function LifeTimeline({s, l, children}: {s: GameState; l: Language; child
         {eventsToShow.length > 0 && <ul className="life-entries">
           {eventsToShow.map((event,index) => <LifeEvent key={event.kind + event.id + index} event={event} l={l} avatar={s.avatar}/>)}
         </ul>}
-        {recap && budget && <details className="life-year-budget">
+        {budget && <details className="life-year-budget">
           <summary>
             <Icon name="wallet" size={16}/>
             <span>{copy(l, "Краен баланс", "Closing balance")}</span>
-            <strong>{money(recap.closingCash, l)}</strong>
-            {recap.cashDelta !== 0 && <span className={"year-delta " + (recap.cashDelta > 0 ? "cash-in" : "cash-out")}>{signedMoney(recap.cashDelta, l)}</span>}
+            <strong>{money(yearBalance, l)}</strong>
+            {cashDelta !== 0 && <span className={"year-delta " + (cashDelta > 0 ? "cash-in" : "cash-out")}>{signedMoney(cashDelta, l)}</span>}
             <Icon name="down" size={14}/>
           </summary>
           <p>{budget.text[l]}</p>

@@ -1,12 +1,13 @@
 import type {GameState,PersonId,Text} from "./engine.ts";
 import type {ActivityBranch,LifeActivityDefinition,LifeSystems} from "./lifeActivities.ts";
-import {childIndex,isChild,personAge,personRelationship,personSeed,type PeopleId} from "./peopleIdentity.ts";
+import {childIndex,isChild,isKnownPerson,personAge,personRelationship,personSeed,type PeopleId} from "./peopleIdentity.ts";
 
 const t = (bg:string, en:string):Text => ({bg,en});
 const contactIds = ["rumi","niki","mentor","friend","appMatch","serviceMatch","child-0","child-1"] as const;
 type Context = "relative" | "cousin" | "mentor" | "friend" | "partner" | "former" | "child";
 
 function context(s:GameState,id:PeopleId):Context|null {
+  if (!isKnownPerson(s,id) || s.deceased[id]) return null;
   if(isChild(id))return personAge(s,id)===null?null:"child";
   const family=s.lifeSystems.family;
   if(family.partner===id)return "partner";
