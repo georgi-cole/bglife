@@ -56,6 +56,10 @@
 .more-heading .menu-title-row > button { background: #202f49; border-color: #526984; }
 .more-heading .menu-title-row > button:hover { background: #3e5373; }
 .more-heading h1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
   margin: 0;
   color: var(--ink);
   text-align: center;
@@ -198,7 +202,9 @@
 .activity-card[aria-disabled="true"] { cursor: default; }
 .activity-card > svg, .activity-row-icon { color: var(--activity-accent); }
 .activity-card[aria-disabled="true"] > svg { color: var(--secondary); }
-.activity-row-icon { display: grid; place-items: center; }
+.activity-row-icon { display: grid; place-items: center; width: 100%; aspect-ratio: 1; background: #3a302b; border-radius: .48rem; }
+.activity-row-icon svg { max-width: 75%; max-height: 75%; }
+.submenu-title-icon { display: inline-grid; place-items: center; flex: none; color: var(--activity-accent, var(--coral)); }
 .activity-row-copy { display: grid; gap: .17rem; min-width: 0; }
 .activity-row-copy strong { color: var(--ink); font-size: .94rem; line-height: 1.25; overflow-wrap: anywhere; }
 .activity-card[aria-disabled="true"] strong { color: #d4cfce; }

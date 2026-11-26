@@ -137,12 +137,29 @@ function ActivityFeedback({ feedback, onJournal, l }: { feedback: Memory; onJour
 }
 
 const activityIcons: Record<string, IconName> = {
-  "family.tinder":"places", "family.dating-service":"people", "family.casual":"sun", "family.date-eli":"pin",
-  "family.time-together":"clock", "family.commit":"check", "family.engage":"key", "family.marry":"home",
-  "family.baby":"plus", "family.adopt":"people", "family.break-up":"back",
-  "hospital.gp":"people", "hospital.grandma":"home", "hospital.therapy":"journal", "hospital.eyes":"sun",
-  "pets.adopt":"home", "pets.vet":"plus", "pets.play":"sun",
-  "bank.open":"wallet", "bank.loan":"bag", "bank.mortgage":"home",
+  "hospital.gp":"phone", "hospital.grandma":"home", "hospital.clinic":"plus", "hospital.emergency":"bolt",
+  "hospital.therapy":"people", "hospital.psychiatrist":"journal", "hospital.eyes":"eye",
+  "gym.run":"shoes", "gym.hiit":"bolt", "gym.crossfit":"people",
+  "holidays.weekend":"bag", "holidays.picnic":"food", "holidays.local":"pin", "holidays.abroad":"flight",
+  "aesthetics.hair":"scissors", "aesthetics.massage":"leaf", "aesthetics.facial":"sparkle",
+  "aesthetics.nails":"sparkle", "aesthetics.makeup":"eye", "aesthetics.barber":"scissors",
+  "aesthetics.botox":"plus", "aesthetics.filler":"sparkle", "aesthetics.liposuction":"heart", "aesthetics.augmentation":"plus",
+  "fun.club":"music", "fun.bar":"people", "fun.dinner":"food", "fun.cinema":"video",
+  "fun.theatre":"sparkle", "fun.concert":"music", "fun.escape-room":"key", "fun.mall":"bag",
+  "pets.adopt":"home", "pets.rescue":"heart", "pets.vet":"plus", "pets.play":"sun",
+  "family.tinder":"phone", "family.dating-service":"people", "family.casual":"sparkle", "family.date-eli":"heart",
+  "family.time-together":"clock", "family.commit":"check", "family.engage":"ring", "family.marry":"home",
+  "family.baby":"heart", "family.adopt":"people", "family.break-up":"back",
+  "bank.open":"wallet", "bank.deposit":"plus", "bank.withdraw":"down", "bank.loan":"bag",
+  "bank.pay-loan":"check", "bank.mortgage":"home", "bank.pay-mortgage":"key",
+  "legacy.add":"plus", "legacy.remove":"close", "legacy.prepare":"journal",
+};
+const platformIcons: Record<string, IconName> = {
+  Instagram:"photo", Facebook:"people", TikTok:"music", YouTube:"video", Vbox7:"video", OnlyFans:"sparkle",
+};
+const socialActionIcons: Record<string, IconName> = {
+  register:"plus", photo:"photo", reel:"video", live:"live", post:"journal", event:"clock", video:"video",
+  duet:"people", short:"video", clip:"video", series:"album", collab:"people",
 };
 
 function ActivityCard({ category, option, feedback, onChoose, onJournal, l }: {
@@ -152,7 +169,8 @@ function ActivityCard({ category, option, feedback, onChoose, onJournal, l }: {
   const t = (bg: string, en: string) => copy(l, bg, en);
   const labels = lifeStatLabels(l);
   const deltas = statOrder.filter(key => option.statDelta[key]);
-  const icon = activityIcons[option.id];
+  const [domain, group, action] = option.id.split(".");
+  const icon = domain === "social" ? socialActionIcons[action] : activityIcons[option.id] ?? activityIcons[domain + "." + group];
   const amount = option.cashDelta;
   const cost = amount === 0 ? t("Безплатно", "Free") : (amount > 0 ? "+" : "−") + money(Math.abs(amount), l);
 
@@ -248,7 +266,10 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, on
     <header className="more-heading">
       <MenuTitle back onClose={platform ? () => openPlatform(null) : onCategoryBack ?? (() => changeCategory(null))}
         closeLabel={platform ? t("Назад към Социални мрежи","Back to Social media") : onCategoryBack ? categoryBackLabel : t("Назад към Още","Back to More")}>
-        <h1 ref={heading} id="more-heading" tabIndex={-1}>{platform ?? category.title[l]}</h1>
+        <h1 ref={heading} id="more-heading" tabIndex={-1}>
+          <span className="submenu-title-icon">{platform ? <Icon name={platformIcons[platform] ?? "more"} size={19}/> : <CategoryIcon category={category} size={19}/>}</span>
+          {platform ?? category.title[l]}
+        </h1>
       </MenuTitle>
       <span className="more-resource"><Icon name="clock" size={15} />{t("Свободно време", "Free time")}: <strong>{availableTime}</strong></span>
     </header>
@@ -267,7 +288,7 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, on
             + " · " + profile.posts + " " + (profile.posts === 1 ? t("публикация", "post") : t("публикации", "posts"))
           : t("Нямаш профил", "No account");
         return <button key={group} type="button" className="activity-category" onClick={() => openPlatform(group)}>
-          <span className="activity-category-icon"><CategoryIcon category={category}/></span>
+          <span className="activity-category-icon"><Icon name={platformIcons[group] ?? "more"}/></span>
           <span className="activity-category-copy"><strong>{group}</strong><small>{profileStatus}</small></span>
           <Icon name="next" size={17}/>
         </button>;
