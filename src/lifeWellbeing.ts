@@ -1,3 +1,4 @@
+import { studying } from "./lifePath.ts";
 import type { GameState, Option, Text } from "./engine.ts";
 import { applyStats, boundStat, type LifeStats, type LifeSystems, type StatDelta } from "./lifeActivities.ts";
 import { newChildProfile } from "./peopleIdentity.ts";
@@ -35,7 +36,7 @@ export function settleWellbeing(s: GameState, bank: LifeSystems["bank"], unpaidC
     health: active ? 1 : -1,
     looks: s.age < 20 ? 1 : s.age > 22 ? -1 : 0,
     joy: unpaidCare || unpaidDebt ? -4 : used.length ? 1 : -1,
-    brains: s.career === "student" ? 2 : 1,
+    brains: studying(s) ? 2 : 1,
     influence: influenceActivity ? 0 : s.stats.influence > 24 ? -1 : 0,
   };
 

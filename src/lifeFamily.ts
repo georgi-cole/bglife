@@ -1,3 +1,4 @@
+import { hasSteadyIncome } from "./lifePath.ts";
 import type { GameState, Text } from "./engine.ts";
 import type { Heir, LifeActivityDefinition } from "./lifeActivities.ts";
 import { newChildProfile } from "./peopleIdentity.ts";
@@ -121,7 +122,7 @@ const familyActivities: LifeActivityDefinition[] = [
     update: s => updateFamily(s, { expecting: true }),
   }, {
     id: "family.adopt", category: "family", minAge: 21,
-    requires: s => familyRoom(s) ?? (s.career === "student"
+    requires: s => familyRoom(s) ?? (!hasSteadyIncome(s)
       ? t("Трябва да имаш постоянен доход.", "You need a steady income.") : null),
     label: t("Осинови дете", "Adopt a child"),
     description: t("Подготви дома и бюджета за осиновяване. Грижата за дете влиза в годишните разходи.", "Prepare your home and budget for adoption. Childcare becomes an annual expense."),

@@ -1,5 +1,5 @@
 import React, {type ReactNode} from "react";
-import { yearRecap, type GameState, type Memory } from "./engine.ts";
+import { type GameState, type Memory } from "./engine.ts";
 import type { Language } from "./session.ts";
 import { Icon, copy, lifeStatLabels, money, occupation, town } from "./ui.tsx";
 
@@ -21,9 +21,10 @@ function StatChanges({delta, l}: {delta: Memory["statsDelta"]; l: Language}) {
 function LifeEvent({event, l, avatar}: {event: Memory; l: Language; avatar: GameState["avatar"]}) {
   const action = event.kind === "action";
   const personEvent=action&&event.id.startsWith("people.");
+  const pathEvent=event.kind==="path";
   return <li className={"life-event " + (action ? "life-action" : "life-decision")}
     id={personEvent?"life-event-"+event.age+"-"+event.id:undefined} tabIndex={personEvent?-1:undefined} data-person-event={personEvent||undefined}>
-    <span className="life-event-icon"><Icon name={action ? "clock" : event.kind === "end" ? "journal" : "check"} size={16}/></span>
+    <span className="life-event-icon"><Icon name={pathEvent ? (/^(school|university|degree|scholarship|tuition)/.test(event.id) ? "school" : "bag") : action ? "clock" : event.kind === "end" ? "journal" : "check"} size={16}/></span>
     <div className="life-event-content">
       <h4>{event.title[l]}</h4>
       <p>{event.text[l]}</p>
@@ -45,12 +46,19 @@ export function LifeTimeline({s, l, children}: {s: GameState; l: Language; child
     else eventsByAge.set(event.age, [event]);
   }
   if (!eventsByAge.has(s.age)) eventsByAge.set(s.age, []);
+  const totals = new Map<number, { cashDelta: number; closingCash: number }>();
+  let closingCash = s.cash;
+  for (const [age, events] of [...eventsByAge].reverse()) {
+    const cashDelta = events.reduce((total, entry) => total + entry.cashDelta, 0);
+    totals.set(age, { cashDelta, closingCash });
+    closingCash -= cashDelta;
+  }
 
   return <section className="life-timeline" aria-labelledby="timeline-heading">
     <h2 id="timeline-heading" className="timeline-heading"><Icon name="journal" size={18}/>{copy(l, "Дневник на живота", "Life journal")}</h2>
     {[...eventsByAge].map(([age, events]) => {
       const latest = age === s.age;
-      const recap = yearRecap(s, age);
+      const recap = totals.get(age);
       const eventsToShow = events.filter(event => event.kind !== "year");
       const budget = events.find(event => event.kind === "year");
       return <section className={"life-year" + (latest ? " life-year-latest" : "")} key={age} data-life-year={age} aria-labelledby={"life-year-" + age}>

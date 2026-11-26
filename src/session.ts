@@ -1,4 +1,4 @@
-import { decodeSave, encodeSave, newLife, type GameState } from "./engine.ts";
+import { decodeSave, encodeSave, newCareerLife, resumeCareerLife, type GameState } from "./engine.ts";
 
 export const SAVE_KEY = "bglife.journal.v1";
 export const LANGUAGE_KEY = "bglife.language";
@@ -24,11 +24,11 @@ export function loadSession(): { session: Session; notice: "recovered" | "damage
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     const session = deserialize(raw);
-    if (session) return { session, notice: null };
+    if (session) return { session: { ...session, life: resumeCareerLife(session.life) }, notice: null };
     const backup = deserialize(localStorage.getItem(SAVE_KEY + ".previous"));
-    if (backup) return { session: backup, notice: "recovered" };
-    return {session: {life:newLife(), album:[]}, notice: raw ? "damaged" : null};
-  } catch { return {session:{life:newLife(), album:[]}, notice:"temporary"}; }
+    if (backup) return { session: { ...backup, life: resumeCareerLife(backup.life) }, notice: "recovered" };
+    return {session: {life:newCareerLife(), album:[]}, notice: raw ? "damaged" : null};
+  } catch { return {session:{life:newCareerLife(), album:[]}, notice:"temporary"}; }
 }
 
 export function persist(session: Session): boolean {

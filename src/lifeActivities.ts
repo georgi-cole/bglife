@@ -138,7 +138,7 @@ function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: nu
     : { bg: "Достъпно в Трявна.", en: "Available in Tryavna." };
   const requirement = definition.requires?.(s);
   if (requirement) return requirement;
-  if (s.choiceId === null && definition.time !== 0) return { bg: "Първо вземи решението за тази година в „Живот“.", en: "Make this year’s decision in Life first." };
+  if (s.sceneId && s.choiceId === null && definition.time !== 0) return { bg: "Първо вземи решението за тази година в дневника.", en: "Make this year’s decision in the journal first." };
   const alreadyUsed = s.usedActions.includes(definition.id) || (definition.branch && s.usedActions.some(id => {
     const used = byId.get(id);
     return used?.contact === definition.contact && used?.branch?.id === definition.branch?.id;
@@ -147,7 +147,7 @@ function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: nu
     bg: "Вече е направено тази година.", en: "Already done this year.",
   };
   if ((definition.time ?? 1) > timeLeft) return { bg: "Тази година няма достатъчно свободно време.", en: "There isn’t enough free time this year." };
-  if (s.cash + cashDelta < 0) return { bg: "Няма достатъчно пари в портфейла.", en: "There isn’t enough in the wallet." };
+  if ((!s.path || cashDelta < 0) && s.cash + cashDelta < 0) return { bg: "Няма достатъчно пари в портфейла.", en: "There isn’t enough in the wallet." };
   return null;
 }
 

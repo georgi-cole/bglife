@@ -5,14 +5,16 @@ import {
 } from "./avatar.ts";
 import { AvatarPortrait } from "./AvatarPortrait.tsx";
 import type { Language } from "./session.ts";
+import type { LifeOpening } from "./lifePath.ts";
+import { pathCities, playableCities } from "./pathCatalog.ts";
 import { Icon, MenuTitle, ageLabel, copy } from "./ui.tsx";
 import "./avatar.css";
 
 type Props = {
   l: Language;
-  startAge: number;
+  startAge: LifeOpening["age"];
   onClose: () => void;
-  onStart: (traits: AvatarTraits) => void;
+  onStart: (traits: AvatarTraits, opening: LifeOpening) => void;
 };
 
 export function AvatarCreator({ l, startAge, onClose, onStart }: Props) {
@@ -22,10 +24,11 @@ export function AvatarCreator({ l, startAge, onClose, onStart }: Props) {
   function setTraits(update: (current: AvatarTraits) => AvatarTraits) {
     setDrafts(current => ({ ...current, [presentation]: update(current[presentation]) }));
   }
-  const [age, setAge] = useState(startAge);
+  const [opening, setOpening] = useState<LifeOpening>({ age: startAge, city: "tryavna" });
+  const [age, setAge] = useState<number>(startAge);
   const [selectedPart, setSelectedPart] = useState<AvatarPart>("face");
   const t = (bg: string, en: string) => copy(l, bg, en);
-  const startingStage = getAvatarStage(startAge);
+  const startingStage = getAvatarStage(opening.age);
   const look = getAvatarLook(traits, age);
   const availableParts = avatarParts.filter(part => part.tier <= look.stage.tier);
   const part = availableParts.find(part => part.id === selectedPart) ?? availableParts[0];
@@ -45,8 +48,8 @@ export function AvatarCreator({ l, startAge, onClose, onStart }: Props) {
           <div className="avatar-preview-copy">
             <h2>{getAvatarName(traits)[l]}</h2>
             <p className="avatar-preview-age" aria-live="polite">{ageLabel(age, l)} · {look.stage.label[l]}</p>
-            <p>{t("Разгледай всяка възраст. Историята започва на " + startAge + " г.",
-              "Try any age. The story starts at " + startAge + ".")}</p>
+            <p>{t("Разгледай всяка възраст. Историята започва на " + opening.age + " г.",
+              "Try any age. The story starts at " + opening.age + ".")}</p>
           </div>
         </div>
         <fieldset className="avatar-presentation">
@@ -64,7 +67,7 @@ export function AvatarCreator({ l, startAge, onClose, onStart }: Props) {
           <legend>{t("Преглед по възраст", "Preview by age")}</legend>
           <div className="avatar-stage-buttons">
             {avatarStages.map((stage) => <button type="button" key={stage.id} aria-pressed={stage.id === look.stage.id}
-              onClick={() => setAge(stage.id === startingStage.id ? startAge : stage.previewAge)}>{stage.label[l]}</button>)}
+              onClick={() => setAge(stage.id === startingStage.id ? opening.age : stage.previewAge)}>{stage.label[l]}</button>)}
           </div>
         </fieldset>
       </div>
@@ -104,8 +107,26 @@ export function AvatarCreator({ l, startAge, onClose, onStart }: Props) {
       </div>
     </div>
 
+    <div className="avatar-opening">
+      <fieldset className="avatar-stages">
+        <legend>{t("Начална възраст", "Starting age")}</legend>
+        <div className="avatar-stage-buttons">
+          {([7, 16] as const).map(value => <button type="button" key={value} aria-pressed={opening.age === value}
+            onClick={() => { setOpening({ ...opening, age: value }); setAge(value); }}>
+            {value === 7 ? t("I клас · 7 г.", "First grade · age 7") : t("16 години", "Age 16")}</button>)}
+        </div>
+      </fieldset>
+      <fieldset className="avatar-stages">
+        <legend>{t("Начален град", "Starting city")}</legend>
+        <div className="avatar-stage-buttons">
+          {playableCities.map(city => <button type="button" key={city} aria-pressed={opening.city === city}
+            onClick={() => setOpening({ ...opening, city })}>{pathCities[city].name[l]}</button>)}
+        </div>
+      </fieldset>
+    </div>
+
     <footer className="avatar-actions">
-      <button type="button" className="primary-button" onClick={() => onStart(traits)}>
+      <button type="button" className="primary-button" onClick={() => onStart(traits, opening)}>
         {t("Започни живота", "Start life")}<Icon name="right" size={19} />
       </button>
     </footer>

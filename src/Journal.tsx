@@ -2,13 +2,15 @@ import React from "react";
 import {art} from "../scripts/art";
 import {annualBudget, commitmentsLeft, defaultPlayChoice, getActions, getChoices, getEstate, getScene, lifeHeirLabel, type GameState, type LifeActivityCategory} from "./engine.ts";
 import {LifeTimeline} from "./LifeTimeline.tsx";
+import {pathBudget} from "./lifePath.ts";
 import {endingCopy} from "./story.ts";
 import type {Language} from "./session.ts";
-import {Icon,PlaySymbol,copy,money,name,occupation,town} from "./ui.tsx";
+import {Icon,PlaySymbol,copy,money,name,lifeOccupation,town} from "./ui.tsx";
 
 export function Wallet({s,l,onBank}:{s:GameState;l:Language;onBank:()=>void}) {
   const budget=annualBudget(s);
   const bank=s.lifeSystems.bank;
+  const path=s.path?pathBudget(s,s.path):null;
   const obligations=budget.obligations>0&&<div className="stat-row"><span>{copy(l,"Годишни вноски и грижи","Yearly payments and care")}</span><b>−{money(budget.obligations,l)}</b></div>;
   return <><p className="balance-total">{money(s.cash,l)}</p><p className="muted">{copy(l,"Налични пари","Available cash")}</p>
     {s.deposit>0&&<div className="stat-row"><span>{copy(l,"Депозит за квартирата","Refundable rental deposit")}</span><b>{money(s.deposit,l)}</b></div>}
@@ -16,8 +18,14 @@ export function Wallet({s,l,onBank}:{s:GameState;l:Language;onBank:()=>void}) {
     {bank.loan>0&&<div className="stat-row"><span>{copy(l,"Остатък по заема","Loan balance")}</span><b>{money(bank.loan,l)}</b></div>}
     {bank.mortgage>0&&<div className="stat-row"><span>{copy(l,"Остатък по ипотеката","Mortgage balance")}</span><b>{money(bank.mortgage,l)}</b></div>}
     <h3>{copy(l,"Годишен бюджет","Annual budget")}</h3>
-    {s.age<19?<><p>{copy(l,"Докато живееш у дома и ходиш на училище, семейството поема основните разходи. Личните покупки се плащат от портфейла ти.","While you’re at school and living at home, your family covers the household bills. Your own purchases come out of your wallet.")}</p>{obligations}</>:
-    <><div className="stat-row"><span>{copy(l,"Доход","Income")}</span><b>{money(budget.pay,l)}</b></div><div className="stat-row"><span>{copy(l,"Всекидневни разходи","Living costs")}</span><b>−{money(budget.essentials,l)}</b></div><div className="stat-row"><span>{copy(l,"Жилище","Housing")}</span><b>−{money(budget.housing,l)}</b></div>{obligations}<div className="stat-row"><span>{copy(l,"Остатък за годината","Net for the year")}</span><b>{money(budget.net,l)}</b></div></>}
+    {!path&&s.age<19?<><p>{copy(l,"Докато живееш у дома и ходиш на училище, семейството поема основните разходи. Личните покупки се плащат от портфейла ти.","While you’re at school and living at home, your family covers the household bills. Your own purchases come out of your wallet.")}</p>{obligations}</>:
+    <><div className="stat-row"><span>{copy(l,"Доход","Income")}</span><b>{money(budget.pay,l)}</b></div>
+    {path&&path.wage>0&&<div className="stat-row"><span>{copy(l,"Заплата след удръжки","Take-home pay")}</span><b>{money(path.wage,l)}</b></div>}
+    {path&&path.scholarship>0&&<div className="stat-row"><span>{copy(l,"Стипендия","Scholarship")}</span><b>{money(path.scholarship,l)}</b></div>}
+    {path&&path.benefit>0&&<div className="stat-row"><span>{copy(l,"Обезщетение","Unemployment benefit")}</span><b>{money(path.benefit,l)}</b></div>}
+    {path&&path.pension>0&&<div className="stat-row"><span>{copy(l,"Пенсия","Pension")}</span><b>{money(path.pension,l)}</b></div>}
+    {path&&path.tuition>0&&<div className="stat-row"><span>{copy(l,"Такса за обучение","Tuition")}</span><b>−{money(path.tuition,l)}</b></div>}
+    {path&&path.health>0&&<div className="stat-row"><span>{copy(l,"Лични здравни вноски","Personal health contributions")}</span><b>−{money(path.health,l)}</b></div>}<div className="stat-row"><span>{copy(l,"Всекидневни разходи","Living costs")}</span><b>−{money(budget.essentials,l)}</b></div><div className="stat-row"><span>{copy(l,"Жилище","Housing")}</span><b>−{money(budget.housing,l)}</b></div>{obligations}<div className="stat-row"><span>{copy(l,"Остатък за годината","Net for the year")}</span><b>{money(budget.net,l)}</b></div></>}
     <button className="secondary-button" onClick={onBank}><Icon name="wallet"/>{copy(l,"Към банката","Go to Bank")}</button>
   </>;
 }
@@ -38,7 +46,7 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onWallet, 
   const actions = getActions(s);
   const fallback = defaultPlayChoice(s);
   const endedEarly = s.endReason === "gaveUp";
-  const ending = s.finished && !endedEarly ? endingCopy(s) : null;
+  const ending = s.finished && !endedEarly && !s.path ? endingCopy(s) : null;
   const estate = s.finished ? getEstate(s) : null;
   const time = commitmentsLeft(s);
 
@@ -51,11 +59,11 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onWallet, 
       <div className="hero-content">
         <p className="location"><Icon name="pin" size={16}/>{town(s.city, l)}</p>
         <h1>{name(l,s.avatar)}</h1>
-        <p className="hero-meta">{occupation(s.career, l, s.avatar)}</p>
+        <p className="hero-meta">{lifeOccupation(s, l)}</p>
       </div>
-      <div className="year-track" aria-hidden="true">
+      {!s.path && <div className="year-track" aria-hidden="true">
         {Array.from({length:11}, (_, i) => <span key={i} className={i < s.age - 16 || s.endReason === "chapter" ? "passed" : i === s.age - 16 ? "current" : ""}/>)}
-      </div>
+      </div>}
     </section>
     <div className="hud">
       <button className="hud-stat" onClick={onWallet}>

@@ -1,3 +1,4 @@
+import { hasSteadyIncome } from "./lifePath.ts";
 import type { GameState, Text } from "./engine.ts";
 import type { Heir, LifeActivityDefinition, LifeSystems } from "./lifeActivities.ts";
 
@@ -48,7 +49,7 @@ export const lifeBank: LifeActivityDefinition[] = [
     label: txt("Вземи личен заем", "Take a personal loan"),
     description: txt("Получаваш 600 €. Вноските и лихвата влизат в годишния бюджет.", "Receive €600. Instalments and interest go into the annual budget."),
     result: txt("Получи 600 € срещу годишни вноски. Остатъкът по заема е в „Банка“.", "You received €600 in exchange for annual repayments. The remaining loan appears in Bank."),
-    requires: s => accountRequired(s) ?? (s.career === "student"
+    requires: s => accountRequired(s) ?? (!hasSteadyIncome(s)
       ? txt("Нужна е работа със заплата.", "You need a salaried job.")
       : s.lifeSystems.bank.loan > 0
         ? txt("Изплати активния заем.", "Pay off the active loan first.")
@@ -72,7 +73,7 @@ export const lifeBank: LifeActivityDefinition[] = [
     result: txt("Подписа покупката на жилище в Трявна. То влиза в имуществото ти, а ипотеката – в годишния бюджет.", "You bought a home in Tryavna. It becomes part of your estate, and the mortgage enters your yearly budget."),
     requires: s => accountRequired(s) ?? (s.lifeSystems.bank.ownsHome
       ? txt("Вече имаш жилище.", "You already own a home.")
-      : s.career === "student" || s.housing === "shared" || s.lifeSystems.bank.loan > 0
+      : !hasSteadyIncome(s) || s.housing === "shared" || s.lifeSystems.bank.loan > 0
         ? txt("Нужни са стабилна работа, достатъчен доход след наема и изплатен личен заем.", "You need stable work, sufficient income after rent, and a paid-off personal loan.")
         : null),
     stats: { influence: 2, joy: 4 },
@@ -100,7 +101,9 @@ export function billText(obligations: number): Text {
 export function settleFinances(s: GameState, baseNet: number) {
   const bank = s.lifeSystems.bank;
   const { adopted, rescued } = s.lifeSystems.pets;
-  const careDue = (Number(adopted) + Number(rescued)) * 24_000 + s.lifeSystems.family.children * 84_000;
+  const family = s.lifeSystems.family;
+  const dependants = s.path ? family.childProfiles.filter(child => s.age - child.joinedAt + child.ageAtJoin < 18).length : family.children;
+  const careDue = (Number(adopted) + Number(rescued)) * 24_000 + dependants * 84_000;
   const loan = bank.loan + Math.ceil(bank.loan * 0.05);
   const mortgage = bank.mortgage + Math.ceil(bank.mortgage * 0.027);
   const loanDue = Math.min(LOAN_INSTALLMENT, loan);
