@@ -91,6 +91,7 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: .26rem;
 }
+.avatar-presentation .avatar-stage-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .avatar-stage-buttons button,
 .avatar-feature-tabs button {
   min-width: 0;

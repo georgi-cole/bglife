@@ -172,7 +172,8 @@ function drawBackdrop(ctx: Painter) {
 }
 
 function drawClothing(ctx: Painter, look: AvatarLook, pose: Pose, chin: number) {
-  const cloth = pose.clothing;
+  const male = look.traits.presentation === "male";
+  const cloth = male ? mix(pose.clothing, "#436184", .52) : pose.clothing;
   const seam = mix(cloth, "#d9c9ac", .48);
   const shadow = mix(look.skin, "#4a272e", .4);
   if (look.stage.id === "baby") {
@@ -183,7 +184,7 @@ function drawClothing(ctx: Painter, look: AvatarLook, pose: Pose, chin: number) 
     return;
   }
 
-  const shoulder = look.stage.tier < 3 ? 33 : 19;
+  const shoulder = look.stage.tier < 3 ? 33 : male ? 12 : 19;
   fill(ctx, "M71 " + (chin - 14) + "Q76 " + (chin + 3) + " 68 172Q90 190 112 172Q104 "
     + (chin + 3) + " 109 " + (chin - 14) + "Z", gradient(ctx, 84, chin - 13, 86, 181, shadow, look.skin));
   fill(ctx, "M" + shoulder + " 208Q" + (shoulder + 3)
@@ -218,7 +219,10 @@ function drawEye(ctx: Painter, look: AvatarLook) {
 }
 
 function drawFace(ctx: Painter, look: AvatarLook, pose: Pose) {
-  const { cheeks, jaw, chin, length } = faces[look.traits.face];
+  const { cheeks, jaw: baseJaw, chin: baseChin, length } = faces[look.traits.face];
+  const male = look.traits.presentation === "male";
+  const jaw = baseJaw + (male && look.stage.tier >= 3 ? 3 : 0);
+  const chin = baseChin + (male && look.stage.tier >= 3 ? 2 : 0);
   const mature = look.cheekAge;
   const cheek = cheeks - mature * 2.2;
   const shadow = mix(look.skin, "#663b3b", .37);
@@ -265,7 +269,7 @@ function drawFace(ctx: Painter, look: AvatarLook, pose: Pose) {
   ctx.save();
   ctx.translate(0, pose.mouth);
   ctx.scale(look.stage.id === "baby" ? .82 : 1, look.lipVolume);
-  const lip = mix(look.skin, look.makeup ? "#b65366" : "#be6971", look.makeup ? .71 : .43);
+  const lip = mix(look.skin, look.makeup ? "#b65366" : "#be6971", look.makeup ? .71 : male ? .27 : .43);
   fill(ctx, mouth.outline, gradient(ctx, 0, -6, 0, 8, mix(lip, "#63383e", .22), lip, mix(lip, "#f2b0a0", .43)));
   line(ctx, mouth.seam, mix(lip, "#442834", .57), .92);
   ctx.restore();

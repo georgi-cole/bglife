@@ -284,7 +284,9 @@ export function giveUp(s: GameState, expectedAge = s.age): GameState {
   const memory: Memory = {
     age: s.age, city: s.city, kind: "end", id: "end-" + s.age, witnesses: [], cashDelta: 0,
     title: { bg: "Край на историята", en: "End of the story" },
-    text: { bg: "Приключи тази история на Мила. Дневникът ѝ остава в албума.", en: "You ended this story for Mila. Her journal stays in the album." },
+    text: s.avatar?.presentation === "male"
+      ? { bg: "Приключи историята на Милен. Дневникът му остава в албума.", en: "You ended Milen’s story. His journal stays in the album." }
+      : { bg: "Приключи тази история на Мила. Дневникът ѝ остава в албума.", en: "You ended this story for Mila. Her journal stays in the album." },
   };
   return {
     ...s, finished: true, endReason: "gaveUp", sceneId: "", choiceId: null,

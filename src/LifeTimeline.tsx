@@ -18,7 +18,7 @@ function StatChanges({delta, l}: {delta: Memory["statsDelta"]; l: Language}) {
   })}</>;
 }
 
-function LifeEvent({event, l}: {event: Memory; l: Language}) {
+function LifeEvent({event, l, avatar}: {event: Memory; l: Language; avatar: GameState["avatar"]}) {
   const action = event.kind === "action";
   return <li className={"life-event " + (action ? "life-action" : "life-decision")}>
     <span className="life-event-icon"><Icon name={action ? "clock" : event.kind === "end" ? "journal" : "check"} size={16}/></span>
@@ -27,7 +27,7 @@ function LifeEvent({event, l}: {event: Memory; l: Language}) {
       <p>{event.text[l]}</p>
       {(event.movedTo || event.startedCareer || event.cashDelta !== 0 || event.statsDelta) && <div className="life-event-changes">
         {event.movedTo && <span className="move-event"><Icon name="pin" size={13}/>{copy(l, "Нов град", "New city")} · {town(event.movedTo, l)}</span>}
-        {event.startedCareer && <span className="career-event"><Icon name="bag" size={13}/>{copy(l, "Нова работа", "New job")} · {occupation(event.startedCareer, l)}</span>}
+        {event.startedCareer && <span className="career-event"><Icon name="bag" size={13}/>{copy(l, "Нова работа", "New job")} · {occupation(event.startedCareer, l, avatar)}</span>}
         {event.cashDelta !== 0 && <span className={event.cashDelta > 0 ? "cash-in" : "cash-out"}><Icon name="wallet" size={13}/>{signedMoney(event.cashDelta, l)}</span>}
         <StatChanges delta={event.statsDelta} l={l}/>
       </div>}
@@ -57,7 +57,7 @@ export function LifeTimeline({s, l, children}: {s: GameState; l: Language; child
           {latest && !s.finished && <small>{copy(l, "Сега", "Now")}</small>}
         </h3>
         {eventsToShow.length > 0 && <ul className="life-entries">
-          {eventsToShow.map((event,index) => <LifeEvent key={event.kind + event.id + index} event={event} l={l}/>)}
+          {eventsToShow.map((event,index) => <LifeEvent key={event.kind + event.id + index} event={event} l={l} avatar={s.avatar}/>)}
         </ul>}
         {recap && budget && <details className="life-year-budget">
           <summary>

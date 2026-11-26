@@ -117,9 +117,12 @@ export const avatarPartColors: Partial<Record<AvatarPart, { key: Palette; label:
   eyes: { key: "eyeColor", label: label("Цвят на очите", "Eye color") },
 };
 
+export type AvatarPresentation = "female" | "male";
+
 export type AvatarTraits = Readonly<
   { [Key in AvatarPart]: (typeof avatarPresets)[Key][number]["id"] }
   & { [Key in Palette]: (typeof avatarPalettes)[Key][number]["id"] }
+  & { presentation?: AvatarPresentation }
 >;
 
 export const defaultAvatar: AvatarTraits = Object.freeze({
@@ -127,15 +130,24 @@ export const defaultAvatar: AvatarTraits = Object.freeze({
   skin: "peach", hairColor: "chestnut", eyeColor: "hazel",
 });
 
+export const defaultMaleAvatar: AvatarTraits = Object.freeze({
+  ...defaultAvatar, presentation: "male", face: "square", hair: "part", brows: "straight", lips: "soft",
+});
+
+export function getAvatarName(traits: AvatarTraits | null): Label {
+  return traits?.presentation === "male" ? label("Милен Николов", "Milen Nikolov") : label("Мила Николова", "Mila Nikolova");
+}
+
 export function parseAvatar(value: unknown): AvatarTraits | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const entries = value as Record<string, unknown>;
   const options = { ...avatarPresets, ...avatarPalettes };
-  if (Object.keys(options).some(key => !options[key as keyof AvatarTraits].some(p => p.id === entries[key]))) {
+  if (Object.keys(options).some(key => !options[key as keyof typeof options].some(p => p.id === entries[key]))) {
     return null;
   }
-  const { face, hair, eyes, brows, lips, skin, hairColor, eyeColor } = entries as AvatarTraits;
-  return { face, hair, eyes, brows, lips, skin, hairColor, eyeColor };
+  const { face, hair, eyes, brows, lips, skin, hairColor, eyeColor, presentation } = entries as AvatarTraits;
+  if ("presentation" in entries && presentation !== "female" && presentation !== "male") return null;
+  return { face, hair, eyes, brows, lips, skin, hairColor, eyeColor, ...(presentation && { presentation }) };
 }
 
 function fitPreset<Id extends string>(options: readonly Preset<Id>[], id: Id, tier: number): Id {

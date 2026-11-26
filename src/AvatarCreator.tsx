@@ -1,11 +1,11 @@
 import { useState } from "react";
 import {
-  avatarPalettes, avatarPartColors, avatarParts, avatarPresets, avatarStages, defaultAvatar, getAvatarLook, getAvatarStage,
-  type AvatarPart, type AvatarTraits,
+  avatarPalettes, avatarPartColors, avatarParts, avatarPresets, avatarStages, defaultAvatar, defaultMaleAvatar,
+  getAvatarLook, getAvatarName, getAvatarStage, type AvatarPart, type AvatarPresentation, type AvatarTraits,
 } from "./avatar.ts";
 import { AvatarPortrait } from "./AvatarPortrait.tsx";
 import type { Language } from "./session.ts";
-import { Icon, MenuTitle, ageLabel, copy, name } from "./ui.tsx";
+import { Icon, MenuTitle, ageLabel, copy } from "./ui.tsx";
 import "./avatar.css";
 
 type Props = {
@@ -16,7 +16,12 @@ type Props = {
 };
 
 export function AvatarCreator({ l, startAge, onClose, onStart }: Props) {
-  const [traits, setTraits] = useState(defaultAvatar);
+  const [presentation, setPresentation] = useState<AvatarPresentation>("female");
+  const [drafts, setDrafts] = useState({ female: defaultAvatar, male: defaultMaleAvatar });
+  const traits = drafts[presentation];
+  function setTraits(update: (current: AvatarTraits) => AvatarTraits) {
+    setDrafts(current => ({ ...current, [presentation]: update(current[presentation]) }));
+  }
   const [age, setAge] = useState(startAge);
   const [selectedPart, setSelectedPart] = useState<AvatarPart>("face");
   const t = (bg: string, en: string) => copy(l, bg, en);
@@ -38,12 +43,23 @@ export function AvatarCreator({ l, startAge, onClose, onStart }: Props) {
         <div className="avatar-preview">
           <AvatarPortrait look={look} className="avatar-preview-image" />
           <div className="avatar-preview-copy">
-            <h2>{name(l)}</h2>
+            <h2>{getAvatarName(traits)[l]}</h2>
             <p className="avatar-preview-age" aria-live="polite">{ageLabel(age, l)} · {look.stage.label[l]}</p>
             <p>{t("Разгледай всяка възраст. Историята започва на " + startAge + " г.",
               "Try any age. The story starts at " + startAge + ".")}</p>
           </div>
         </div>
+        <fieldset className="avatar-presentation">
+          <legend>{t("Герой", "Character")}</legend>
+          <div className="avatar-stage-buttons">
+            <button type="button" aria-pressed={presentation === "female"} onClick={() => setPresentation("female")}>
+              {t("Момиче", "Female")}
+            </button>
+            <button type="button" aria-pressed={presentation === "male"} onClick={() => setPresentation("male")}>
+              {t("Момче", "Male")}
+            </button>
+          </div>
+        </fieldset>
         <fieldset className="avatar-stages">
           <legend>{t("Преглед по възраст", "Preview by age")}</legend>
           <div className="avatar-stage-buttons">

@@ -16,7 +16,7 @@ function updatePets(s: GameState, changes: Partial<Pets>): Systems {
 }
 
 const single = (s: GameState): Text | null => s.lifeSystems.family.stage === "single" ? null
-  : t("Тази дейност е достъпна, когато Мила е необвързана.", "Available when Mila is single.");
+  : t("Тази дейност е достъпна, когато си без връзка.", "Available when you are single.");
 
 const withPartner = (s: GameState): Text | null => s.lifeSystems.family.partner ? null
   : t("Първо започни връзка.", "Start a relationship first.");
@@ -35,7 +35,7 @@ function stageRequired(stage: Family["stage"], minimumBond: number, prompt: Text
 const familyRoom = (s: GameState): Text | null => {
   const { children, expecting } = s.lifeSystems.family;
   if (expecting) return t("Вече очакваш дете.", "You are already expecting a child.");
-  if (children >= 2) return t("Мила вече се грижи за две деца.", "Mila is already raising two children.");
+  if (children >= 2) return t("Вече се грижиш за две деца.", "You are already raising two children.");
   return null;
 };
 
@@ -121,7 +121,7 @@ const familyActivities: LifeActivityDefinition[] = [
   }, {
     id: "family.adopt", category: "family", minAge: 21,
     requires: s => familyRoom(s) ?? (s.career === "student"
-      ? t("Мила трябва да има постоянен доход.", "Mila needs a steady income.") : null),
+      ? t("Трябва да имаш постоянен доход.", "You need a steady income.") : null),
     label: t("Осинови дете", "Adopt a child"),
     description: t("Подготви дома и бюджета за осиновяване. Грижата за дете влиза в годишните разходи.", "Prepare your home and budget for adoption. Childcare becomes an annual expense."),
     result: t("След период на подготовка вкъщи вече има нов член на семейството.", "After months of preparation, you welcome a child into your home."),

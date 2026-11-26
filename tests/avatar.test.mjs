@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { avatarPresets, avatarStages, defaultAvatar, getAvatarLook, getAvatarStage, getAvatarTreatments } from "../src/avatar.ts";
+import { avatarPresets, avatarStages, defaultAvatar, defaultMaleAvatar, getAvatarLook, getAvatarName, getAvatarStage, getAvatarTreatments } from "../src/avatar.ts";
 import { advance, choose, decodeSave, doLifeActivity, encodeSave, getChoices, newLife } from "../src/engine.ts";
 import { deserialize, serialize } from "../src/session.ts";
 
@@ -8,6 +8,26 @@ const custom = {
   ...defaultAvatar, face: "diamond", hair: "slick", eyes: "narrow", brows: "angled", lips: "full",
   skin: "deep", hairColor: "copper", eyeColor: "green",
 };
+
+test("the male avatar retains his identity across age presets and replay", () => {
+  const avatar = { ...defaultMaleAvatar, hair: "slick", eyeColor: "green" };
+  let life = newLife(108, avatar);
+  life = advance(choose(life, getChoices(life)[0].id));
+  life = advance(choose(life, getChoices(life)[0].id));
+  const restored = decodeSave(encodeSave(life));
+  assert.deepEqual(restored, life);
+  assert.equal(getAvatarName(restored.avatar).en, "Milen Nikolov");
+  for (const stage of avatarStages) {
+    const look = getAvatarLook(restored.avatar, stage.previewAge);
+    assert.equal(look.traits.presentation, "male");
+    assert.equal(look.traits.eyeColor, "green");
+  }
+  assert.equal(getAvatarLook(restored.avatar, 17).traits.hair, "part");
+  assert.equal(getAvatarLook(restored.avatar, 18).traits.hair, "slick");
+  const malformed = JSON.parse(encodeSave(life));
+  malformed.avatar.presentation = "unknown";
+  assert.equal(decodeSave(JSON.stringify(malformed)), null);
+});
 
 test("each preset has an age-appropriate variant and each age preserves natural colors", () => {
   for (const stage of avatarStages) {
