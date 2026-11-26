@@ -48,6 +48,7 @@ function App(){
   const [screen,setScreen]=useState<Screen>("home");
   const [moreMenu,setMoreMenu]=useState<{category:LifeActivityCategory|null;parent:MoreParent;version:number}>({category:null,parent:"journal",version:0});
   const [albumFromMore,setAlbumFromMore]=useState(false);
+  const [slideMenu,setSlideMenu]=useState(false);
   const live=useRef(session),dialogRef=useRef<HTMLDialogElement>(null);
   const viewportRef=useRef<HTMLDivElement>(null);
   const mainRef=useRef<HTMLElement>(null);
@@ -81,7 +82,8 @@ function App(){
     const position=nextLogPosition.current;
     if(focusScreen.current){
       focusScreen.current=false;
-      viewportRef.current?.scrollTo(0,0);
+      const viewport=viewportRef.current;
+      if(viewport)viewport.scrollTop=0;
       if(!position?.focus)mainRef.current?.focus({preventScroll:true});
     }
     if(screen==="game"&&tab==="journal"&&position){
@@ -117,15 +119,22 @@ function App(){
   }
   function route(which:Tab){
     const position=which==="journal"?lastLogPosition(live.current.life):null;
-    if(!position)viewportRef.current?.scrollTo(0,0);
-    else if(tab==="journal")scrollToLog(position);
-    nextLogPosition.current=tab===which?null:position;
-    if(tab!==which)focusScreen.current=true;
+    if(tab===which){
+      if(position)scrollToLog(position);
+      return;
+    }
+    setSlideMenu(tab==="journal"&&(which==="people"||which==="places"||which==="more"));
+    nextLogPosition.current=position;
+    focusScreen.current=true;
     setTab(which);
   }
   function openMore(category:LifeActivityCategory|null=null,parent:MoreParent="journal"){
     setMoreMenu(menu=>({category,parent,version:menu.version+1}));
     route("more");
+  }
+  function openGameMenu(which:"wallet"|"settings"){
+    setSlideMenu(showJournal);
+    setDialog(which);
   }
   function backFromCategory(){
     const parent=moreMenu.parent;
@@ -225,13 +234,13 @@ function App(){
   }[moreMenu.parent];
   const toolbar = <div className="masthead-actions">
     <button className="lang-button" data-testid="language" onClick={setLocale} aria-label={t("Switch to English","Премини на български")}>{l==="bg"?"EN":"БГ"}</button>
-    <button className="icon-button" data-testid="settings" onClick={()=>setDialog("settings")} aria-label={t("Настройки","Settings")}><Icon name="settings"/></button>
+    <button className="icon-button" data-testid="settings" onClick={()=>openGameMenu("settings")} aria-label={t("Настройки","Settings")}><Icon name="settings"/></button>
   </div>;
   return <div className={screen==="home"?"app-shell app-shell--home":"app-shell"}>
     {screen!=="home"&&<header className="masthead"><CharacterHeader life={s} l={l}/></header>}
     {notice&&<div className="save-notice" role="status"><span>{notice==="temporary"?t("Браузърът не запази играта. Можеш да изтеглиш копие от Настройки.","This browser couldn’t save your game. Download a backup in Settings."):notice==="recovered"?t("Дневникът е възстановен от предишния запис.","Your journal was restored from its previous save."):t("Предишният запис е повреден. Започваш нова глава.","The previous save was damaged. A new chapter has begun.")}</span><button aria-label={t("Затвори","Dismiss")} onClick={()=>setNotice(null)}><Icon name="close" size={16}/></button></div>}
     <div className={screen==="game"?(tab==="more"?"game-layout more-layout":"game-layout"):"game-layout start-layout"} ref={viewportRef}>
-      <main className={screen==="home"?"main-column start-column":(screen==="album"||(!showJournal&&tab!=="more"))?"main-column menu-enter":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
+      <main className={screen==="home"?"main-column start-column":(showJournal===false&&(tab==="people"||tab==="places")&&screen==="game"&&slideMenu)?"main-column menu-enter":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
       {showJournal&&<div className="life-tools">
         <button className="icon-button menu-button" onClick={()=>openMenuScreen("home")}><Icon name="menu" size={18}/>{t("Меню","Menu")}</button>
         {toolbar}
@@ -239,9 +248,9 @@ function App(){
       {screen==="home"?<StartScreen life={s} l={l} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
         onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</StartScreen>:
        screen==="album"?<Album {...menuProps} back s={s} archive={session.album} l={l}/>:
-       tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>setDialog("wallet")} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore}/>:
+       tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>openGameMenu("wallet")} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore}/>:
        tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family","people")}/>:tab==="places"?<Places {...menuProps} s={s} l={l} onHolidays={()=>openMore("holidays","places")}/>:
-       tab==="more"?<More {...menuProps} key={moreMenu.version} life={s} l={l} initialCategory={moreMenu.category}
+       tab==="more"?<More {...menuProps} key={moreMenu.version} life={s} l={l} initialCategory={moreMenu.category} animateEntry={slideMenu&&moreMenu.category===null}
         onActivity={id=>act(v=>doLifeActivity(v,id,s.age))} onGiveUp={requestGiveUp} onJournal={()=>openJournal(live.current.life,true)} onAlbum={()=>openAlbum(true)}
         onCategoryBack={moreMenu.category?backFromCategory:undefined} categoryBackLabel={categoryBackLabel}/>:
        <Album {...albumMenu} s={s} archive={session.album} l={l}/>}
@@ -260,7 +269,7 @@ function App(){
     </nav><StatsBars life={s} l={l}/></footer>}
     {dialog&&<dialog key={dialog} ref={dialogRef} className={menuDialog?"modal-card game-menu-dialog":"modal-card"} onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}>
       {menuDialog&&screen!=="home"&&<div className="game-menu-profile"><CharacterHeader life={s} l={l}/></div>}
-      <div className={menuDialog?"game-menu-content menu-enter":undefined}>
+      <div className={menuDialog?(slideMenu&&showJournal?"game-menu-content menu-enter":"game-menu-content"):undefined}>
       {menuDialog?<MenuTitle onClose={close} back={screen==="home"} closeLabel={screen==="home"?t("Назад към менюто","Back to main menu"):t("Затвори","Close")}><h2 id="dialog-heading">{dialogTitle}</h2></MenuTitle>:<div className="dialog-head"><h2 id="dialog-heading">{dialogTitle}</h2><button className="icon-button" aria-label={t("Затвори","Close")} onClick={close}><Icon name="close"/></button></div>}
       {dialog==="wallet"?<Wallet s={s} l={l} onBank={()=>{close();openMore("bank","wallet");}}/>:
       dialog==="guide"?<StartGuide l={l}/>:dialog==="give-up"?<>

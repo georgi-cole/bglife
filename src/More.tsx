@@ -48,6 +48,7 @@ type MoreProps = {
   onActivity: (id: string) => void;
   onGiveUp: () => void;
   initialCategory?: LifeActivityCategory | null;
+  animateEntry?: boolean;
   onJournal?: () => void;
   onAlbum?: () => void;
   onCategoryBack?: () => void;
@@ -204,11 +205,12 @@ function ActivityCard({ category, option, feedback, onChoose, onJournal, l, tone
   </li>;
 }
 
-export function More({ life, l, onActivity, onGiveUp, initialCategory = null, onJournal, onAlbum, onClose, closeLabel, onCategoryBack, categoryBackLabel }: MoreProps) {
+export function More({ life, l, onActivity, onGiveUp, initialCategory = null, animateEntry = false, onJournal, onAlbum, onClose, closeLabel, onCategoryBack, categoryBackLabel }: MoreProps) {
   const [selected, setSelected] = useState(initialCategory);
   const [platform, setPlatform] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<{ id: string; category: LifeActivityCategory | null; index: number } | null>(null);
   const focusHeading = useRef(initialCategory !== null);
+  const animateDirectory = useRef(animateEntry);
   const heading = useRef<HTMLHeadingElement>(null);
   const screen = useRef<HTMLElement>(null);
   const t = (bg: string, en: string) => copy(l, bg, en);
@@ -220,11 +222,13 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, on
   useLayoutEffect(() => {
     if (!focusHeading.current) return;
     focusHeading.current = false;
-    screen.current?.scrollIntoView({ block: "start" });
+    const viewport = screen.current?.closest(".game-layout");
+    if (viewport) viewport.scrollTop = 0;
     heading.current?.focus({ preventScroll: true });
   }, [selected, platform]);
 
   function changeCategory(next: LifeActivityCategory | null) {
+    animateDirectory.current = false;
     focusHeading.current = true;
     setSelected(next);
   }
@@ -239,7 +243,7 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, on
     onActivity(id);
   }
 
-  if (!category) return <section key="directory" ref={screen} className="more-screen menu-enter" aria-labelledby="more-heading">
+  if (!category) return <section key="directory" ref={screen} className={animateDirectory.current ? "more-screen menu-enter" : "more-screen"} aria-labelledby="more-heading">
     <header className="more-heading">
       <MenuTitle onClose={onClose} closeLabel={closeLabel}><h1 ref={heading} id="more-heading" tabIndex={-1}>{t("Още", "More")}</h1></MenuTitle>
       <span className="more-resource"><Icon name="clock" size={15} />{t("Свободно време", "Free time")}: <strong>{availableTime}</strong></span>
@@ -269,7 +273,7 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, on
     else groups.set(key, [option]);
   }
 
-  return <section key={platform ?? category.id} ref={screen} className={`more-screen menu-enter activity-${category.id}`} aria-labelledby="more-heading">
+  return <section key={platform ?? category.id} ref={screen} className={`more-screen activity-${category.id}`} aria-labelledby="more-heading">
     <header className="more-heading">
       <MenuTitle back onClose={platform ? () => openPlatform(null) : onCategoryBack ?? (() => changeCategory(null))}
         closeLabel={platform ? t("Назад към Социални мрежи","Back to Social media") : onCategoryBack ? categoryBackLabel : t("Назад към Още","Back to More")}>
