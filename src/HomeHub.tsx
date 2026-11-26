@@ -1,5 +1,5 @@
-import React from "react";
-import { art } from "../scripts/art";
+import React, { useEffect, useState } from "react";
+import { pickHomeScene, rememberHomeScene } from "./homeScenes.ts";
 import { hasStartedLife, type GameState } from "./engine.ts";
 import type { Language } from "./session.ts";
 import { Icon, PlaySymbol, ageLabel, copy, lifeName, town } from "./ui.tsx";
@@ -15,23 +15,28 @@ type Props = {
   children: React.ReactNode;
 };
 
-export function StartScreen({ life, l, onContinue, onNewLife, onAlbum, onGuide, children }: Props) {
+export function HomeHub({ life, l, onContinue, onNewLife, onAlbum, onGuide, children }: Props) {
   const t = (bg: string, en: string) => copy(l, bg, en);
+  const [scene] = useState(pickHomeScene);
+  useEffect(() => rememberHomeScene(scene), [scene]);
   const hasLife = hasStartedLife(life);
   const progress = [ageLabel(life.age, l), town(life.city, l)];
   if (life.endReason === "gaveUp") progress.push(t("Приключена история", "Story ended"));
   else if (life.death) progress.push(t("Край на живота", "Life ended"));
   else if (life.finished) progress.push(t("Завършена история", "Story complete"));
 
-  return <div className="start-screen">
+  return <div className="start-screen" data-home-scene={scene.id}>
+    <img className="start-cover-art" src={scene.art} alt="" fetchPriority="high" />
     <header className="start-cover">
-      <img className="start-cover-art" src={art.tryavna} alt="" fetchPriority="high" />
       <div className="start-cover-actions">{children}</div>
       <div className="start-cover-title">
         <h1>Bg<em>Life</em></h1>
+        <span className="start-thread" aria-hidden="true"><i /><i /><i /></span>
         <p>{t("Симулатор на живота в България", "A life simulator set in Bulgaria")}</p>
       </div>
     </header>
+
+    <p className="start-caption">{scene[l]}</p>
 
     <nav className="start-actions" aria-label={t("Начално меню", "Main menu")}>
       <button className="start-primary" onClick={hasLife ? onContinue : onNewLife}>
