@@ -4,7 +4,13 @@
   padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
 }
 
-.start-column { max-width: 40rem; }
+.app-shell--home .start-layout {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: max(clamp(1.5rem, 10dvh, 5rem), env(safe-area-inset-bottom, 0px));
+}
+
+.start-column { width: 100%; max-width: 40rem; margin-block: auto; }
 .main-column:focus { outline: none; }
 
 .menu-button {
@@ -13,6 +19,7 @@
   gap: .42rem;
   padding: .45rem .65rem;
   width: auto;
+  min-height: 2.75rem;
   font-size: .79rem;
   font-weight: 750;
 }
@@ -23,7 +30,7 @@
   isolation: isolate;
   display: grid;
   align-items: end;
-  min-height: clamp(16rem, 78vw, 23rem);
+  min-height: clamp(16rem, max(82vw, 43dvh), 25rem);
   overflow: hidden;
   border: 1px solid #ffffff25;
   border-radius: 1.35rem;
@@ -50,7 +57,7 @@
 }
 
 .start-cover-actions { position: absolute; top: .9rem; inset-inline-end: .9rem; }
-.start-cover-actions button { background: #181723eb; border-color: #efe4d158; }
+.start-cover-actions button { min-width: 2.75rem; min-height: 2.75rem; background: #181723eb; border-color: #efe4d158; }
 .start-cover-actions button:hover { background: #353c51; }
 
 .start-cover-title { padding: 1.5rem clamp(1.15rem, 5vw, 2.3rem); }
@@ -98,7 +105,6 @@
   color: #fff2e8;
 }
 
-.start-play .play-symbol { font-size: 15px; margin-left: .13rem; }
 .start-primary-text { display: grid; min-width: 0; gap: .17rem; }
 .start-primary-text strong { font-size: 1.1rem; line-height: 1.13; }
 .start-primary-text small { color: #4f3338; font-size: .79rem; font-weight: 650; overflow-wrap: anywhere; }
