@@ -4,7 +4,7 @@ import {
   type GameState, type LifeActivityCategory, type LifeActivityOption, type LifeStat, type Memory,
 } from "./engine.ts";
 import type { Language } from "./session.ts";
-import { Icon, copy, lifeStatLabels, money } from "./ui.tsx";
+import { Icon, MenuTitle, copy, lifeStatLabels, money } from "./ui.tsx";
 import "./more.css";
 
 const categories = [
@@ -41,6 +41,8 @@ export function StatsBars({ life, l }: { life: GameState; l: Language }) {
 }
 
 type MoreProps = {
+  onClose: () => void;
+  closeLabel: string;
   life: GameState;
   l: Language;
   onActivity: (id: string) => void;
@@ -163,7 +165,7 @@ function ActivityCard({ option, feedback, onChoose, onJournal, l }: {
   </li>;
 }
 
-export function More({ life, l, onActivity, onGiveUp, initialCategory = null, onJournal, onAlbum }: MoreProps) {
+export function More({ life, l, onActivity, onGiveUp, initialCategory = null, onJournal, onAlbum, onClose, closeLabel }: MoreProps) {
   const [selected, setSelected] = useState(initialCategory);
   const [lastAction, setLastAction] = useState<{ id: string; category: LifeActivityCategory | null; index: number } | null>(null);
   const focusHeading = useRef(initialCategory !== null);
@@ -192,9 +194,9 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, on
     onActivity(id);
   }
 
-  if (!category) return <section ref={screen} className="more-screen" aria-labelledby="more-heading">
+  if (!category) return <section key="directory" ref={screen} className="more-screen menu-enter" aria-labelledby="more-heading">
     <header className="more-heading">
-      <h1 ref={heading} id="more-heading" tabIndex={-1}>{t("Още", "More")}</h1>
+      <MenuTitle onClose={onClose} closeLabel={closeLabel}><h1 ref={heading} id="more-heading" tabIndex={-1}>{t("Още", "More")}</h1></MenuTitle>
       <span className="more-resource"><Icon name="clock" size={15} />{t("Свободно време", "Free time")}: <strong>{availableTime}</strong></span>
     </header>
     <div className="activity-directory">
@@ -222,14 +224,14 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, on
     else groups.set(key, [option]);
   }
 
-  return <section ref={screen} className={`more-screen activity-${category.id}`} aria-labelledby="more-heading">
+  return <section key={category.id} ref={screen} className={`more-screen menu-enter activity-${category.id}`} aria-labelledby="more-heading">
     <button type="button" className="activity-back" onClick={() => changeCategory(null)}>
       <Icon name="right" size={17} />{t("Още", "More")}
     </button>
     <header className="more-heading">
-      <h1 ref={heading} id="more-heading" tabIndex={-1}><span className="activity-category-icon">
+      <MenuTitle onClose={onClose} closeLabel={closeLabel}><h1 ref={heading} id="more-heading" tabIndex={-1}><span className="activity-category-icon">
         <CategoryIcon category={category} size={23} />
-      </span>{category.title[l]}</h1>
+      </span>{category.title[l]}</h1></MenuTitle>
       <div className="activity-resources">
         <span className="more-resource"><Icon name="clock" size={15} />{t("Свободно време", "Free time")}: <strong>{availableTime}</strong></span>
         <span className="more-resource"><Icon name="wallet" size={15} /><strong>{money(life.cash, l)}</strong></span>

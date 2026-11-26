@@ -24,6 +24,12 @@ export type IconName = keyof typeof paths;
 export function Icon({ name, size=20 }: { name: IconName; size?:number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>;
 }
+export function MenuTitle({children,onClose,closeLabel}: {children:React.ReactNode;onClose:()=>void;closeLabel:string}) {
+  return <div className="menu-title-row">
+    <button type="button" className="icon-button" aria-label={closeLabel} onClick={onClose}><Icon name="close" size={20}/></button>
+    {children}
+  </div>;
+}
 export function PlaySymbol() {
   return <span className="play-symbol" aria-hidden="true"/>;
 }

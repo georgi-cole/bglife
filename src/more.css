@@ -37,7 +37,7 @@
 .stat-influence { --stat-color: #cbaafb; }
 
 .more-screen { display: grid; align-content: start; gap: .7rem; min-width: 0; }
-.more-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: .55rem; }
+.more-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .55rem; }
 .more-heading h1 {
   display: flex;
   align-items: center;

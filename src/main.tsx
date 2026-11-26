@@ -4,7 +4,7 @@ import {choose,defaultPlayChoice,doAction,doLifeActivity,giveUp,newLife,playYear
 import {Album,People,Places} from "./Views.tsx";
 import {Journal,Wallet} from "./Journal.tsx";
 import {More,StatsBars} from "./More.tsx";
-import {Icon,PlaySymbol,copy,money,name,occupation,tabLabels,type Tab} from "./ui.tsx";
+import {Icon,MenuTitle,PlaySymbol,copy,money,name,occupation,tabLabels,type Tab} from "./ui.tsx";
 import {deserialize,initialLanguage,LANGUAGE_KEY,loadSession,persist,SAVE_KEY,serialize,type Session} from "./session.ts";
 import "./style.css";
 import {StartGuide,StartScreen} from "./StartScreen.tsx";
@@ -198,33 +198,30 @@ function App(){
   function navItem(k:Tab) {
     return <button data-tab={k} className="nav-item" aria-current={tab===k?"page":undefined} onClick={()=>k==="more"?openMore():route(k)}><Icon name={k}/><span>{labels[k]}</span></button>;
   }
+  const closeLabel=screen==="album"?t("Към менюто","Back to main menu"):t("Към живота","Back to Life");
+  const closeMenu=()=>screen==="album"?openMenuScreen("home"):openJournal(live.current.life);
+  const menuProps={onClose:closeMenu,closeLabel};
   const toolbar = <div className="masthead-actions">
     <button className="lang-button" data-testid="language" onClick={setLocale} aria-label={t("Switch to English","Премини на български")}>{l==="bg"?"EN":"БГ"}</button>
     <button className="icon-button" data-testid="settings" onClick={()=>setDialog("settings")} aria-label={t("Настройки","Settings")}><Icon name="settings"/></button>
   </div>;
   return <div className={screen==="home"?"app-shell app-shell--home":"app-shell"}>
-    {screen!=="home"&&<header className="masthead"><CharacterHeader life={s} l={l}/>
-      {!showJournal&&<div className="section-close">
-        <button className="icon-button menu-button" onClick={()=>screen==="album"?openMenuScreen("home"):openJournal(live.current.life)}>
-          <Icon name="close" size={18}/>{screen==="album"?t("Към менюто","Back to main menu"):t("Към живота","Back to Life")}
-        </button>
-      </div>}
-    </header>}
+    {screen!=="home"&&<header className="masthead"><CharacterHeader life={s} l={l}/></header>}
     {notice&&<div className="save-notice" role="status"><span>{notice==="temporary"?t("Браузърът не запази играта. Можеш да изтеглиш копие от Настройки.","This browser couldn’t save your game. Download a backup in Settings."):notice==="recovered"?t("Дневникът е възстановен от предишния запис.","Your journal was restored from its previous save."):t("Предишният запис е повреден. Започваш нова глава.","The previous save was damaged. A new chapter has begun.")}</span><button aria-label={t("Затвори","Dismiss")} onClick={()=>setNotice(null)}><Icon name="close" size={16}/></button></div>}
     <div className={screen==="game"?"game-layout":"game-layout start-layout"} ref={viewportRef}>
-      <main className={screen==="home"?"main-column start-column":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
+      <main className={screen==="home"?"main-column start-column":(screen==="album"||(!showJournal&&tab!=="more"))?"main-column menu-enter":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
       {showJournal&&<div className="life-tools">
         <button className="icon-button menu-button" onClick={()=>openMenuScreen("home")}><Icon name="menu" size={18}/>{t("Меню","Menu")}</button>
         {toolbar}
       </div>}
       {screen==="home"?<StartScreen life={s} l={l} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
         onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</StartScreen>:
-       screen==="album"?<Album s={s} archive={session.album} l={l}/>:
+       screen==="album"?<Album {...menuProps} s={s} archive={session.album} l={l}/>:
        tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>setDialog("wallet")} onAlbum={()=>route("album")} onReplay={()=>setDialog("replay")} onMore={openMore}/>:
-       tab==="people"?<People s={s} l={l} onFamily={()=>openMore("family")}/>:tab==="places"?<Places s={s} l={l} onHolidays={()=>openMore("holidays")}/>:
-       tab==="more"?<More key={moreMenu.version} life={s} l={l} initialCategory={moreMenu.category}
+       tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family")}/>:tab==="places"?<Places {...menuProps} s={s} l={l} onHolidays={()=>openMore("holidays")}/>:
+       tab==="more"?<More {...menuProps} key={moreMenu.version} life={s} l={l} initialCategory={moreMenu.category}
         onActivity={id=>act(v=>doLifeActivity(v,id,s.age))} onGiveUp={requestGiveUp} onJournal={()=>openJournal(live.current.life,true)} onAlbum={()=>route("album")}/>:
-       <Album s={s} archive={session.album} l={l}/>}
+       <Album {...menuProps} s={s} archive={session.album} l={l}/>}
     </main></div>
     {showJournal&&!menuDialog&&<footer className="game-footer"><nav className="bottom-nav" aria-label={t("Навигация","Navigation")}>
       <div className="nav-inner">
@@ -240,7 +237,8 @@ function App(){
     </nav><StatsBars life={s} l={l}/></footer>}
     {dialog&&<dialog key={dialog} ref={dialogRef} className={menuDialog?"modal-card game-menu-dialog":"modal-card"} onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}>
       {menuDialog&&screen!=="home"&&<div className="game-menu-profile"><CharacterHeader life={s} l={l}/></div>}
-      <div className={menuDialog?"game-menu-content":undefined}><div className="dialog-head"><h2 id="dialog-heading">{dialogTitle}</h2><button className="icon-button" aria-label={t("Затвори","Close")} onClick={close}><Icon name="close"/></button></div>
+      <div className={menuDialog?"game-menu-content menu-enter":undefined}>
+      {menuDialog?<MenuTitle onClose={close} closeLabel={t("Затвори","Close")}><h2 id="dialog-heading">{dialogTitle}</h2></MenuTitle>:<div className="dialog-head"><h2 id="dialog-heading">{dialogTitle}</h2><button className="icon-button" aria-label={t("Затвори","Close")} onClick={close}><Icon name="close"/></button></div>}
       {dialog==="wallet"?<Wallet s={s} l={l} onBank={()=>{close();openMore("bank");}}/>:
       dialog==="guide"?<StartGuide l={l}/>:dialog==="give-up"?<>
         <p>{t("Историята на Мила ще приключи на тази възраст. Дневникът остава достъпен в албума.","Mila’s story will end at her current age. Her journal will remain available in the album.")}</p>
