@@ -40,6 +40,7 @@ jobs:
       - name: Check release credentials
         shell: bash
         env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           APPSTORE_ISSUER_ID: ${{ vars.APPSTORE_ISSUER_ID }}
           APPSTORE_API_KEY_ID: ${{ vars.APPSTORE_API_KEY_ID }}
           APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
@@ -47,7 +48,7 @@ jobs:
           APPSTORE_CERTIFICATES_PASSWORD: ${{ secrets.APPSTORE_CERTIFICATES_PASSWORD }}
         run: |
           missing=()
-          for name in APPSTORE_ISSUER_ID APPSTORE_API_KEY_ID APPSTORE_API_PRIVATE_KEY APPSTORE_CERTIFICATES_FILE_BASE64 APPSTORE_CERTIFICATES_PASSWORD; do
+          for name in APPLE_TEAM_ID APPSTORE_ISSUER_ID APPSTORE_API_KEY_ID APPSTORE_API_PRIVATE_KEY APPSTORE_CERTIFICATES_FILE_BASE64 APPSTORE_CERTIFICATES_PASSWORD; do
             if [ -z "${!name}" ]; then
               missing+=("$name")
             fi
@@ -111,6 +112,7 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
           WORKSPACE: ${{ steps.ios-project.outputs.workspace }}
           SCHEME: ${{ steps.ios-project.outputs.scheme }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
         run: |
           xcodebuild \
             -workspace "$WORKSPACE" \
@@ -118,6 +120,10 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -archivePath "$RUNNER_TEMP/BgLife.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="AppStore com.georgicole.bglife.playtest" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             archive
 
