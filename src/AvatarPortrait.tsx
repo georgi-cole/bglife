@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { getAvatarLook, getAvatarTreatments, type AvatarLook } from "./avatar.ts";
-import { paintAvatar, portraitPixels, type PortraitRegion } from "./avatarArt.ts";
+import { portraitPixels, type PortraitRegion } from "./avatarArt.ts";
+import { paintAvatar } from "./avatarCanvas.ts";
 import type { GameState } from "./engine.ts";
 
 type PortraitProps = { region?: PortraitRegion; className?: string; label?: string };

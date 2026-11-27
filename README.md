@@ -35,7 +35,7 @@ npm run typecheck
 npm run build
 ```
 
-The production build creates **dist/** for static hosting or native wrapping, and **release/BgLife-Playable.html** for offline distribution. Serve the complete contents of `dist/` together. The local development server and a hosted deployment have separate saves. To create a ZIP containing the standalone game, compiled web build and complete source, run `python scripts/package.py` with Python 3.
+The production build creates **dist/** for static hosting, and **release/BgLife-Playable.html** for offline distribution. Serve the complete contents of `dist/` together. The local development server and a hosted deployment have separate saves. To create a ZIP containing the standalone game, compiled web build and complete source, run `python scripts/package.py` with Python 3.
 
 Pull requests into `main` run TypeScript, the simulation regression suite, and mobile browser smoke tests against the production build. The smoke tests use Chromium and WebKit to exercise the GitHub Pages path and the offline playtest. To run them locally, build the game and install the Playwright browsers.
 
@@ -76,38 +76,16 @@ Every new life starts at birth. Education is available through childhood, with f
 - Job offers, tuition, admission scores, and payments are game values. Salary bands use district averages from Q3 2026, and the insurance model uses the 2026 reference rules. [NSI district wages](https://www.nsi.bg/statistical-data/179/569) · [NSSI unemployment benefits](https://www.nssi.bg/fizicheski-lica/po-bg-zakonodatelstvo/pri-bezrabotitsa/) · [NSSI pension rules](https://www.nssi.bg/fizicheski-lica/pensii-bg/trudova-deinost-pridobivane-pravo/pensii-za-osig-staj-v-namalen-razmer/)
 - Existing saves replay their previous decisions and balances before the career system activates. Recorded study, jobs, and pension service carry forward. In-progress university enrollments from the previous game keep their tuition-free terms.
 
-## Mobile wrappers
+## Native mobile playtest
 
-Capacitor reads `capacitor.config.ts` and packages the contents of `dist/` as local app resources. The provisional local app identifier is `com.georgicole.bglife`. Choose the permanent identifier before registering store applications.
-
-On the platform development machine, build the web project first and generate the required native platform once.
+BgLife Mobile uses Expo SDK 58 and React Native. It shares the TypeScript simulation, avatar drawing, and JSON backup format with the browser game. This first playtest includes HomeHub, new lives in all 29 cities, the VIP preview avatar editor, the Journal, the Album, and offline SQLite saves. To bring a browser life over, download its backup from the browser game, then choose it in the native game's Settings and confirm the restore.
 
 ```sh
-npm run build
-npx cap add android
-npx cap open android
+cd mobile
+npm ci
+npm run android
 ```
 
-On macOS with Xcode, the equivalent platform is `ios`.
+The Android command requires Android Studio's SDK and a device or emulator. On a Mac with Xcode and an iOS device or simulator, use `npm run ios`. These commands generate the platform projects and compile the app locally.
 
-```sh
-npm run build
-npx cap add ios
-npx cap open ios
-```
-
-After changing the game, run `npm run native:sync` to rebuild and copy the web output into the generated native projects. Compile and sign through Android Studio or Xcode. The downloadable game is a browser build.
-
-## Project layout
-
-| Location | Purpose |
-| --- | --- |
-| `src/engine.ts` | Year progression, choices, spending, memories and save validation |
-| `src/story.ts` | Bilingual scenes, conditions and outcomes |
-| `src/main.tsx` | React application entry |
-| `src/style.css` | Responsive visual system |
-| `public/art/` | Location artwork and credits |
-| `tests/` | Automated simulation regressions |
-| `scripts/build.mjs` | Development server and production builds |
-
-The distributed web build carries artwork credits and third-party notices in `dist/CREDITS.txt`. The standalone page embeds the same notices in its `game-credits` element.
+The **BgLife native playtest** GitHub Actions workflow compiles an Android test APK and an iOS Simulator app. It verifies new-life creation, a birthday, and reopening the saved life, and exercises web backup import on Android in airplane mode. The test apps use `com.georgicole.bglife.playtest` as their identifier.

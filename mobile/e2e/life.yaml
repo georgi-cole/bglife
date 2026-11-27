@@ -1,0 +1,53 @@
+appId: com.georgicole.bglife.playtest
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    id: new-life
+- tapOn:
+    id: player-name
+- inputText: Mila Vasileva
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: choose-city
+    direction: DOWN
+- tapOn:
+    id: choose-city
+- tapOn:
+    id: city-sofia
+- scrollUntilVisible:
+    element:
+      id: vip-preview
+    direction: DOWN
+- tapOn:
+    id: vip-preview
+- scrollUntilVisible:
+    element:
+      id: avatar-hair-crop
+    direction: DOWN
+- tapOn:
+    id: avatar-hair-crop
+- tapOn:
+    id: start-life
+- assertVisible:
+    id: current-name
+    text: Mila Vasileva
+- assertVisible:
+    id: journal-year-0
+- tapOn:
+    id: advance-year
+- assertVisible:
+    id: current-age
+    text: '1 г\.'
+- stopApp
+- launchApp
+- tapOn:
+    id: continue-life
+- assertVisible:
+    id: current-age
+    text: '1 г\.'
+- assertVisible:
+    id: current-name
+    text: Mila Vasileva
+- takeScreenshot: smoke-results/journal

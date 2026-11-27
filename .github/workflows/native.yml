@@ -3,16 +3,24 @@ name: BgLife native playtest
 on:
   pull_request:
     branches: [main]
-    paths: ['mobile/**', '.github/workflows/native.yml']
+    paths: ['mobile/**', 'src/**', 'public/art/**', '.github/workflows/native.yml']
 
 permissions:
   contents: read
 
+concurrency:
+  group: bglife-native-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  EXPO_NO_TELEMETRY: '1'
+  MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: 'true'
+
 jobs:
-  dependency-lock:
-    name: Resolve mobile dependencies
+  native-check:
+    name: Native compatibility and bundles
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: mobile
@@ -23,12 +31,108 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
-      - run: npm install --package-lock-only --ignore-scripts
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npx expo install --check
+      - run: npm run typecheck
+      - run: npx expo export --platform all --output-dir "$RUNNER_TEMP/bglife-bundles"
+
+  android:
+    name: Android APK and offline smoke
+    needs: native-check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: npm ci
+        working-directory: mobile
+      - run: npx expo prebuild --platform android --no-install
+        working-directory: mobile
+      - name: Build a standalone, debug-signed APK
+        run: bash gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64
+        working-directory: mobile/android
       - uses: actions/upload-artifact@v4
         with:
-          name: bglife-mobile-dependency-lock
-          path: mobile/package-lock.json
+          name: BgLife-Android-Playtest
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-          retention-days: 3
-      - name: Report compressed lockfile
-        run: node -e 'const fs = require("node:fs"); const zlib = require("node:zlib"); console.log(zlib.gzipSync(fs.readFileSync("package-lock.json")).toString("base64").match(/.{1,960}/g).map((chunk, index) => "LOCK " + index + " " + chunk).join("\n"));'
+          retention-days: 14
+      - run: bash mobile/e2e/install-maestro.sh
+      - name: Enable hardware acceleration for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: ReactiveCircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          disable-animations: true
+          script: bash mobile/e2e/run-android.sh
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BgLife-Android-Smoke
+          path: mobile/smoke-results
+          retention-days: 7
+
+  ios:
+    name: iOS simulator app and smoke
+    needs: native-check
+    runs-on: xcode-27
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+        working-directory: mobile
+      - run: npx expo prebuild --platform ios --no-install
+        working-directory: mobile
+      - run: pod install --project-directory=ios
+        working-directory: mobile
+      - name: Build a standalone simulator app
+        working-directory: mobile
+        run: |
+          workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
+          test -n "$workspace"
+          scheme="$(basename "$workspace" .xcworkspace)"
+          xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/bglife-ios" CODE_SIGNING_ALLOWED=NO -quiet
+          app="$(find "$RUNNER_TEMP/bglife-ios/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$app"
+          ditto -c -k --sequesterRsrc --keepParent "$app" "$RUNNER_TEMP/BgLife-iOS-Simulator.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BgLife-iOS-Simulator
+          path: ${{ runner.temp }}/BgLife-iOS-Simulator.zip
+          if-no-files-found: error
+          retention-days: 14
+      - run: bash mobile/e2e/install-maestro.sh
+      - run: bash mobile/e2e/run-ios.sh
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BgLife-iOS-Smoke
+          path: mobile/smoke-results
+          retention-days: 7
