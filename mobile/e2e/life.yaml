@@ -15,6 +15,9 @@ appId: com.georgicole.bglife.playtest
 - tapOn:
     id: choose-city
 - tapOn:
+    id: city-search
+- inputText: Sofia
+- tapOn:
     id: city-sofia
 - scrollUntilVisible:
     element:

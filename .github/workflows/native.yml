@@ -14,7 +14,7 @@ concurrency:
 
 env:
   EXPO_NO_TELEMETRY: '1'
-  MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: 'true'
+  MAESTRO_CLI_NO_ANALYTICS: '1'
 
 jobs:
   native-check:
@@ -103,6 +103,7 @@ jobs:
         with:
           name: BgLife-Android-Smoke
           path: mobile/smoke-results
+          include-hidden-files: true
           retention-days: 7
 
   ios:
@@ -110,14 +111,10 @@ jobs:
     needs: native-check
     runs-on: xcode-27
     timeout-minutes: 40
-    permissions:
-      contents: read
-      actions: read
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -128,35 +125,21 @@ jobs:
         with:
           path: ${{ runner.temp }}/BgLife-iOS-Simulator.zip
           key: bglife-ios-simulator-v1-${{ hashFiles('mobile/app.json', 'mobile/index.ts', 'mobile/metro.config.js', 'mobile/package.json', 'mobile/package-lock.json', 'mobile/src/**', 'src/**', 'public/art/**') }}
-      - name: Match the first simulator app to this app source
-        id: previous-ios
-        if: steps.ios-package.outputs.cache-hit != 'true'
-        run: |
-          if git diff --quiet ca96fa42941ec5ef635598de8dac5aa26391859a HEAD -- mobile/app.json mobile/index.ts mobile/metro.config.js mobile/package.json mobile/package-lock.json mobile/src src public/art; then
-            echo 'same-app=true' >> "$GITHUB_OUTPUT"
-          fi
-      - if: steps.previous-ios.outputs.same-app == 'true'
-        uses: actions/download-artifact@v5
-        with:
-          name: BgLife-iOS-Simulator
-          run-id: 45982865153
-          github-token: ${{ github.token }}
-          path: ${{ runner.temp }}
-      - if: steps.ios-package.outputs.cache-hit == 'true' || steps.previous-ios.outputs.same-app == 'true'
+      - if: steps.ios-package.outputs.cache-hit == 'true'
         run: |
           mkdir -p "$RUNNER_TEMP/bglife-ios/Build/Products/Release-iphonesimulator"
           ditto -x -k "$RUNNER_TEMP/BgLife-iOS-Simulator.zip" "$RUNNER_TEMP/bglife-ios/Build/Products/Release-iphonesimulator"
-      - if: steps.ios-package.outputs.cache-hit != 'true' && steps.previous-ios.outputs.same-app != 'true'
+      - if: steps.ios-package.outputs.cache-hit != 'true'
         run: npm ci
         working-directory: mobile
-      - if: steps.ios-package.outputs.cache-hit != 'true' && steps.previous-ios.outputs.same-app != 'true'
+      - if: steps.ios-package.outputs.cache-hit != 'true'
         run: npx expo prebuild --platform ios --no-install
         working-directory: mobile
-      - if: steps.ios-package.outputs.cache-hit != 'true' && steps.previous-ios.outputs.same-app != 'true'
+      - if: steps.ios-package.outputs.cache-hit != 'true'
         run: pod install --project-directory=ios
         working-directory: mobile
       - name: Build a standalone simulator app
-        if: steps.ios-package.outputs.cache-hit != 'true' && steps.previous-ios.outputs.same-app != 'true'
+        if: steps.ios-package.outputs.cache-hit != 'true'
         working-directory: mobile
         run: |
           workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
@@ -180,10 +163,13 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - run: bash mobile/e2e/install-maestro.sh
-      - run: bash mobile/e2e/run-ios.sh
+      - name: Exercise the game in the iOS Simulator
+        run: bash mobile/e2e/run-ios.sh
+        timeout-minutes: 8
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: BgLife-iOS-Smoke
           path: mobile/smoke-results
+          include-hidden-files: true
           retention-days: 7

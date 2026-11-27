@@ -8,10 +8,12 @@ simulator="$(xcrun simctl list devices available --json | node -e '
   if (!device) throw new Error("No iPhone simulator is installed");
   process.stdout.write(device.udid);
 ')"
+echo "Booting iPhone Simulator $simulator"
 xcrun simctl boot "$simulator"
 xcrun simctl bootstatus "$simulator" -b
 app="$(find "$RUNNER_TEMP/bglife-ios/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)"
 test -n "$app"
+echo "Installing $app"
 xcrun simctl install "$simulator" "$app"
 
 cd mobile
