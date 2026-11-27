@@ -103,9 +103,9 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onMore}: P
         </section>
       ) : <details className="commitments" open={actions.some(action => action.id.startsWith("life.")) || undefined}>
         <summary><Icon name="clock" size={17}/>{copy(l, "Свободно време", "Free time")}<span>{time}/2</span><Icon name="down" size={15}/></summary>
-        <div className="action-grid">
-          {actions.map(action => <button className="secondary-button" key={action.id} data-action={action.id} onClick={() => onAction(action.id)}>{action.label[l]}</button>)}
-          <button className="secondary-button" onClick={()=>onMore()}><Icon name="more" size={18}/>{copy(l,"Още дейности","More activities")}</button>
+        <div className="journal-action-list">
+          {actions.map(action => <button type="button" key={action.id} data-action={action.id} onClick={() => onAction(action.id)}>{action.label[l]}<Icon name="next" size={14}/></button>)}
+          <button type="button" onClick={()=>onMore()}>{copy(l,"Още дейности","More activities")}<Icon name="next" size={14}/></button>
         </div>
       </details>}
     </LifeTimeline>

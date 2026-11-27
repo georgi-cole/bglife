@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { LifePortrait } from "./AvatarPortrait.tsx";
+import { getAvatarLook } from "./avatar.ts";
+import { AvatarPortrait, LifePortrait } from "./AvatarPortrait.tsx";
 import { relativeLabel, type Relative } from "./birthFamily.ts";
 import { cities, type City } from "./cities.ts";
 import type { GameState, Text } from "./engine.ts";
-import { isKnownPerson, personAge, personName, type PeopleId } from "./peopleIdentity.ts";
+import { isKnownPerson, personAge, personAvatarTraits, personGender, personName, type PeopleId } from "./peopleIdentity.ts";
 import { maritalStatus, playerBirthday, playerEducation, playerJob, playerStatus, zodiacFor } from "./playerProfile.ts";
 import type { Language } from "./session.ts";
 import { ageLabel, copy, Icon, lifeName, money, town } from "./ui.tsx";
@@ -24,12 +25,11 @@ export function CityBadge({ city, l }: { city: City; l: Language }) {
   const place = cities[city];
   const motif = city === "tryavna" ? "clock" : city === "burgas" ? "pier" : city === "plovdiv" ? "hills" : place.landscape;
   const code = city === "tryavna" ? "TRY" : city === "samokov" ? "SMK" : place.district;
-  return <span className="city-token" data-city={city} data-terrain={place.landscape} title={place.name[l]}>
+  return <span className="city-token" data-city={city} data-terrain={place.landscape} role="img" aria-label={place.name[l]} title={place.name[l]}>
     <span className="city-insignia" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round"><path d={cityMotifs[motif]}/></svg>
       <span className="city-code">{code}</span>
     </span>
-    <span className="city-token-name">{place.name[l]}</span>
   </span>;
 }
 
@@ -60,52 +60,67 @@ type FamilyMember = { id: PeopleId; label: Text; adopted?: boolean };
 
 function memberDetails(life: GameState, member: FamilyMember, l: Language) {
   const age = personAge(life, member.id);
+  const death = life.deceased[member.id];
   return [member.label[l], member.adopted && copy(l, "Осиновяване", "Adopted"),
-    life.deceased[member.id] && copy(l, "†", "†"), age !== null && ageLabel(age, l)].filter(Boolean).join(" · ");
+    death && copy(l, personGender(life, member.id) === "male" ? "Починал" : "Починала", "Deceased"),
+    age !== null && ageLabel(age, l)].filter(Boolean).join(" · ");
 }
 
 function MemberCard({ life, member, l }: { life: GameState; member: FamilyMember; l: Language }) {
-  return <div className="tree-member" data-family-member={member.id}>
-    <strong>{personName(life, member.id)[l]}</strong>
-    <span>{memberDetails(life, member, l)}</span>
+  const age = personAge(life, member.id) ?? life.age;
+  const look = getAvatarLook(personAvatarTraits(life, member.id), age);
+  return <div className="tree-member" data-family-member={member.id} data-deceased={Boolean(life.deceased[member.id])}>
+    <AvatarPortrait region="badge" className="tree-portrait" look={look}/>
+    <div className="tree-member-copy"><strong>{personName(life, member.id)[l]}</strong><small>{memberDetails(life, member, l)}</small></div>
   </div>;
 }
 
 function FamilyTree({ life, l, children, partner }: { life: GameState; l: Language; children: FamilyMember[]; partner: FamilyMember | null }) {
   const relatives = life.birthFamily?.relatives ?? [];
-  const item = (relative: Relative) => <MemberCard key={relative.id} life={life} l={l} member={{ id: relative.id, label: relativeLabel(relative) }}/>;
-  const grandparents = (side: "maternal" | "paternal") => relatives.filter(relative =>
-    relative.id.startsWith("kin-" + side + "-grand"));
-  const otherKin = relatives.filter(relative => ["aunt", "uncle", "maternal-uncle", "sibling"].includes(relative.role));
-  const storyKin: FamilyMember[] = life.birthFamily ? [] : [
-    { id: "rumi", label: { bg: "Леля", en: "Aunt" } },
-    { id: "niki", label: { bg: "Братовчед", en: "Cousin" } },
-  ];
-  return <div className="family-tree">
-    <div className="tree-ancestors">
-      {(["maternal", "paternal"] as const).map(side => {
-        const parent = relatives.find(relative => relative.role === (side === "maternal" ? "mother" : "father"));
-        const elders = grandparents(side);
-        if (!parent && !elders.length) return null;
-        return <section className="tree-branch" key={side} aria-label={side === "maternal" ? copy(l, "По майчина линия", "Maternal side") : copy(l, "По бащина линия", "Paternal side")}>
-          <h3 className="tree-lineage">{side === "maternal" ? copy(l, "Майчина линия", "Maternal side") : copy(l, "Бащина линия", "Paternal side")}</h3>
-          {elders.length > 0 && <div className="tree-grandparents">{elders.map(item)}</div>}
-          {parent && item(parent)}
-        </section>;
-      })}
+  const card = (relative: Relative) => <MemberCard key={relative.id} life={life} l={l} member={{ id: relative.id, label: relativeLabel(relative) }}/>;
+  const branches = (["maternal", "paternal"] as const).map(side => ({
+    side,
+    parent: relatives.find(relative => relative.role === (side === "maternal" ? "mother" : "father")),
+    elders: relatives.filter(relative => relative.id.startsWith("kin-" + side + "-grand")),
+  })).filter(branch => branch.parent || branch.elders.length);
+  const extended: FamilyMember[] = relatives.filter(relative =>
+    ["aunt", "uncle", "maternal-uncle", "sibling"].includes(relative.role)).map(relative => ({
+      id: relative.id, label: relativeLabel(relative),
+    }));
+  if (!life.birthFamily) {
+    const storyKin: FamilyMember[] = [
+      { id: "rumi", label: { bg: "Леля", en: "Aunt" } },
+      { id: "niki", label: { bg: "Братовчед", en: "Cousin" } },
+    ];
+    extended.push(...storyKin.filter(member => isKnownPerson(life, member.id)));
+  }
+  return <section className="family-tree" aria-label={copy(l, "Родословно дърво", "Family tree")}>
+    <div className="tree-chart" data-partner={Boolean(partner)}>
+      {branches.length > 0 && <div className="tree-ancestors" data-two={branches.length === 2}>
+        {branches.map(({ side, parent, elders }) => <section className="tree-branch" data-side={side} key={side}>
+          <h3 className="tree-lineage"><span aria-hidden="true"/>{side === "maternal"
+            ? copy(l, "Майчина линия", "Maternal side") : copy(l, "Бащина линия", "Paternal side")}</h3>
+          <div className="tree-grandparents">{elders.map(card)}</div>
+          {parent && <div className="tree-parent">{card(parent)}</div>}
+        </section>)}
+      </div>}
+      <div className="tree-centre">
+        <div className="tree-member tree-self">
+          <LifePortrait life={life} region="badge" className="tree-portrait"/>
+          <div className="tree-member-copy"><strong>{lifeName(l, life)}</strong><small>{copy(l, "Ти", "You")} · {ageLabel(life.age, l)}</small></div>
+        </div>
+        {partner && <div className="tree-partner"><MemberCard life={life} l={l} member={partner}/></div>}
+      </div>
+      {children.length > 0 && <section className="tree-descendants" aria-labelledby="tree-children-heading">
+        <h3 id="tree-children-heading">{copy(l, "Деца", "Children")}</h3>
+        <div className="tree-children">{children.map(member => <MemberCard key={member.id} life={life} l={l} member={member}/>)}</div>
+      </section>}
     </div>
-    <div className="tree-centre">
-      <div className="tree-member tree-self"><strong>{lifeName(l, life)}</strong><span>{copy(l, "Ти", "You")} · {ageLabel(life.age, l)}</span></div>
-      {partner && <MemberCard life={life} l={l} member={partner}/>}
-    </div>
-    {children.length > 0 && <section className="tree-children" aria-label={copy(l, "Деца", "Children")}>
-      {children.map(member => <MemberCard key={member.id} life={life} l={l} member={member}/>)}
-    </section>}
-    {(!life.birthFamily || otherKin.length > 0) && <div className="tree-other">
-      {otherKin.map(item)}
-      {storyKin.filter(member => isKnownPerson(life, member.id)).map(member => <MemberCard key={member.id} life={life} l={l} member={member}/>)}
-    </div>}
-  </div>;
+    {extended.length > 0 && <details className="tree-extended">
+      <summary><Icon name="people" size={16}/><strong>{copy(l, "Други роднини", "Other relatives")}</strong><span>{extended.length}</span><Icon name="down" size={15}/></summary>
+      <div className="tree-other">{extended.map(member => <MemberCard key={member.id} life={life} l={l} member={member}/>)}</div>
+    </details>}
+  </section>;
 }
 
 const birthdays = {
@@ -141,14 +156,17 @@ export function PlayerProfile({ life, l, onAesthetics }: { life: GameState; l: L
     ...(petsList ? [[copy(l, "Домашни любимци", "Pets"), petsList] as [string, string]] : []),
   ];
   return <>
-    <div className="profile-heading">
+    {!tree && <div className="profile-heading">
       <span className="profile-portrait"><LifePortrait life={life} region="badge"/></span>
       <div><strong>{lifeName(l, life)}</strong><span>{ageLabel(life.age, l)}</span></div>
+    </div>}
+    <div className={tree ? "profile-tree-bar" : undefined}>
+      <button type="button" className={tree ? "profile-tree-back" : "secondary-button profile-tree-toggle"}
+        aria-controls="profile-tree" aria-expanded={tree} onClick={() => setTree(!tree)}>
+        <Icon name={tree ? "back" : "people"} size={17}/>{tree ? copy(l, "Към профила", "Back to profile") : copy(l, "Родословно дърво", "Family tree")}
+      </button>
+      {tree && <h3>{copy(l, "Родословие", "Family tree")}</h3>}
     </div>
-    <button type="button" className="secondary-button profile-tree-toggle" aria-controls="profile-tree" aria-expanded={tree}
-      onClick={() => setTree(!tree)}>
-      <Icon name={tree ? "back" : "people"} size={17}/>{tree ? copy(l, "Към профила", "Back to profile") : copy(l, "Родословно дърво", "Family tree")}
-    </button>
     <div id="profile-tree" hidden={!tree}>{tree && <FamilyTree life={life} l={l} children={children} partner={partner}/>}</div>
     {!tree && <>
       <dl className="profile-facts">

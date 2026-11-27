@@ -113,8 +113,7 @@ function ActionRow({options,l,onClick}: {options:LifeActivityOption[];l:Language
     <span className="people-action-icon"><Icon name={symbol} size={20}/></span>
     <span className="people-action-copy">
       <strong>{(branch?.label??action.label)[l]}</strong>
-      <small>{(branch?.description??action.description)[l]}</small>
-      {!branch&&<span className="people-action-cost">
+      {!branch&&(action.cashDelta<0||action.timeCost>0)&&<span className="people-action-cost">
         {action.cashDelta<0&&<span><Icon name="wallet" size={13}/>{money(-action.cashDelta,l)}</span>}
         {action.timeCost>0&&<span><Icon name="clock" size={13}/>{copy(l,action.timeCost+" ангажимент",action.timeCost+" time slot")}</span>}
       </span>}
