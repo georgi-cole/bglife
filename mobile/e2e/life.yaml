@@ -19,16 +19,22 @@ appId: com.georgicole.bglife.playtest
 - inputText: Sofia
 - tapOn:
     id: city-sofia
+- assertNotVisible:
+    id: city-search
+- waitForAnimationToEnd
 - scrollUntilVisible:
     element:
       id: vip-preview
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: vip-preview
+    retryTapIfNoChange: true
 - scrollUntilVisible:
     element:
       id: avatar-hair-crop
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: avatar-hair-crop
 - tapOn:
@@ -43,13 +49,25 @@ appId: com.georgicole.bglife.playtest
 - assertVisible:
     id: current-age
     text: '1 г\.'
-- stopApp
-- launchApp
+- launchApp:
+    stopApp: true
+    clearState: false
+- scrollUntilVisible:
+    element:
+      id: continue-life
+    direction: DOWN
+    centerElement: true
+- assertVisible:
+    id: saved-life-summary
+    text: '1 г\. · .*'
 - tapOn:
     id: continue-life
-- assertVisible:
-    id: current-age
-    text: '1 г\.'
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: current-age
+      text: '1 г\.'
+    timeout: 20000
 - assertVisible:
     id: current-name
     text: Mila Vasileva

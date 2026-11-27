@@ -44,7 +44,9 @@ export function HomeScreen({ navigation }: NativeStackScreenProps<Screens, "Home
             <>
               <View style={base.card}>
                 <Text style={base.section}>{lifeName(life, language)}</Text>
-                <Text style={base.muted}>{ageLabel(life.age, language)} · {town(life.city, language)}</Text>
+                <Text testID="saved-life-summary" style={base.muted}>
+                  {ageLabel(life.age, language)} · {town(life.city, language)}
+                </Text>
                 <Button label={t("Продължи", "Continue")} onPress={() => navigation.navigate("Journal")} testID="continue-life" />
               </View>
               <Button label={text.newLife} secondary onPress={() => navigation.navigate("NewLife")} testID="new-life" />

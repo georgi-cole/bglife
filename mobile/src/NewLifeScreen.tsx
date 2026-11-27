@@ -168,11 +168,14 @@ export function NewLifeScreen({ navigation }: NativeStackScreenProps<Screens, "N
             </View>
           </View>
           <View style={base.card}>
-            <View style={styles.vipRow}>
+            <Pressable style={styles.vipRow} onPress={() => setVip(value => !value)}
+              accessibilityRole="switch" accessibilityState={{ checked: vip }}
+              accessibilityLabel={t("Пробен VIP", "VIP preview")} testID="vip-preview">
               <Text style={base.section}>{t("Пробен VIP", "VIP preview")}</Text>
-              <Switch value={vip} onValueChange={setVip} trackColor={{ true: color.green }}
-                accessibilityLabel={t("Пробен VIP", "VIP preview")} testID="vip-preview" />
-            </View>
+              <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                <Switch value={vip} trackColor={{ true: color.green }} />
+              </View>
+            </Pressable>
             {vip && <AvatarEditor language={language} appearance={appearance} onChange={setAppearance} />}
           </View>
         </ScrollView>
