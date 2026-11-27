@@ -228,6 +228,9 @@ function App(){
     if(updated!==current.life){
       const entry=updated.history.at(-1);
       if(entry?.kind==="choice")nextLogPosition.current={age:entry.age,focus:true};
+      else if(entry?.kind==="action"&&entry.id.startsWith("city-life.")){
+        nextLogPosition.current={age:entry.age,activityId:entry.id,focus:true};
+      }
       commit({...current,life:updated});
     }
   }

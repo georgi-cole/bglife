@@ -5,6 +5,9 @@ import {hasStartedLife,moveBlocker,movingCost,type City,type GameState} from "./
 import {cities,cityArt} from "./cities.ts";
 import {CityPicker} from "./CityPicker.tsx";
 import {cityCulture,voices} from "./cityCulture.ts";
+import {cityEvents, cityPlaces, occasionDate} from "./cityLife.ts";
+import {cityLifeData} from "./cityLifeData/index.ts";
+import {cityLifeSources, climates} from "./cityLifeModel.ts";
 import {pathCities} from "./pathCatalog.ts";
 import type {Language} from "./session.ts";
 import {LifePortrait} from "./AvatarPortrait.tsx";
@@ -22,6 +25,9 @@ export function Places({s,l,onHolidays,onMove,...menu}: MenuControls & {
   const culture = cityCulture[selected];
   const path = pathCities[selected];
   const voice = voices[culture.voice];
+  const local = cityLifeData[selected];
+  const population = new Intl.NumberFormat(l === "bg" ? "bg-BG" : "en-GB").format(local.population);
+  const populationYear = cityLifeSources.population.date.slice(0, 4);
   const atHome = s.city === selected;
   const blocked = moveBlocker(s, selected);
   const t = (bg: string, en: string) => copy(l, bg, en);
@@ -55,13 +61,16 @@ export function Places({s,l,onHolidays,onMove,...menu}: MenuControls & {
     <details className="detail-card city-details" open>
       <summary><Icon name="places" size={17}/>{t("Места и местен живот","Places and local life")}</summary>
       <div className="city-details-body">
-        <ul><li>{profile.landmark[l]}</li>{culture.places.map(point => <li key={point.en}>{point[l]}</li>)}</ul>
+        <ul>{cityPlaces(selected).map(point => <li key={point.en}>{point[l]}</li>)}</ul>
         <dl>
-          <div><dt>{t("Празник","Festival")}</dt><dd>{culture.festival[l]}</dd></div>
+          <div><dt>{t("Население на града · НСИ","City population · NSI")} {populationYear}</dt><dd>{population}</dd></div>
+          <div><dt>{t("Климат в играта","In-game climate")}</dt><dd>{climates[local.climate].label[l]}</dd></div>
+          {cityEvents(selected).map(event => event.months && event.source && !event.retired &&
+            <div key={event.id}><dt>{occasionDate({months:event.months,day:event.day},l)}</dt><dd>{event.title[l]}</dd></div>)}
           <div><dt>{t("На масата","At the table")}</dt><dd>{culture.food[l]}</dd></div>
           <div><dt>{t("Всекидневие","Everyday life")}</dt><dd>{culture.habit[l]}</dd></div>
           <div><dt>{t("Облик на града","City character")}</dt><dd>{culture.style[l]}</dd></div>
-          <div><dt>{t("Говор","Speech")}</dt><dd>{voice.region[l]} · „{voice.phrase[l]}“</dd></div>
+          <div><dt>{t("Говор","Speech")}</dt><dd>{voice.region[l]}<p className="city-speech-sample">{local.childhood.line[l]}</p></dd></div>
         </dl>
       </div>
     </details>

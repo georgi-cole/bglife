@@ -111,7 +111,7 @@ function cityMoment(s: GameState): Memory | null {
   return chosen ? entry(s,chosen) : null;
 }
 
-export function yearlyMoment(s: GameState): Memory | null {
+export function yearlyMoment(s: GameState, cityEntry?: Memory | null): Memory | null {
   if (!s.path && s.profile && s.enrollment?.graduationAge === s.age && s.age >= 20) {
     const school = cityPaths[s.enrollment.city].schools[s.enrollment.index];
     return entry(s, { id: "local-graduation", title: t("Завършване","Graduation"),
@@ -124,7 +124,7 @@ export function yearlyMoment(s: GameState): Memory | null {
   }
   const milestone = milestones[s.age];
   if (milestone && (s.age !== 27 || s.storyRoute) && (!s.path || s.age !== 14)) return entry(s, milestone);
-  const local = cityMoment(s);
+  const local = cityEntry === undefined ? cityMoment(s) : cityEntry;
   if (local) return local;
 
   const roll = lifeDraw(s.seed, s.age, 0x6c8e9cf5);
