@@ -81,6 +81,15 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - run: bash mobile/e2e/install-maestro.sh
+      - name: Select modern Android SDK command-line tools
+        run: |
+          tools_dir="$ANDROID_HOME/cmdline-tools"
+          "$tools_dir/latest/bin/sdkmanager" --install 'cmdline-tools;22.0'
+          # The emulator action prepends the SDK's latest/bin directory to PATH.
+          test -x "$tools_dir/22.0/bin/avdmanager"
+          mv "$tools_dir/latest" "$RUNNER_TEMP/bglife-preinstalled-cmdline-tools"
+          ln -s "$tools_dir/22.0" "$tools_dir/latest"
+          "$tools_dir/latest/bin/sdkmanager" --version
       - name: Enable hardware acceleration for the emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -91,6 +100,7 @@ jobs:
           api-level: 35
           target: google_apis
           arch: x86_64
+          profile: pixel_7
           emulator-options: -no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: bash mobile/e2e/run-android.sh
