@@ -40,8 +40,6 @@ trap capture_failure EXIT
 
 cd mobile
 mkdir -p smoke-results
-xcrun simctl launch "$simulator" "$app_id"
-"$maestro" --device "$simulator" test --debug-output smoke-results e2e/life.yaml
-xcrun simctl launch --terminate-running-process "$simulator" "$app_id"
-"$maestro" --device "$simulator" test --debug-output smoke-results \
-  -e SAVED_NAME="Mila Vasileva" -e SAVED_AGE=1 -e SCREENSHOT=journal e2e/resume.yaml
+first_launch="$(xcrun simctl launch "$simulator" "$app_id")"
+echo "$first_launch"
+node e2e/ios-maestro.mjs "$simulator" "$app_id" "$maestro" "$first_launch"
