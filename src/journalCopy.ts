@@ -269,13 +269,27 @@ export function journalLine(event: Memory, l: Language, family?: BirthFamily | n
   if (event.id === "asset.home.buy") {
     return l === "bg" ? "Купих жилище " + inCityBg(event.city) + "." : "I bought a home in " + town + ".";
   }
+  if (event.id.startsWith("asset.realty.")) {
+    const financing = event.id.startsWith("asset.realty.mortgage.");
+    return l === "bg" ? "Купих " + lowerInitial(event.title.bg) + (financing ? " с ипотека " : " ") + inCityBg(event.city) + "."
+      : "I bought a " + lowerInitial(event.title.en) + (financing ? " with a mortgage in " : " in ") + town + ".";
+  }
+  if (event.id.startsWith("asset.transfer.")) {
+    return l === "bg" ? original.replace(/^Прехвърли /u, "Прехвърлих ") : original.replace(/^You transferred /u, "I transferred ");
+  }
   if (event.id.startsWith("asset.")) {
     const [, action, id] = event.id.split(".");
     const good = goodIds.find(key => key === id);
-    if (good) {
-      const label = lowerInitial(goods[good].title[l]);
+    if (good || id === "home") {
+      const label = good ? (goods[good].branded ? goods[good].title[l] : lowerInitial(goods[good].title[l]))
+        : l === "bg" ? "жилището си" : "my home";
       if (action === "buy") return (l === "bg" ? "Купих " : "I bought a ") + label + ".";
       if (action === "sell") return (l === "bg" ? "Продадох " : "I sold my ") + label + ".";
+      if (action === "pawn") return (l === "bg" ? "Заложих " : "I pledged ") + label + ".";
+      if (action === "release") return (l === "bg" ? "Откупих " : "I redeemed ") + label + ".";
+      if (action === "repair") return (l === "bg" ? "Поддържах " : "I serviced ") + label + ".";
+      if (action === "upgrade") return (l === "bg" ? "Обнових " : "I upgraded ") + label + ".";
+      if (action === "forfeit") return (l === "bg" ? "Изпуснах срока и загубих " : "The pledge expired and I lost ") + label + ".";
     }
     const fund = fundIds.find(key => key === id);
     if (fund) {

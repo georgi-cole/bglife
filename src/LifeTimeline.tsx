@@ -27,28 +27,43 @@ const hasStatChanges = (delta: Memory["statsDelta"]) => Object.values(delta ?? {
 
 function LifeEvent({ event, l, life, children }: { event: Memory; l: Language; life: GameState; children?: ReactNode }) {
   const personEvent = event.kind === "action" && event.id.startsWith("people.");
-  const focusable = personEvent || (event.kind === "action" && /^(city-life|asset|bank)\./.test(event.id));
+  const focusable = event.decision || personEvent || (event.kind === "action" && /^(city-life|asset|bank)\./.test(event.id));
   const eventDate = event.cityEvent && cityWeatherDate(event.cityEvent, l);
   const line = journalLine(event, l, life.birthFamily);
   const original = event.text[l];
-  const showTitle = event.kind === "choice";
+  const showTitle = event.kind === "choice" || Boolean(event.decision);
   const showOriginal = original !== line;
-  const hasChanges = event.movedTo || event.startedCareer || event.cashDelta !== 0 || hasStatChanges(event.statsDelta);
+  const impact = event.workImpact;
+  const hasChanges = event.movedTo || event.startedCareer || event.cashDelta !== 0
+    || hasStatChanges(event.statsDelta) || impact?.performance || impact?.relationship;
   const content = isJournalMilestone(event) ? <strong>{line}</strong> : <span>{line}</span>;
 
   return <li className="life-event"
     id={focusable ? "life-event-" + event.age + "-" + event.id : undefined}
     tabIndex={focusable ? -1 : undefined} data-person-event={personEvent || undefined} data-event-id={event.id}>
     {showTitle || showOriginal || eventDate || hasChanges ? <details className="life-event-disclosure">
-      <summary className="life-event-line">{content}<Icon name="down" size={12}/></summary>
+      <summary className={"life-event-line" + (event.decision ? " work-decision-line" : "")}>
+        {event.decision && <Icon name="bag" size={14}/>}
+        {content}<Icon name="down" size={12}/>
+      </summary>
       <div className="life-event-detail">
         {eventDate && <small className="city-event-date">{eventDate}</small>}
         {showTitle && <p className="life-event-title">{event.title[l]}</p>}
+        {event.decision && <>
+          <p>{event.decision.situation[l]}</p>
+          <p className="work-journal-choice">{copy(l, "Избрах", "I chose")} · {event.decision.choice[l]}</p>
+        </>}
         {showOriginal && <p>{original}</p>}
         {hasChanges && <div className="life-event-changes">
           {event.movedTo && <span>{copy(l, "Нов град", "New city")} · {town(event.movedTo, l)}</span>}
           {event.startedCareer && <span>{copy(l, "Нова работа", "New job")} · {occupation(event.startedCareer, l, life.avatar)}</span>}
           {event.cashDelta !== 0 && <span className={event.cashDelta > 0 ? "cash-in" : "cash-out"}>{signedMoney(event.cashDelta, l)}</span>}
+          {impact?.performance ? <span className={impact.performance > 0 ? "life-stat-up" : "life-stat-down"}>
+            {copy(l, "Представяне", "Performance")} {impact.performance > 0 ? "+" : ""}{impact.performance}
+          </span> : null}
+          {impact?.relationship && <span className={impact.relationship.delta > 0 ? "life-stat-up" : "life-stat-down"}>
+            {impact.relationship.name[l]} {impact.relationship.delta > 0 ? "+" : ""}{impact.relationship.delta}
+          </span>}
           <StatChanges delta={event.statsDelta} l={l}/>
         </div>}
       </div>

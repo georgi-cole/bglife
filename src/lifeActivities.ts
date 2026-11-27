@@ -7,7 +7,7 @@ import type { AvatarPresentation } from "./avatar.ts";
 import { getPeopleActivityDefinitions } from "./peopleActivities.ts";
 import { isContactId, type PeopleId } from "./peopleIdentity.ts";
 import { lifeBank } from "./lifeEconomy.ts";
-import { assetActivities, type LifeAssets } from "./lifeAssets.ts";
+import { assetActivities, assetTransferDefinition, type LifeAssets } from "./lifeAssets.ts";
 import { lifeFamily } from "./lifeFamily.ts";
 import { lifeReproduction } from "./lifeReproduction.ts";
 import { startingReproduction, type Reproduction } from "./reproduction.ts";
@@ -115,6 +115,7 @@ const categoryAge: Partial<Record<LifeActivityCategory, number>> = {
 export function getLifeActivityDefinition(id: string): LifeActivityDefinition | undefined {
   const standard = byId.get(id);
   if (standard) return standard;
+  if (id.startsWith("asset.transfer.")) return assetTransferDefinition(id);
   const [scope, contact] = id.split(".");
   return scope === "people" && isContactId(contact) ? getPeopleActivityDefinitions(contact).find(option => option.id === id) : undefined;
 }

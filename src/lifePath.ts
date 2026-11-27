@@ -4,6 +4,7 @@ import { limit, type PathAction, type PathEvent } from "./pathActions.ts";
 import { pathCities, pathMoney, pathText as t } from "./pathCatalog.ts";
 import { closeSchoolYear, moveSchool, schoolView, startSchool, type SchoolState } from "./school.ts";
 import { closeUniversityYear, startUniversity, universityCosts, universityView, type UniversityState } from "./university.ts";
+import { resolveWorkplaceAction } from "./workplace.ts";
 
 export type LifePath = {
   school: SchoolState;
@@ -58,6 +59,10 @@ export function resolvePathAction(s: GameState, id: string) {
   }
   if (id.startsWith("school.")) return resolve("school", schoolView(s, path.school).actions);
   if (id.startsWith("university.")) return resolve("university", universityView(s, path.university, path.school.diploma).actions);
+  if (id.startsWith("workplace.")) {
+    const action = resolveWorkplaceAction(s, id);
+    return action ? resolve("work", [action]) : undefined;
+  }
   if (id.startsWith("work.")) return resolve("work", workView(s, path.work).actions);
   if (id.startsWith("insurance.")) return resolve("work", insuranceView(s, path.work).actions);
 

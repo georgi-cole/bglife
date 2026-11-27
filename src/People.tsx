@@ -134,6 +134,7 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
   const {partner}=s.lifeSystems.family;
   const pregnancy=pregnancyStatus(s);
   const actions=person?getPersonActivities(s,person.id):[];
+  const received=person?s.lifeSystems.assets.transfers?.filter(transfer=>transfer.recipient===person.id)??[]:[];
   const actionRows=new Map<string,LifeActivityOption[]>();
   for(const action of actions){
     const key=action.branch?.id??action.id;
@@ -172,6 +173,12 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
           {person.score&&<RelationshipMeter score={person.score}/>}
         </div>
       </div>
+      {received.length > 0 && <section className="people-transfers" aria-labelledby="people-transfers-title">
+        <h2 id="people-transfers-title" className="people-group-heading">{t("Получени притежания","Received assets")}</h2>
+        <ul>{received.map(({item,age},index)=><li key={index}>
+          <span>{item[l]}</span><small>{ageLabel(age,l)}</small>
+        </li>)}</ul>
+      </section>}
       {!person.death && <section className="people-actions" aria-labelledby="people-actions-title">
         <h2 id="people-actions-title" className="people-group-heading">
           {t("Действия","Activities")}

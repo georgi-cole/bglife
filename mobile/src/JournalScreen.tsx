@@ -1,17 +1,19 @@
 import { useMemo, useRef, useState } from "react";
-import { assetTitle } from "../../src/assetMenu.ts";
-import { FlatList, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useIsFocused } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { selectionAsync } from "expo-haptics";
+import { assetTitle } from "../../src/assetMenu.ts";
 import { getAvatarLook, getAvatarTreatments } from "../../src/avatar.ts";
 import { cleanFirstName } from "../../src/babyNames.ts";
 import { cityWeatherDate } from "../../src/cityLife.ts";
 import {
-  choose, defaultPlayChoice, doAction, getChoices, getCityOpportunity, getScene, nameNewborns, playYear, type GameState, type Memory,
+  choose, defaultPlayChoice, doAction, doPathAction, getChoices, getCityOpportunity, getScene, nameNewborns, playYear, type GameState, type Memory,
 } from "../../src/engine.ts";
 import { newbornName, newbornSurname, type BirthNaming } from "../../src/reproduction.ts";
 import type { Language } from "../../src/sessionCodec.ts";
+import { getWorkDecision } from "../../src/workplace.ts";
 import { Avatar } from "./Avatar";
 import { type Screens, useGame } from "./game";
 import { ageLabel, base, Button, Chip, color, labels, lifeName, money, town, translation } from "./ui";
@@ -52,7 +54,8 @@ function YearCard({ year, language, current, opportunity, saving, onCityAction }
         {current && <Text style={styles.current}>{translation(language, "Сега", "Now")}</Text>}
       </View>
       {events.map((entry, index) => (
-        <View key={entry.id + "-" + index} style={styles.entry}>
+        entry.decision ? <WorkJournalEntry key={entry.id + "-" + index} entry={entry} language={language}/>
+          : <View key={entry.id + "-" + index} style={styles.entry}>
           <Text style={styles.entryTitle}>{entry.title[language]}</Text>
           {entry.cityEvent && <Text style={base.muted}>{cityWeatherDate(entry.cityEvent, language)}</Text>}
           <Text style={base.body}>{entry.text[language]}</Text>
@@ -81,6 +84,65 @@ function YearCard({ year, language, current, opportunity, saving, onCityAction }
       )}
     </View>
   );
+}
+
+
+function WorkJournalEntry({ entry, language }: { entry: Memory; language: Language }) {
+  const [open, setOpen] = useState(false);
+  const decision = entry.decision!;
+  const impact = entry.workImpact;
+  const signed = (amount: number) => (amount > 0 ? "+" : "") + amount;
+  const statLabels = {
+    health: translation(language, "Здраве", "Health"), looks: translation(language, "Визия", "Looks"),
+    joy: translation(language, "Радост", "Joy"), brains: translation(language, "Ум", "Brains"),
+    influence: translation(language, "Влияние", "Influence"),
+  };
+  return <View style={styles.entry}>
+    <Pressable style={styles.workJournalLine} accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)}>
+      <Text style={base.body}>{entry.text[language]} {open ? "▴" : "▾"}</Text>
+    </Pressable>
+    {open && <View style={styles.workJournalDetail}>
+      <Text style={styles.entryTitle}>{entry.title[language]}</Text>
+      <Text style={base.muted}>{decision.situation[language]}</Text>
+      <Text style={base.muted}>{translation(language, "Избрах", "I chose")} · {decision.choice[language]}</Text>
+      {impact?.performance ? <Text style={styles.delta}>{translation(language, "Представяне", "Performance")} {signed(impact.performance)}</Text> : null}
+      {impact?.relationship && <Text style={[styles.delta, impact.relationship.delta < 0 && styles.negative]}>
+        {impact.relationship.name[language]} {signed(impact.relationship.delta)}
+      </Text>}
+      {entry.cashDelta !== 0 && <Text style={[styles.delta, entry.cashDelta < 0 && styles.negative]}>
+        {entry.cashDelta > 0 ? "+" : ""}{money(entry.cashDelta, language)}
+      </Text>}
+      {(Object.keys(statLabels) as (keyof typeof statLabels)[]).map(key => {
+        const delta = entry.statsDelta?.[key];
+        return delta ? <Text key={key} style={[styles.delta, delta < 0 && styles.negative]}>{statLabels[key]} {signed(delta)}</Text> : null;
+      })}
+    </View>}
+  </View>;
+}
+
+function WorkPrompt({ life, decision }: { life: GameState; decision: NonNullable<ReturnType<typeof getWorkDecision>> }) {
+  const { language, saving, updateSession } = useGame();
+  const chooseWork = (id: string) => {
+    void updateSession(current => {
+      if (current.life !== life) return current;
+      const next = doPathAction(life, id, life.age);
+      return next === life ? current : { ...current, life: next };
+    });
+  };
+  return <Modal transparent visible animationType="fade" onRequestClose={() => chooseWork(decision.dismiss)}>
+    <View style={styles.workBackdrop}>
+      <View style={[base.card, styles.workPrompt]} accessibilityViewIsModal testID="work-decision">
+        <ScrollView contentContainerStyle={base.field}>
+          <Text style={base.muted}>{decision.employer[language]}</Text>
+          <Text style={base.heading} accessibilityRole="header">{decision.title[language]}</Text>
+          <Text style={base.body}>{decision.situation[language]}</Text>
+          {decision.choices.map(choice => <Button key={choice.id} label={choice.label[language]}
+            testID={choice.id} disabled={saving} onPress={() => chooseWork(choice.id)}/>)}
+          <Button label={translation(language, "Пропусни", "Skip")} secondary disabled={saving} onPress={() => chooseWork(decision.dismiss)}/>
+        </ScrollView>
+      </View>
+    </View>
+  </Modal>;
 }
 
 function BirthNames({ life, birth }: { life: GameState; birth: BirthNaming }) {
@@ -123,6 +185,7 @@ function BirthNames({ life, birth }: { life: GameState; birth: BirthNaming }) {
 
 export function JournalScreen({ navigation, route }: NativeStackScreenProps<Screens, "Journal">) {
   const { session, language, saving, updateSession } = useGame();
+  const focused = useIsFocused();
   const archive = route.params?.archive;
   const archived = archive !== undefined;
   const life = archived ? session.album[archive] : session.life;
@@ -139,6 +202,7 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
   const scene = getScene(life);
   const choices = getChoices(life);
   const opportunity = archived ? null : getCityOpportunity(life);
+  const workDecision = !archived && focused ? getWorkDecision(life) : null;
   const blocked = Boolean(birth || (scene && life.choiceId === null && !defaultPlayChoice(life)));
 
   function takeCityAction(id: string) {
@@ -176,6 +240,12 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
                 {archived && <Text style={styles.profileDetail}>{text.fromArchive}</Text>}
               </View>
             </View>
+            {!archived && !life.finished && life.path && age >= 7 && <View style={base.row}>
+              <Button label={age < 18 ? t("Даскало", "Education") : t("Кариера", "Career")} secondary testID="open-career"
+                onPress={() => navigation.navigate("Occupation", { section: "career" })}/>
+              {life.path.work.job && <Button label={t("Работа", "Work")} secondary testID="open-workplace"
+                onPress={() => navigation.navigate("Occupation", { section: "work" })}/>}
+            </View>}
             {life.finished && <Text style={base.section} testID="life-ended">{t("Животът приключи", "Life ended")}</Text>}
             {!archived && birth && <BirthNames key={life.seed + "-" + life.age} life={life} birth={birth} />}
             {!archived && !birth && !life.finished && scene && choices.length > 0 && (
@@ -193,6 +263,7 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
             )}
           </View>
         )} />
+      {workDecision && <WorkPrompt life={life} decision={workDecision}/>}
       {!archived && (
         <View style={styles.dock}>
           {life.finished
@@ -220,6 +291,10 @@ const styles = StyleSheet.create({
   entry: { borderLeftWidth: 2, borderLeftColor: color.lightGreen, paddingLeft: 11, gap: 3 },
   entryTitle: { fontSize: 15, fontWeight: "800", color: color.ink },
   cityChoices: { gap: 6, marginTop: 6 },
+  workJournalLine: { minHeight: 44, justifyContent: "center" },
+  workJournalDetail: { padding: 10, backgroundColor: color.lightGreen, borderRadius: 8, gap: 4 },
+  workBackdrop: { flex: 1, justifyContent: "center", alignItems: "center", padding: 16, backgroundColor: "#14221BC7" },
+  workPrompt: { width: "100%", maxWidth: 460, maxHeight: "82%", backgroundColor: "#F3F5E9" },
   delta: { color: color.green, fontSize: 13, fontWeight: "700" },
   negative: { color: color.red },
   budget: { paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderColor: color.line, gap: 3 },

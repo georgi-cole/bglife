@@ -23,9 +23,10 @@ function newbornAppearance(sex: AvatarPresentation, seed: number) {
   return getAvatarLook(automaticAppearance(sex, seed), 0).traits;
 }
 
-function CityPicker({ language, selected, onSelect, onClose }: {
+export function CityPicker({ language, selected, title, onSelect, onClose }: {
   language: Language;
   selected: City;
+  title?: string;
   onSelect: (city: City) => void;
   onClose: () => void;
 }) {
@@ -36,7 +37,7 @@ function CityPicker({ language, selected, onSelect, onClose }: {
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={base.page}>
         <View style={styles.cityPickerHeader}>
-          <Text accessibilityRole="header" style={base.heading}>{translation(language, "Роден град", "Birth city")}</Text>
+          <Text accessibilityRole="header" style={base.heading}>{title ?? translation(language, "Роден град", "Birth city")}</Text>
           <TextInput value={query} onChangeText={setQuery} style={base.input} testID="city-search"
             placeholder={translation(language, "Потърси град", "Search cities")}
             accessibilityLabel={translation(language, "Потърси град", "Search cities")} placeholderTextColor={color.muted} />

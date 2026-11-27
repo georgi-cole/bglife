@@ -331,7 +331,7 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
   </section>;
 
   const groups = new Map<string, LifeActivityOption[]>();
-  const optionsForCategory = getLifeActivities(life).filter(option => option.category === category.id);
+  const optionsForCategory = getLifeActivities(life).filter(option => option.category === category.id && option.id !== "bank.mortgage");
   for (const option of optionsForCategory) {
     const key = option.group?.[l] ?? "";
     const list = groups.get(key);

@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { acquiredHome, assetPageData, assetParent, type AssetPage, type AssetRow } from "./assetMenu.ts";
+import { acquiredHome, assetPageData, assetParent, paidDeposit, type AssetPage, type AssetRow } from "./assetMenu.ts";
 import type { GameState, LifeActivityOption, Memory } from "./engine.ts";
 import { JournalFinances } from "./LifeTimeline.tsx";
 import type { Language } from "./session.ts";
@@ -10,10 +10,10 @@ function signed(amount: number, l: Language): string {
   return (amount > 0 ? "+" : "") + money(amount, l);
 }
 
-function AssetsRow({ row, l, onOpen, shop }: {
-  row: AssetRow; l: Language; onOpen: (page: AssetPage) => void; shop?: boolean;
+function AssetsRow({ row, l, onOpen, banner }: {
+  row: AssetRow; l: Language; onOpen: (page: AssetPage) => void; banner?: boolean;
 }) {
-  return <button type="button" className={shop ? "asset-row asset-shop" : "asset-row"} onClick={() => onOpen(row.page)}>
+  return <button type="button" className={banner ? "asset-row asset-spend" : "asset-row"} onClick={() => onOpen(row.page)}>
     <span className="asset-icon" data-icon={row.icon}><Icon name={row.icon} size={18}/></span>
     <span className="asset-row-text">
       <strong>{row.label[l]}</strong>
@@ -34,7 +34,7 @@ function Transaction({ option, active, direct, l, onOpen, onConfirm }: {
     {option.blocked && <p className="asset-blocked">{option.blocked[l]}</p>}
     <button type="button" className="primary-button asset-confirm" data-asset-confirm={option.id}
       disabled={Boolean(option.blocked)} onClick={onConfirm}>
-      {option.label[l]}{price && <span>{money(Math.abs(value), l)}</span>}
+      {option.label[l]}<Icon name="next" size={16}/>
     </button>
   </div>;
 
@@ -102,11 +102,16 @@ export function Assets({ life, l, initialPage, onClose, onAction, onJournal }: P
         {t("Към дневника", "View in journal")}<Icon name="next" size={14}/>
       </button>
     </div>}
-    {data.summary && <div className="assets-balance">
-      <div><span>{data.summary.label[l]}</span><strong>{money(data.summary.value, l)}</strong></div>
-      <Icon name={page.kind === "investments" ? "trend" : "assets"} size={31}/>
-    </div>}
     {data.note && <p className="asset-note">{data.note[l]}</p>}
+    {data.summary && <dl className="asset-amount">
+      <dt>{data.summary.label[l]}</dt><dd>{money(data.summary.value, l)}</dd>
+    </dl>}
+    {data.condition !== undefined && <div className="asset-condition">
+      <div><span>{t("Състояние", "Condition")}</span><strong>{data.condition}%</strong></div>
+      <div role="meter" aria-label={t("Състояние на притежанието", "Asset condition")} aria-valuemin={0} aria-valuemax={100}
+        aria-valuenow={data.condition}><span style={{ width: data.condition + "%" }}/></div>
+    </div>}
+    {data.status && <p className="asset-status">{data.status[l]}</p>}
     {page.kind === "funds" && data.rows?.map(row => <AssetsRow key={row.label.en} row={row} l={l} onOpen={open}/>)}
     {data.groups?.map(({ title, fields }, i) => <section className="asset-figures" key={title?.en ?? i}>
       {title && <h2>{title[l]}</h2>}
@@ -120,9 +125,9 @@ export function Assets({ life, l, initialPage, onClose, onAction, onJournal }: P
     {page.kind !== "funds" && Boolean(data.rows?.length) && <div className="asset-list">
       {data.rows?.map(row => <AssetsRow key={row.label.en} row={row} l={l} onOpen={open}/>)}
     </div>}
-    {data.shop && <AssetsRow row={data.shop} l={l} onOpen={open} shop/>}
+    {data.banner && <AssetsRow row={data.banner} l={l} onOpen={open} banner/>}
     {Boolean(data.actions?.length) && <div className="asset-list">
-      {data.actions?.map(option => <Transaction key={option.id} option={option} l={l} direct={page.kind === "good"}
+      {data.actions?.map(option => <Transaction key={option.id} option={option} l={l} direct={page.kind === "good" && page.offer}
         active={selected === option.id} onOpen={() => setSelected(selected === option.id ? null : option.id)}
         onConfirm={() => transact(option.id)}/>)}
     </div>}
@@ -132,7 +137,7 @@ export function Assets({ life, l, initialPage, onClose, onAction, onJournal }: P
         <span className="asset-row-text">
           <strong>{entry.title[l]}</strong>
           <small>{ageLabel(entry.age, l)} · {town(entry.city, l)}
-            {entry.id === "bank.mortgage" && " · " + t("Самоучастие", "Down payment")}</small>
+            {paidDeposit(entry) && " · " + t("Самоучастие", "Down payment")}</small>
         </span>
         <span className="asset-row-value">{money(-entry.cashDelta, l)}</span>
         <Icon name="next" size={14}/>
