@@ -3,6 +3,9 @@ import {createRoot} from "react-dom/client";
 import {choose,defaultPlayChoice,doAction,doLifeActivity,doMaternityReturn,doPregnancyAction,getPersonActivities,giveUp,nameNewborns,hasStartedLife,newProfileLife,playYear,doPathAction,startCareerLife,type City,type GameState,type LifeActivityCategory,type LifeActivityOption,type PregnancyAction} from "./engine.ts";
 import {Album,Places} from "./Views.tsx";
 import {Career} from "./Career.tsx";
+import {Workplace} from "./Workplace.tsx";
+import {WorkDecisionDialog} from "./WorkDecisionDialog.tsx";
+import {getWorkDecision} from "./workplace.ts";
 import {isSchoolAge} from "./lifePath.ts";
 import {BirthNamingDialog} from "./BirthNamingDialog.tsx";
 import {PregnancyDialog} from "./PregnancyDialog.tsx";
@@ -62,7 +65,8 @@ function App(){
   const pregnancyTurn=pregnancyTurnLabel(s);
   const menuDialog=dialog==="wallet"||dialog==="settings"||dialog==="guide";
   const showJournal=screen==="game"&&tab==="journal";
-  const showNav=screen==="game"&&(tab==="journal"||tab==="career");
+  const showNav=screen==="game"&&(tab==="journal"||tab==="career"||tab==="workplace");
+  const workDecision=showJournal&&!dialog&&!personAction?getWorkDecision(s):null;
   const dialogTitle=dialog==="profile"?t("Профил","Profile"):dialog==="wallet"?t("Портфейл","Wallet"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):dialog==="give-up"?t("Приключване на живота","End this life"):dialog==="pregnancy-end"?t("Прекъсване на бременността","End the pregnancy"):t("Нов живот","New life");
   function commit(next:Session){
     live.current=next;setSession(next);
@@ -215,7 +219,7 @@ function App(){
     if(updated!==current.life){
       const entry=updated.history.at(-1);
       if(entry?.kind==="choice")nextLogPosition.current={age:entry.age,focus:true};
-      else if(entry?.kind==="action"&&entry.id.startsWith("city-life.")){
+      else if(entry?.decision||(entry?.kind==="action"&&entry.id.startsWith("city-life."))){
         nextLogPosition.current={age:entry.age,activityId:entry.id,focus:true};
       }
       commit({...current,life:updated});
@@ -303,9 +307,9 @@ function App(){
   }
   const fallback = defaultPlayChoice(s);
   const playLabel = pregnancyTurn?.[l] ?? (s.finished ? t("Нов живот","New life") : t("Следваща година","Next year"));
-  function navItem(k:Tab) {
+  function navItem(k:Exclude<Tab,"workplace">) {
     const icon = k==="career" ? isSchoolAge(s.age) ? "school" : "bag" : k;
-    return <button data-tab={k} className="nav-item" aria-current={tab===k?"page":undefined} onClick={()=>k==="more"?openMore():route(k)}><Icon name={icon}/><span>{labels[k]}</span></button>;
+    return <button data-tab={k} className="nav-item" aria-current={tab===k||(k==="career"&&tab==="workplace")?"page":undefined} onClick={()=>k==="more"?openMore():route(k)}><Icon name={icon}/><span>{labels[k]}</span></button>;
   }
   const closeLabel=screen==="album"?t("Към менюто","Back to main menu"):t("Към дневника","Back to journal");
   const closeMenu=()=>screen==="album"?openMenuScreen("home"):openJournal(live.current.life);
@@ -341,7 +345,8 @@ function App(){
        screen==="avatar"?<AvatarCreator l={l} vip={vip} onVip={toggleTrialVip} onClose={cancelAvatarCreator} onStart={startWithAvatar}/>:
        screen==="album"?<Album {...menuProps} back s={s} archive={session.album} l={l}/>:
        tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore} onEndPregnancy={requestPregnancyEnd} onCareer={()=>route("career")}/>:
-       tab==="career"?<Career s={s} l={l} onClose={closeMenu} onAction={id=>act(v=>doPathAction(v,id,s.age))} onMaternityReturn={()=>act(v=>doMaternityReturn(v,s.age))}/>:
+       tab==="career"?<Career s={s} l={l} onClose={closeMenu} onMaternityReturn={()=>act(v=>doMaternityReturn(v,s.age))} onWorkplace={()=>route("workplace")} onAction={id=>act(v=>doPathAction(v,id,s.age))}/>:
+       tab==="workplace"?<Workplace s={s} l={l} onClose={closeMenu} onCareer={()=>route("career")} onAction={id=>act(v=>doPathAction(v,id,s.age))}/>:
        tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family","people")} onActivity={openPersonAction}/>:tab==="places"?<Places {...menuProps} s={s} l={l} onHolidays={()=>openMore("holidays","places")} onMove={relocate}/>:
        tab==="more"?<More {...menuProps} key={moreMenu.version} life={s} l={l} initialCategory={moreMenu.category} animateEntry={slideMenu&&moreMenu.category===null}
         onActivity={id=>act(v=>doLifeActivity(v,id,s.age))} onGiveUp={requestGiveUp} onJournal={()=>openJournal(live.current.life,true)} onAlbum={()=>openAlbum(true)}
@@ -364,6 +369,7 @@ function App(){
       <PregnancyDialog notice={pregnancyNotice} l={l} onProceed={()=>pregnancyAction(pregnancyNotice.kind==="test"?"pregnancy-test":"pregnancy-read")}/>}
     {screen==="game"&&!dialog&&!personAction&&!pregnancyNotice&&s.lifeSystems.reproduction.naming&&
       <BirthNamingDialog key={s.seed+"-"+s.age} life={s} birth={s.lifeSystems.reproduction.naming} l={l} onSave={saveBabyNames}/>}
+    {workDecision&&<WorkDecisionDialog key={workDecision.key} decision={workDecision} l={l} onChoose={id=>act(v=>doPathAction(v,id,s.age))}/>}
     {personAction&&<PersonActionDialog flow={personAction} life={s} l={l} onClose={closePersonAction}
       onSelect={selected=>setPersonAction({...personAction,selected})} onConfirm={confirmPersonAction}
       onRepeat={()=>setPersonAction({...personAction,outcome:null})}/>}

@@ -11,6 +11,7 @@ import { maternityStatus, maternityYear } from "../src/maternity.ts";
 import { netMonthly, policy } from "../src/pathPolicy.ts";
 import { startPregnancyPlay } from "../src/pregnancyTimeline.ts";
 import { deserialize, serialize } from "../src/sessionCodec.ts";
+import { drawWorkEvent, getWorkDecision, workplaceView } from "../src/workplace.ts";
 
 const encounter = "people.appMatch.intimacy.unprotected";
 const saved = life => assert.deepEqual(decodeSave(encodeSave(life)), life);
@@ -60,6 +61,8 @@ test("birth interrupts the pending work scene, replaces two years of wages and k
   const job = life.path.work.job;
   const service = serviceMonths(life.path.work);
   assert.ok(job && service >= 24);
+  const workplace = workplaceView(life);
+  const task = workplace.tasks[0].id;
 
   life = playYear(life);
   assert.equal(life.age, 25);
@@ -80,12 +83,18 @@ test("birth interrupts the pending work scene, replaces two years of wages and k
   assert.strictEqual(doMaternityReturn(life), life);
   assert.strictEqual(doPathAction(life, "work.practice"), life);
   assert.strictEqual(doPathAction(life, "work.leave"), life);
+  assert.strictEqual(doPathAction(life, task), life);
+  assert.equal(workplaceView(life), null);
+  assert.equal(getWorkDecision(life), null);
   saved(life);
 
   const second = playYear(life);
   assert.equal(second.age, 26);
   assert.equal(maternityYear(second), 2);
   assert.equal(second.path.work.job.job, job.job);
+  assert.equal(drawWorkEvent(second), undefined);
+  assert.equal(getWorkDecision(second), null);
+  assert.strictEqual(doPathAction(second, task), second);
   assert.equal(second.path.work.job.performance, life.path.work.job.performance);
   assert.equal(serviceMonths(second.path.work), service + 24);
   assert.equal(second.history.some(entry => entry.id === "work-year-25"), false);
@@ -98,7 +107,8 @@ test("birth interrupts the pending work scene, replaces two years of wages and k
   assert.equal(maternityStatus(returned), null);
   assert.equal(pathBudget(returned, returned.path).wage, netMonthly(job.gross) * 12);
   assert.equal(pathBudget(returned, returned.path).maternity, 39881 * 6);
-  assert.notStrictEqual(doPathAction(returned, "work.practice"), returned);
+  assert.deepEqual(workplaceView(returned).team.map(person => person.name), workplace.team.map(person => person.name));
+  assert.notStrictEqual(doPathAction(returned, task), returned);
   assert.strictEqual(doMaternityReturn(returned), returned);
   saved(returned);
 

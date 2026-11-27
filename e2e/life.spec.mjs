@@ -3,10 +3,11 @@ import { once } from "node:events";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import { builtGameServer, sitePath } from "./serve-built-game.mjs";
-import { choose, doLifeActivity, getChoices, newChapterLife, playYear } from "../src/engine.ts";
+import { choose, doLifeActivity, doPathAction, getChoices, newChapterLife, newLife, playYear, startCareerLife } from "../src/engine.ts";
 import { familyRoll } from "../src/fertilityModel.ts";
 import { startPregnancyPlay } from "../src/pregnancyTimeline.ts";
-import { serialize } from "../src/session.ts";
+import { getWorkDecision } from "../src/workplace.ts";
+import { serialize } from "../src/sessionCodec.ts";
 
 const test = base.extend({
   baseURL: async ({}, use) => {
@@ -166,7 +167,7 @@ test("intimacy can repeat and a confirmed pregnancy changes Play until the birth
   await leave.getByRole("button", { name: "Career" }).tap();
   const careerLeave = page.locator("[data-career-maternity]");
   await expect(careerLeave).toContainText("Benefit this year");
-  await expect(page.getByRole("button", { name: "Take on responsibility" })).toHaveCount(0);
+  await expect(page.getByTestId("open-workplace")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Return to work", exact: true })).toHaveCount(0);
   await play.tap();
   await expect(age).toHaveText(/^22(?!\d)/);
@@ -175,6 +176,68 @@ test("intimacy can repeat and a confirmed pregnancy changes Play until the birth
   await expect(careerLeave).toContainText("4,785.72");
   await careerLeave.getByRole("button", { name: "Return to work", exact: true }).tap();
   await expect(careerLeave).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Take on responsibility" })).toBeVisible();
+  await page.getByTestId("open-workplace").tap();
+  await expect(page.getByTestId("workplace").locator("[data-work-contact]")).toHaveCount(3);
   await expect(age).toHaveText(/^22(?!\d)/);
+});
+
+function beforeWorkDecision() {
+  for (let seed = 1; seed <= 50; seed++) {
+    let life = startCareerLife(newLife(seed, null, "sofia"));
+    while (life.age < 19 && !life.finished) life = playYear(life);
+    if (life.finished) continue;
+    for (const action of ["work.prepare", "work.apply.sofia-shop", "work.interview.sofia-shop.learn", "work.accept.sofia-shop"]) {
+      life = doPathAction(life, action);
+    }
+    if (!life.path.work.job) continue;
+    for (let year = 0; year < 4 && !life.finished; year++) {
+      const next = playYear(life);
+      if (getWorkDecision(next)) return life;
+      life = next;
+    }
+  }
+  throw new Error("Missing workplace fixture");
+}
+
+test("Career and Work have separate screens and workplace decisions go to the journal", async ({ page }) => {
+  const life = beforeWorkDecision();
+  const decision = getWorkDecision(playYear(life));
+  await page.addInitScript(saved => {
+    if (sessionStorage.getItem("work-fixture")) return;
+    sessionStorage.setItem("work-fixture", "loaded");
+    localStorage.setItem("bglife.language", "en");
+    localStorage.setItem("bglife.journal.v1", saved);
+  }, serialize({ life, album: [] }));
+  await page.goto("./");
+  const resume = page.getByRole("button", { name: /^Continue/ });
+  await resume.tap();
+  await page.locator('[data-tab="career"]').tap();
+  await expect(page.getByRole("heading", { name: "Career", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Vacancies · Sofia" })).toBeVisible();
+  await page.getByTestId("open-workplace").tap();
+  const work = page.getByTestId("workplace");
+  await expect(work.getByRole("heading", { name: "Shop assistant" })).toBeVisible();
+  await expect(work.getByRole("heading", { name: "Vacancies · Sofia" })).toHaveCount(0);
+  await expect(work.locator("[data-work-contact]")).toHaveCount(3);
+  await work.locator('[data-work-contact="boss"] button').first().tap();
+  await work.getByRole("button", { name: "Ask for feedback" }).tap();
+  await expect(work.getByRole("status")).toContainText("how to improve my work");
+  await page.getByTestId("advance").tap();
+
+  const prompt = page.getByTestId("work-decision");
+  await expect(prompt).toBeVisible();
+  await prompt.getByRole("button", { name: decision.choices[0].label.en }).tap();
+  await expect(prompt).toHaveCount(0);
+  const entry = page.locator('[data-event-id="' + decision.choices[0].id + '"]');
+  await expect(entry).toHaveCount(1);
+  await expect(entry.locator("summary")).toBeVisible();
+  await expect(entry.getByText(decision.situation.en, { exact: true })).toBeHidden();
+  await entry.locator("summary").tap();
+  await expect(entry.getByText(decision.situation.en, { exact: true })).toBeVisible();
+  await expect(entry.getByText("I chose · " + decision.choices[0].label.en)).toBeVisible();
+  await expect(entry.getByText(/^Performance \+/)).toBeVisible();
+  await page.reload();
+  await resume.tap();
+  await expect(prompt).toHaveCount(0);
+  await expect(entry).toHaveCount(1);
 });

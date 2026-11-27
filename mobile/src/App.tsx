@@ -7,6 +7,7 @@ import type { Language, Session } from "../../src/sessionCodec.ts";
 import { Game, type Screens } from "./game";
 import { JournalScreen } from "./JournalScreen";
 import { NewLifeScreen } from "./NewLifeScreen";
+import { OccupationScreen } from "./OccupationScreen";
 import { AlbumScreen, HomeScreen, SettingsScreen } from "./Screens";
 import { openSaveStore, type SaveStore } from "./saveStore";
 import { base, Button, color, labels, translation } from "./ui";
@@ -74,6 +75,10 @@ function GameApp({ storage }: { storage: SaveStore }) {
           <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
           <Stack.Screen name="NewLife" component={NewLifeScreen} options={{ title: wording.newLife }} />
           <Stack.Screen name="Journal" component={JournalScreen} options={{ title: wording.journal }} />
+          <Stack.Screen name="Occupation" component={OccupationScreen} options={({ route }) => ({
+            title: route.params.section === "work" ? translation(language, "Работа", "Work")
+              : session.life.age < 18 ? translation(language, "Даскало", "Education") : translation(language, "Кариера", "Career"),
+          })} />
           <Stack.Screen name="Album" component={AlbumScreen} options={{ title: wording.album }} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: wording.settings }} />
         </Stack.Navigator>

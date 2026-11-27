@@ -6,6 +6,7 @@ export type Screens = {
   Home: undefined;
   NewLife: undefined;
   Journal: { archive: number } | undefined;
+  Occupation: { section: "career" | "work" };
   Album: undefined;
   Settings: undefined;
 };

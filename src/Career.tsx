@@ -19,6 +19,7 @@ type Props = {
   onAction: (id: string) => void;
   onClose: () => void;
   onMaternityReturn: () => void;
+  onWorkplace: () => void;
 };
 type TrackProps = Pick<Props, "s" | "l" | "onAction">;
 type Control = Pick<PathAction<unknown>, "id" | "label" | "blocked">;
@@ -31,7 +32,7 @@ function actionDone(s: GameState, id: string) {
   return Boolean(s.path?.used.includes(id) || s.path?.school.used.includes(id));
 }
 
-function Actions({ items, s, l, onAction }: TrackProps & { items: Control[] }) {
+export function Actions({ items, s, l, onAction }: TrackProps & { items: Control[] }) {
   if (!items.length) return null;
   const done = items.filter(action => actionDone(s, action.id));
   const choices = items.filter(action => !actionDone(s, action.id)).map(action => ({
@@ -107,7 +108,7 @@ function CatalogList({ items, track }: { items: Listing[]; track: TrackProps }) 
   </ul>;
 }
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
+export function Row({ label, children }: { label: string; children: ReactNode }) {
   return <div className="career-row"><span>{label}</span><strong>{children}</strong></div>;
 }
 
@@ -331,47 +332,36 @@ function University({ s, l, onAction }: TrackProps) {
   </>;
 }
 
-function Work({ s, l, onAction, onMaternityReturn }: TrackProps & Pick<Props, "onMaternityReturn">) {
+function MaternityCard({ s, l, onMaternityReturn }: Pick<Props, "s" | "l" | "onMaternityReturn">) {
   const work = s.path!.work;
-  const view = workView(s, work);
-  const city = pathCities[s.city];
-  const track = { s, l, onAction };
   const t = (bg: string, en: string) => copy(l, bg, en);
   const current = work.job;
   const job = current && findJob(current.city, current.job);
 
   const maternity = maternityStatus(s);
-  if (maternity) {
-    const pay = maternityPay(s, work);
-    return <section className="career-card" data-career-maternity>
-      <div className="career-card-title"><Icon name="bag"/><h2>{maternity[l]}</h2></div>
-      {job && <Row label={t("Трудов договор", "Employment contract")}>{job.title[l]}</Row>}
-      <Row label={t("Обезщетение за годината", "Benefit this year")}>{money(pay, l)}</Row>
-      {maternityYear(s) === 2 && <>
-        {pay > 0 && <p>{t("Ако се върнеш сега, ще получаваш заплатата си и 50% от обезщетението.",
-          "If you return now, you will receive your salary and 50% of the benefit.")}</p>}
-        <button type="button" className="secondary-button" onClick={onMaternityReturn}>
-          {current ? t("Върни се на работа", "Return to work") : t("Потърси работа", "Look for work")}
-        </button>
-      </>}
-    </section>;
-  }
+  if (!maternity) return null;
+  const pay = maternityPay(s, work);
+  return <section className="career-card" data-career-maternity>
+    <div className="career-card-title"><Icon name="bag"/><h2>{maternity[l]}</h2></div>
+    {job && <Row label={t("Трудов договор", "Employment contract")}>{job.title[l]}</Row>}
+    <Row label={t("Обезщетение за годината", "Benefit this year")}>{money(pay, l)}</Row>
+    {maternityYear(s) === 2 && <>
+      {pay > 0 && <p>{t("Ако се върнеш сега, ще получаваш заплатата си и 50% от обезщетението.",
+        "If you return now, you will receive your salary and 50% of the benefit.")}</p>}
+      <button type="button" className="secondary-button" onClick={onMaternityReturn}>
+        {current ? t("Върни се на работа", "Return to work") : t("Потърси работа", "Look for work")}
+      </button>
+    </>}
+  </section>;
+}
 
-  return <>
-    {current && job && <section className="career-card">
-      <div className="career-card-title"><Icon name="bag"/><h2>{job.title[l]}</h2></div>
-      <p>{job.employer[l]} · {current.monthsLeft !== null ? t("Срочен договор", "Fixed-term contract") : t("Безсрочен договор", "Permanent contract")}</p>
-      <Row label={t("Брутно / месец", "Gross / month")}>{money(current.gross, l)}</Row>
-      <Row label={t("Нетно / месец", "Estimated take-home / month")}>{money(netMonthly(current.gross), l)}</Row>
-      <Row label={t("Работно време", "Working hours")}>{current.hours} {t("ч. на ден", "h/day")}</Row>
-      <div className="career-progress"><p>{t("Представяне", "Performance")}</p>
-        <progress max={100} value={current.performance} aria-label={t("Представяне на работа", "Job performance")}/></div>
-      <Actions {...track} items={view.actions.filter(action => ["work.practice", "work.raise"].includes(action.id))}/>
-      <details className="career-fold career-subject">
-        <summary><strong>{t("Трудов договор", "Employment contract")}</strong><Icon name="down" size={16}/></summary>
-        <div className="career-fold-content"><Actions {...track} items={view.actions.filter(action => action.id === "work.leave")}/></div>
-      </details>
-    </section>}
+function Vacancies({ s, l, onAction }: TrackProps) {
+  const work = s.path!.work;
+  const view = workView(s, work);
+  const city = pathCities[s.city];
+  const track = { s, l, onAction };
+  const t = (bg: string, en: string) => copy(l, bg, en);
+  return (
     <section className="career-card">
       <h2>{t("Свободни позиции", "Vacancies")} · {city.name[l]}</h2>
       {s.age < 18 && <p>{t("Само леки летни позиции. Работодателят урежда разрешение от Инспекцията по труда и медицински преглед.",
@@ -403,7 +393,7 @@ function Work({ s, l, onAction, onMaternityReturn }: TrackProps & Pick<Props, "o
       })}
       <p className="career-source">{t("Игрови заплати по средната брутна заплата на НСИ", "Game salaries based on the NSI gross wage average")} · {city.district[l]} · {t("III трим. 2026", "Q3 2026")}</p>
     </section>
-  </>;
+  );
 }
 
 function duration(months: number, l: Language) {
@@ -456,16 +446,15 @@ function Insurance({ s, l, onAction }: TrackProps) {
   </>;
 }
 
-type Panel = "education" | "work" | "insurance";
+type Panel = "education" | "vacancies" | "insurance";
 
-export function Career({ s, l, onAction, onClose, onMaternityReturn }: Props) {
+export function Career({ s, l, onAction, onClose, onWorkplace, onMaternityReturn }: Props) {
   const t = (bg: string, en: string) => copy(l, bg, en);
   const path = s.path;
   const child = isSchoolAge(s.age);
-  const [selected, setSelected] = useState<Panel>(() => onMaternityLeave(s) ? "work"
-    : child || (path?.school.grade != null && !path.school.left) || path?.university.student ? "education" : "work");
+  const [selected, setSelected] = useState<Panel>(!onMaternityLeave(s) && (child || (path?.school.grade != null && !path.school.left) || path?.university.student) ? "education" : "vacancies");
   const panels: { id: Panel; label: string }[] = [{ id: "education", label: child ? t("Училище", "School") : t("Образование", "Education") }];
-  if (s.age >= 16) panels.push({ id: "work", label: child ? t("Лятна работа", "Summer jobs") : t("Работа", "Work") });
+  if (s.age >= 16) panels.push({ id: "vacancies", label: child ? t("Летни обяви", "Summer jobs") : t("Обяви", "Vacancies") });
   if (!child) panels.push({ id: "insurance", label: t("Осигуряване", "Social insurance") });
   const panel = panels.some(item => item.id === selected) ? selected : panels[0].id;
   const [requestedSubject, setSubject] = useState<{ id: Subject; age: number; city: GameState["city"] } | null>(null);
@@ -487,14 +476,18 @@ export function Career({ s, l, onAction, onClose, onMaternityReturn }: Props) {
   }, [subject]);
   const track = { s, l, onAction };
   const last = s.history.at(-1);
-  const feedback = last?.age === s.age && last.kind === "path" ? last : null;
+  const feedback = last?.age === s.age && last.kind === "path" && !last.id.startsWith("workplace.") && last.id !== "work.raise" ? last : null;
   return <section className="career-view" data-panel={panel} aria-labelledby="career-title">
     <header className="career-heading">
       <MenuTitle onClose={subject ? () => setSubject(null) : onClose}
         closeLabel={subject ? t("Към предметите", "Back to subjects") : t("Към дневника", "Back to journal")} back>
         <h1 id="career-title" ref={heading} tabIndex={-1}>{subject ? subjects[subject][l] : child ? t("Даскало", "Education") : t("Кариера", "Career")}</h1>
       </MenuTitle>
-      {!subject && <span><Icon name="pin" size={15}/>{pathCities[s.city].name[l]}</span>}
+      {!subject && (path?.work.job && !s.finished && !onMaternityLeave(s)
+        ? <button type="button" className="career-route-link" data-testid="open-workplace" onClick={onWorkplace}>
+          <Icon name="bag" size={16}/>{t("Работа", "Work")}<Icon name="next" size={13}/>
+        </button>
+        : <span><Icon name="pin" size={15}/>{pathCities[s.city].name[l]}</span>)}
     </header>
     {path ? <>
       {!subject && panels.length > 1 && <ToggleStrip selected={panel} options={panels} onSelect={setSelected} label={t("Образование и работа", "Education and work")}/>}
@@ -504,7 +497,9 @@ export function Career({ s, l, onAction, onClose, onMaternityReturn }: Props) {
       {subject ? <SubjectView {...track} subject={subject}/> : panel === "education" ? <>
         <School {...track} onSubject={id => { returnTo.current = id; setSubject({ id, age: s.age, city: s.city }); }}/>
         {!child && <University {...track}/>}
-      </> : panel === "work" ? <Work {...track} onMaternityReturn={onMaternityReturn}/> : <Insurance {...track}/>}
+      </> : panel === "vacancies" ? (
+        onMaternityLeave(s) ? <MaternityCard s={s} l={l} onMaternityReturn={onMaternityReturn}/> : <Vacancies {...track}/>
+      ) : <Insurance {...track}/>}
     </> : <section className="career-card"><p>{t("Тази история е приключила. Можеш да разгледаш дневника ѝ.", "This life has ended. You can still read its journal.")}</p></section>}
   </section>;
 }
