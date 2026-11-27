@@ -1,4 +1,4 @@
-import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
+import React,{useCallback,useEffect,useLayoutEffect,useRef,useState} from "react";
 import {createRoot} from "react-dom/client";
 import {choose,defaultPlayChoice,doAction,doLifeActivity,getPersonActivities,giveUp,nameNewborns,hasStartedLife,newProfileLife,playYear,doPathAction,startCareerLife,type City,type GameState,type LifeActivityCategory,type LifeActivityOption} from "./engine.ts";
 import {Album,Places} from "./Views.tsx";
@@ -14,7 +14,7 @@ import {More,StatsBars} from "./More.tsx";
 import {Icon,MenuTitle,NavigationButton,PlaySymbol,copy,lifeName,lifeOccupation,money,tabLabels,type Tab} from "./ui.tsx";
 import {deserialize,initialLanguage,initialTrialVip,LANGUAGE_KEY,loadSession,persist,restoreSession,SAVE_KEY,serialize,VIP_TRIAL_KEY,type Session} from "./session.ts";
 import "./style.css";
-import {StartGuide,StartScreen} from "./StartScreen.tsx";
+import {HomeHub,StartGuide} from "./HomeHub.tsx";
 import {AvatarCreator} from "./AvatarCreator.tsx";
 import {LifePortrait} from "./AvatarPortrait.tsx";
 import type {NewLifeDraft} from "./lifeProfile.ts";
@@ -60,6 +60,8 @@ function App(){
   const [first]=useState(loadSession),[session,setSession]=useState(first.session),[notice,setNotice]=useState(first.notice);
   const [l,setLanguage]=useState(initialLanguage),[tab,setTab]=useState<Tab>("journal"),[dialog,setDialog]=useState<Dialog>(null);
   const [screen,setScreen]=useState<Screen>("home");
+  const [homeIntro,setHomeIntro]=useState(()=>!window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const finishHomeIntro=useCallback(()=>setHomeIntro(false),[]);
   const [vip,setVip]=useState(initialTrialVip);
   const [moreMenu,setMoreMenu]=useState<{category:LifeActivityCategory|null;parent:MoreParent;version:number}>({category:null,parent:"journal",version:0});
   const [albumFromMore,setAlbumFromMore]=useState(false);
@@ -325,8 +327,8 @@ function App(){
         <BgLifeMark/>
         {toolbar}
       </div>}
-      {screen==="home"?<StartScreen life={s} l={l} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
-        onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</StartScreen>:
+      {screen==="home"?<HomeHub life={s} l={l} intro={homeIntro} onIntroEnd={finishHomeIntro} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
+        onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</HomeHub>:
        screen==="avatar"?<AvatarCreator l={l} vip={vip} onVip={toggleTrialVip} onClose={cancelAvatarCreator} onStart={startWithAvatar}/>:
        screen==="album"?<Album {...menuProps} back s={s} archive={session.album} l={l}/>:
        tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>openGameMenu("wallet")} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore}/>:
