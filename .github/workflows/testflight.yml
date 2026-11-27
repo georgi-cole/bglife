@@ -46,9 +46,10 @@ jobs:
           APPSTORE_API_PRIVATE_KEY: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
           APPSTORE_CERTIFICATES_FILE_BASE64: ${{ secrets.APPSTORE_CERTIFICATES_FILE_BASE64 }}
           APPSTORE_CERTIFICATES_PASSWORD: ${{ secrets.APPSTORE_CERTIFICATES_PASSWORD }}
+          APPSTORE_PROVISIONING_PROFILE_BASE64: ${{ secrets.APPSTORE_PROVISIONING_PROFILE_BASE64 }}
         run: |
           missing=()
-          for name in APPLE_TEAM_ID APPSTORE_ISSUER_ID APPSTORE_API_KEY_ID APPSTORE_API_PRIVATE_KEY APPSTORE_CERTIFICATES_FILE_BASE64 APPSTORE_CERTIFICATES_PASSWORD; do
+          for name in APPLE_TEAM_ID APPSTORE_ISSUER_ID APPSTORE_API_KEY_ID APPSTORE_API_PRIVATE_KEY APPSTORE_CERTIFICATES_FILE_BASE64 APPSTORE_CERTIFICATES_PASSWORD APPSTORE_PROVISIONING_PROFILE_BASE64; do
             if [ -z "${!name}" ]; then
               missing+=("$name")
             fi
@@ -86,15 +87,27 @@ jobs:
           p12-file-base64: ${{ secrets.APPSTORE_CERTIFICATES_FILE_BASE64 }}
           p12-password: ${{ secrets.APPSTORE_CERTIFICATES_PASSWORD }}
 
-      - name: Download the App Store provisioning profile
-        uses: Apple-Actions/download-provisioning-profiles@v7
-        with:
-          bundle-id: com.georgicole.bglife.playtest
-          profile-type: IOS_APP_STORE
-          issuer-id: ${{ vars.APPSTORE_ISSUER_ID }}
-          api-key-id: ${{ vars.APPSTORE_API_KEY_ID }}
-          api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
-
+      - name: Install the App Store provisioning profile
+        shell: bash
+        env:
+          PROFILE_BASE64: ${{ secrets.APPSTORE_PROVISIONING_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+        run: |
+          profile_path="$RUNNER_TEMP/BgLife-AppStore.mobileprovision"
+          profile_plist="$RUNNER_TEMP/BgLife-AppStore.plist"
+          printf '%s' "$PROFILE_BASE64" | base64 -D > "$profile_path"
+          security cms -D -i "$profile_path" -o "$profile_plist"
+          profile_name="$(plutil -extract Name raw -o - "$profile_plist")"
+          profile_uuid="$(plutil -extract UUID raw -o - "$profile_plist")"
+          profile_team="$(plutil -extract TeamIdentifier.0 raw -o - "$profile_plist")"
+          profile_app_id="$(plutil -extract Entitlements.application-identifier raw -o - "$profile_plist")"
+          if [ "$profile_name" != "AppStore com.georgicole.bglife.playtest" ] || [ "$profile_team" != "$APPLE_TEAM_ID" ] || [ "$profile_app_id" != "$APPLE_TEAM_ID.com.georgicole.bglife.playtest" ]; then
+            echo "::error::The provisioning profile name, team, or bundle ID does not match BgLife."
+            exit 1
+          fi
+          profiles_dir="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          mkdir -p "$profiles_dir"
+          cp "$profile_path" "$profiles_dir/$profile_uuid.mobileprovision"
       - name: Locate the generated Xcode workspace
         id: ios-project
         shell: bash
