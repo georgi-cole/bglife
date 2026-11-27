@@ -65,7 +65,7 @@ function entry(s: GameState, moment: Moment): Memory {
 
 export function birthEntry(s: GameState): Memory {
   const town = cities[s.city].name;
-  let text = t("Роди се " + inCityBg(s.city) + ".", "You were born in " + town.en + ".");
+  let text = t("Родих се " + inCityBg(s.city) + ".", "I was born in " + town.en + ".");
   if (s.birthFamily) {
     const care = careAtBirth(s.birthFamily);
     text = t(text.bg + " " + care.bg, text.en + " " + care.en);
@@ -73,14 +73,14 @@ export function birthEntry(s: GameState): Memory {
     if (siblings.length === 1) {
       const brother = siblings[0].gender === "male";
       text.bg += brother ? " Имаш по-голям брат." : " Имаш по-голяма сестра.";
-      text.en += brother ? " You have an older brother." : " You have an older sister.";
+      text.en += brother ? " I have an older brother." : " I have an older sister.";
     } else if (siblings.length > 1) {
       text.bg += " В семейството вече има " + siblings.length + " по-големи деца.";
-      text.en += " There are already " + siblings.length + " older children in your family.";
+      text.en += " There are already " + siblings.length + " older children in my family.";
     }
     if (s.profile?.wealthy) {
-      text.bg += " На твое име е оставено наследство.";
-      text.en += " An inheritance has been set aside in your name.";
+      text.bg += " На мое име е оставено наследство.";
+      text.en += " An inheritance was put aside for me.";
     }
   }
   return entry(s, { id: "birth", title: t("Раждане", "Birth"), text });

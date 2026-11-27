@@ -11,22 +11,21 @@ import {BgLifeMark,PersonActionDialog,type PersonActionFlow} from "./PersonActio
 import {personRelationship,type PeopleId} from "./peopleIdentity.ts";
 import {Journal,Wallet} from "./Journal.tsx";
 import {More,StatsBars} from "./More.tsx";
-import {Icon,MenuTitle,NavigationButton,PlaySymbol,copy,lifeName,lifeOccupation,money,tabLabels,type Tab} from "./ui.tsx";
+import {Icon,MenuTitle,NavigationButton,PlaySymbol,copy,lifeName,tabLabels,type Tab} from "./ui.tsx";
 import {deserialize,initialLanguage,initialTrialVip,LANGUAGE_KEY,loadSession,persist,restoreSession,SAVE_KEY,serialize,VIP_TRIAL_KEY,type Session} from "./session.ts";
 import "./style.css";
 import {HomeHub,StartGuide} from "./HomeHub.tsx";
 import {AvatarCreator} from "./AvatarCreator.tsx";
-import {LifePortrait} from "./AvatarPortrait.tsx";
+import {CharacterHeader,CityBadge,PlayerProfile} from "./PlayerProfile.tsx";
 import type {NewLifeDraft} from "./lifeProfile.ts";
 
-type Dialog="wallet"|"settings"|"replay"|"guide"|"give-up"|null;
+type Dialog="profile"|"wallet"|"settings"|"replay"|"guide"|"give-up"|null;
 type Screen = "home" | "game" | "album" | "avatar";
 type MoreParent = "journal" | "people" | "places" | "wallet";
 type LogPosition = {age: number; focus?: boolean; activityId?: string};
 
 function lastLogPosition(life: GameState): LogPosition | null {
-  const last = life.history.at(-1);
-  return last ? {age: last.age} : null;
+  return life.history.length ? {age: life.age} : null;
 }
 
 function scrollToLog(position: LogPosition) {
@@ -34,26 +33,6 @@ function scrollToLog(position: LogPosition) {
   const heading = entry ?? document.getElementById("life-year-" + position.age);
   heading?.scrollIntoView({block:"start"});
   if(position.focus)heading?.focus({preventScroll:true});
-}
-
-function CharacterHeader({ life, l, onAvatar }: { life: GameState; l: Parameters<typeof lifeName>[0]; onAvatar?: () => void }) {
-  const portrait = <LifePortrait life={life} region="badge"/>;
-  return <div className="character-header">
-    {onAvatar
-      ? <button type="button" className="character-avatar" aria-label={copy(l,"Визия и грижа","Aesthetics")} onClick={onAvatar}>{portrait}</button>
-      : <span className="character-avatar">{portrait}</span>}
-    <div className="character-identity">
-      <div className="character-name">
-        <span className="character-flag" role="img" aria-label={copy(l,"България","Bulgaria")}/>
-        <strong>{lifeName(l,life)}</strong>
-      </div>
-      <span className="character-occupation">{lifeOccupation(life,l)}</span>
-    </div>
-    <div className="character-money">
-      <strong>{money(life.cash,l)}</strong>
-      <span>{copy(l,"Налични пари","Cash balance")}</span>
-    </div>
-  </div>;
 }
 
 function App(){
@@ -79,7 +58,7 @@ function App(){
   const menuDialog=dialog==="wallet"||dialog==="settings"||dialog==="guide";
   const showJournal=screen==="game"&&tab==="journal";
   const showNav=screen==="game"&&(tab==="journal"||tab==="career");
-  const dialogTitle=dialog==="wallet"?t("Портфейл","Wallet"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):dialog==="give-up"?t("Приключване на живота","End this life"):t("Нов живот","New life");
+  const dialogTitle=dialog==="profile"?t("Профил","Profile"):dialog==="wallet"?t("Портфейл","Wallet"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):dialog==="give-up"?t("Приключване на живота","End this life"):t("Нов живот","New life");
   function commit(next:Session){
     live.current=next;setSession(next);
     if(!persist(next))setNotice("temporary");
@@ -320,21 +299,23 @@ function App(){
     <button className="icon-button" data-testid="settings" onClick={()=>openGameMenu("settings")} aria-label={t("Настройки","Settings")}><Icon name="settings"/></button>
   </div>;
   return <div className={screen==="home"?"app-shell app-shell--home":"app-shell"}>
-    {(screen==="game"||screen==="album")&&<header className="masthead"><CharacterHeader life={s} l={l}
-      onAvatar={showJournal&&!s.finished?()=>openMore("aesthetics"):undefined}/></header>}
-    {notice&&<div className="save-notice" role="status"><span>{notice==="temporary"?t("Браузърът не запази играта. Можеш да изтеглиш копие от Настройки.","This browser couldn’t save your game. Download a backup in Settings."):notice==="recovered"?t("Дневникът е възстановен от предишния запис.","Your journal was restored from its previous save."):t("Предишният запис е повреден. Започваш нова глава.","The previous save was damaged. A new chapter has begun.")}</span><NavigationButton label={t("Затвори","Dismiss")} onClick={()=>setNotice(null)}/></div>}
-    <div className={screen==="avatar"?"game-layout avatar-layout":screen==="game"?(tab==="more"||tab==="people"?"game-layout more-layout":"game-layout"):"game-layout start-layout"} ref={viewportRef}>
-      <main className={screen==="home"?"main-column start-column":(showJournal===false&&(tab==="people"||tab==="places")&&screen==="game"&&slideMenu)?"main-column menu-enter":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
-      {showJournal&&<div className="life-tools">
-        <button className="icon-button menu-button" onClick={()=>openMenuScreen("home")}><Icon name="menu" size={18}/>{t("Меню","Menu")}</button>
-        <BgLifeMark/>
+    {(screen==="game"||screen==="album")&&<header className={"masthead"+(showNav?" journal-masthead":"")}>
+      {showNav&&<div className="journal-banner">
+        <button type="button" className="icon-button" aria-label={t("Главно меню","Main menu")} onClick={()=>openMenuScreen("home")}><Icon name="menu" size={18}/></button>
+        <div className="banner-identity"><BgLifeMark/><CityBadge city={s.city} l={l}/></div>
         {toolbar}
       </div>}
+      <CharacterHeader life={s} l={l} onProfile={showNav?()=>setDialog("profile"):undefined}
+        onWallet={showNav?()=>openGameMenu("wallet"):undefined}/>
+    </header>}
+    {notice&&<div className="save-notice" role="status"><span>{notice==="temporary"?t("Браузърът не запази играта. Можеш да изтеглиш копие от Настройки.","This browser couldn’t save your game. Download a backup in Settings."):notice==="recovered"?t("Дневникът е възстановен от предишния запис.","Your journal was restored from its previous save."):t("Предишният запис е повреден. Започваш нова глава.","The previous save was damaged. A new chapter has begun.")}</span><NavigationButton label={t("Затвори","Dismiss")} onClick={()=>setNotice(null)}/></div>}
+    <div className={screen==="avatar"?"game-layout avatar-layout":screen==="game"?(tab==="journal"?"game-layout journal-layout":tab==="more"||tab==="people"?"game-layout more-layout":"game-layout"):"game-layout start-layout"} ref={viewportRef}>
+      <main className={screen==="home"?"main-column start-column":(showJournal===false&&(tab==="people"||tab==="places")&&screen==="game"&&slideMenu)?"main-column menu-enter":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
       {screen==="home"?<HomeHub life={s} l={l} intro={homeIntro} onIntroEnd={finishHomeIntro} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
         onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</HomeHub>:
        screen==="avatar"?<AvatarCreator l={l} vip={vip} onVip={toggleTrialVip} onClose={cancelAvatarCreator} onStart={startWithAvatar}/>:
        screen==="album"?<Album {...menuProps} back s={s} archive={session.album} l={l}/>:
-       tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onWallet={()=>openGameMenu("wallet")} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore}/>:
+       tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore}/>:
        tab==="career"?<Career s={s} l={l} onClose={closeMenu} onAction={id=>act(v=>doPathAction(v,id,s.age))}/>:
        tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family","people")} onActivity={openPersonAction}/>:tab==="places"?<Places {...menuProps} s={s} l={l} onHolidays={()=>openMore("holidays","places")} onMove={relocate}/>:
        tab==="more"?<More {...menuProps} key={moreMenu.version} life={s} l={l} initialCategory={moreMenu.category} animateEntry={slideMenu&&moreMenu.category===null}
@@ -358,11 +339,11 @@ function App(){
       <BirthNamingDialog key={s.seed+"-"+s.age} life={s} birth={s.lifeSystems.reproduction.naming} l={l} onSave={saveBabyNames}/>}
     {personAction&&<PersonActionDialog flow={personAction} life={s} l={l} onClose={closePersonAction}
       onSelect={selected=>setPersonAction({...personAction,selected})} onConfirm={confirmPersonAction}/>}
-    {dialog&&<dialog key={dialog} ref={dialogRef} className={menuDialog?"modal-card game-menu-dialog":"modal-card"} onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}>
+    {dialog&&<dialog key={dialog} ref={dialogRef} className={menuDialog?"modal-card game-menu-dialog":dialog==="profile"?"modal-card player-profile-dialog":"modal-card"} onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}>
       {menuDialog&&screen!=="home"&&<div className="game-menu-profile"><CharacterHeader life={s} l={l}/></div>}
       <div className={menuDialog?(slideMenu&&showJournal?"game-menu-content menu-enter":"game-menu-content"):undefined}>
       {menuDialog?<MenuTitle onClose={close} back={screen==="home"} closeLabel={screen==="home"?t("Назад към менюто","Back to main menu"):t("Затвори","Close")}><h2 id="dialog-heading">{dialogTitle}</h2></MenuTitle>:<div className="dialog-head"><h2 id="dialog-heading">{dialogTitle}</h2><NavigationButton label={t("Затвори","Close")} onClick={close}/></div>}
-      {dialog==="wallet"?<Wallet s={s} l={l} onBank={()=>{close();openMore("bank","wallet");}}/>:
+      {dialog==="profile"?<PlayerProfile life={s} l={l} onAesthetics={()=>{close();openMore("aesthetics");}}/>:dialog==="wallet"?<Wallet s={s} l={l} onBank={()=>{close();openMore("bank","wallet");}}/>:
       dialog==="guide"?<StartGuide l={l}/>:dialog==="give-up"?<>
         <p>{t("Тази история ще приключи на текущата възраст. Дневникът остава достъпен в албума.","This story will end at the current age. The journal will remain available in the album.")}</p>
         <div className="dialog-actions">

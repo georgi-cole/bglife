@@ -168,7 +168,7 @@ const adoptionActions: LifeActivityDefinition[] = [
       : t("Няма подходяща възрастова разлика за процедурата.", "You’re outside the age-gap range for this route."),
     update: s => updateReproduction(s, { adoption: { stage: "review", spouse: adoptionSpouse(s), nextAge: s.age + 1 } }),
   }, {
-    id: "adoption.accept", category: "adoption", minAge: 18, time: 0,
+    id: "adoption.accept", category: "adoption", minAge: 18, beforeChoice: true,
     label: t("Продължи с предложението", "Accept the match"),
     description: t("В рамките на годината следват запознанство, срещи и решение на съда.", "Introductions, visits and a court decision follow within the year."),
     result: t("Осиновяването приключи.", "The adoption is complete."),
@@ -180,7 +180,7 @@ const adoptionActions: LifeActivityDefinition[] = [
         : { result: t("Предложението е изтекло.", "The match is no longer available.") };
     },
   }, {
-    id: "adoption.decline", category: "adoption", minAge: 18, time: 0,
+    id: "adoption.decline", category: "adoption", minAge: 18, beforeChoice: true,
     label: t("Изчакай друго предложение", "Wait for another match"),
     description: t("Оставаш в регистъра и чакането продължава.", "Stay on the register and continue waiting."),
     result: t("Освободи предложението. Социалните ще се свържат с теб при друга възможност.",
@@ -189,7 +189,7 @@ const adoptionActions: LifeActivityDefinition[] = [
     requires: adoptionHouseholdChanged,
     update: s => updateReproduction(s, { adoption: { stage: "waiting", spouse: adoptionSpouse(s), nextAge: s.age + 1 } }),
   }, {
-    id: "adoption.withdraw", category: "adoption", minAge: 18, time: 0,
+    id: "adoption.withdraw", category: "adoption", minAge: 18, beforeChoice: true,
     label: t("Оттегли кандидатурата", "Withdraw the application"),
     description: t("Приключи текущата процедура по осиновяване.", "Close your current adoption application."),
     result: t("Социалният работник отбеляза, че оттегляш кандидатурата.", "The social worker recorded your withdrawal."),

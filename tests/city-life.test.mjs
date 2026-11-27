@@ -5,7 +5,7 @@ import { cities, cityIds } from "../src/cities.ts";
 import { cityChoices, cityEvents, cityPlaces, cityWeatherDate, getCityEvent } from "../src/cityLife.ts";
 import { cityLifeData } from "../src/cityLifeData/index.ts";
 import {
-  commitmentsLeft, decodeSave, doAction, encodeSave, getCityOpportunity, newLife, newProfileLife,
+  decodeSave, doAction, encodeSave, getCityOpportunity, newLife, newProfileLife,
   playYear, startCareerLife,
 } from "../src/engine.ts";
 
@@ -73,9 +73,7 @@ test("an ordinary game reaches the two-part story in each city and can replay th
     const open = getCityOpportunity(life);
     assert.ok(open?.id.endsWith("." + id + ".story"), cities[id].name.en);
     const [join, look] = open.options.map(row => row.option);
-    const time = commitmentsLeft(life);
     const joined = doAction(life, join.id);
-    assert.equal(commitmentsLeft(joined), time - 1, id);
     assert.equal(joined.history.at(-1).city, id);
     assert.equal(joined.history.at(-1).cashDelta, join.effect.cash ?? 0, id);
     assert.equal(doAction(joined, look.id), joined, id);
@@ -148,13 +146,12 @@ test("new starts in the same city vary the early journal and the age of the loca
   assert.ok(openingAges.size >= 3);
 });
 
-test("passive journal entries leave the year's free time available and replay exactly", () => {
+test("passive journal entries create no city opportunity and replay exactly", () => {
   const life = advanceTo(newTestProfile("burgas", 119), 2);
   const entry = life.history.find(e => e.age === 2 && e.cityEvent);
   assert.ok(entry);
   assert.match(entry.cityEvent.id, /^life-/);
   assert.equal(getCityOpportunity(life), null);
-  assert.equal(commitmentsLeft(life), 2);
   assert.deepEqual(decodeSave(encodeSave(life)), life);
 });
 

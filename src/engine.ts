@@ -10,13 +10,14 @@ import { isKnownPerson, personCity, personName, storyPeople, type PeopleId } fro
 import { cityChoices, cityEventMemory, getCityEvent, openCityEvent, parseCityEvent, rollCityEvent } from "./cityLife.ts";
 import type { CityEventRoll } from "./cityLifeModel.ts";
 import { birthEntry, retirementEligible, yearlyMoment } from "./lifeEvents.ts";
+import { everydayEvents } from "./everydayEvents.ts";
 import { mortalityCondition, treatHealth } from "./lifeHealth.ts";
 import { settlePeople } from "./lifeLoss.ts";
 import { deathCauses, MAX_AGE, rollDeath, type Death } from "./mortality.ts";
 import { actions, scenes } from "./story.ts";
 import { parseAvatar, type AvatarTraits } from "./avatar.ts";
 import {
-  activityDefinitions, applyStats, getLifeActivityDefinition, lifeActivityOption, spentActivityTime, startingLifeSystems,
+  activityDefinitions, applyStats, getLifeActivityDefinition, lifeActivityOption, startingLifeSystems,
   startingStats, statsChange, type LifeActivityOption, type LifeStats, type LifeSystems, type StatDelta,
 } from "./lifeActivities.ts";
 import { billText, settleFinances } from "./lifeEconomy.ts";
@@ -133,12 +134,6 @@ const ORIGINAL_CONTENT = "tryavna-sofia-1";
 const LIFESPAN_CONTENT = "bulgarian-lifespan-1";
 const FAMILY_CONTENT = "bulgarian-family-1";
 const CAREER_CONTENT = "bulgarian-career-1";
-const YEARLY_TIME = 2;
-// Include room for newborn names and time-free activities during a year.
-const MAX_CHAPTER_COMMANDS = (CHAPTER_END - CHAPTER_START + 1) * (YEARLY_TIME + 7) + 1;
-const MAX_LIFE_COMMANDS = (MAX_AGE + 1) * (YEARLY_TIME + 7) + 1;
-// Coursework, applications and interviews are also recorded in a career transcript.
-const MAX_CAREER_COMMANDS = (MAX_AGE + 1) * 120 + 1;
 
 function eligible(s: GameState, filter?: Condition): boolean {
   if (!filter) return true;
@@ -284,12 +279,6 @@ export function yearRecap(s: GameState, age: number) {
   return { age, entries, cashDelta, closingCash: s.cash - laterDelta };
 }
 
-export function commitmentsLeft(s: GameState): number {
-  if (s.finished) return 0;
-  const reserved = s.housing === "rumi" && s.flags.includes("fridays") ? 1 : 0;
-  return Math.max(0, YEARLY_TIME - reserved - spentActivityTime(s));
-}
-
 const localWork: Action = {
   id: "life.work", label: { bg: "Започни работа", en: "Start a job" },
   result: { bg: "Прие предложение за работа в града и вече имаш постоянен доход.",
@@ -329,7 +318,7 @@ function workActions(s: GameState): Action[] {
 }
 
 export function getActions(s: GameState): Action[] {
-  if (s.finished || (s.sceneId && s.choiceId === null) || s.lifeSystems.reproduction.naming || commitmentsLeft(s) === 0) return [];
+  if (s.finished || (s.sceneId && s.choiceId === null) || s.lifeSystems.reproduction.naming) return [];
   const availableActions = s.sceneId ? actions.filter((action) =>
     s.age >= (action.minAge ?? CHAPTER_START) && s.age <= (action.maxAge ?? CHAPTER_END)
     && (!s.path || action.id !== "extra-shift" || s.path.work.job?.job.startsWith("sofia-qa"))
@@ -361,8 +350,8 @@ export function moveBlocker(s: GameState, city: City): Text | null {
     const student = s.path.university.student;
     if (student && !student.paused) return pathText("Първо прекъсни или завърши обучението си.", "Pause or finish your current studies first.");
   }
-  if (!commitmentsLeft(s) || s.usedActions.some(id => id.startsWith("move."))) {
-    return { bg: "Нужно е свободно време за едно преместване годишно.", en: "Moving takes free time and is available once per year." };
+  if (s.usedActions.some(id => id.startsWith("move."))) {
+    return { bg: "Можеш да се преместиш веднъж годишно.", en: "You can move once per year." };
   }
   if (s.cash < movingCost(s)) return { bg: "Парите за преместване не стигат.", en: "There is not enough cash to move." };
   return null;
@@ -464,7 +453,6 @@ export function getCityOpportunity(s: GameState) {
   const open = openCityEvent(s);
   if (!open) return null;
   const friendHere = !s.deceased.friend && isKnownPerson(s, "friend") && personCity(s, "friend") === s.city;
-  const time = commitmentsLeft(s);
   const options = cityChoices(open.event, open.roll).map(choice => {
     const friend = choice.withFriend && friendHere ? personName(s, "friend") : null;
     const effect: Effect = { stats: choice.stats, cash: choice.cash };
@@ -478,7 +466,7 @@ export function getCityOpportunity(s: GameState) {
       result: friend ? pathText(friend.bg + " · " + choice.outcome.bg, friend.en + " · " + choice.outcome.en) : choice.outcome,
       effect,
     };
-    return { option, blocked: time === 0 || !available(s, option) };
+    return { option, blocked: !available(s, option) };
   });
   return { id: open.entry.id, options };
 }
@@ -508,17 +496,15 @@ export function doAction(s: GameState, actionId: string, expectedAge = s.age): G
 }
 
 export function getLifeActivities(s: GameState): LifeActivityOption[] {
-  const timeLeft = commitmentsLeft(s);
   return activityDefinitions.filter(definition => !definition.contact && !definition.replayOnly && (definition.visible?.(s) ?? true))
-    .map(definition => lifeActivityOption(s, definition, timeLeft));
+    .map(definition => lifeActivityOption(s, definition));
 }
 
 export function getPersonActivities(s: GameState, contact: PeopleId): LifeActivityOption[] {
   if (s.deceased[contact]) return [];
-  const timeLeft = commitmentsLeft(s);
-  if (isKin(contact)) return kinActivities(s, contact).map(definition => lifeActivityOption(s, definition, timeLeft));
+  if (isKin(contact)) return kinActivities(s, contact).map(definition => lifeActivityOption(s, definition));
   return getPeopleActivityDefinitions(contact).filter(definition => definition.visible?.(s))
-    .map(definition => lifeActivityOption(s, definition, timeLeft));
+    .map(definition => lifeActivityOption(s, definition));
 }
 
 export function doLifeActivity(s: GameState, id: string, expectedAge = s.age): GameState {
@@ -529,7 +515,7 @@ function applyLifeActivity(s: GameState, id: string, expectedAge: number, replay
   if (s.age !== expectedAge) return s;
   const definition = getLifeActivityDefinition(id) ?? kinActivityById(s, id);
   if (!definition || (definition.replayOnly && !replayingLegacyActivity)) return s;
-  const activity = lifeActivityOption(s, definition, commitmentsLeft(s));
+  const activity = lifeActivityOption(s, definition);
   if (activity.blocked) return s;
 
   const resolution=definition.resolve?.(s);
@@ -667,6 +653,14 @@ function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRol
   }
 
   const next: GameState = { ...closed, age: finished ? s.age : s.age + 1, sceneId: "", choiceId: null, usedActions: [] };
+  const openingStart = next.history.length;
+  if (lifeSystems.family.children > s.lifeSystems.family.children) {
+    next.history.push({
+      age: next.age, city: next.city, kind: "event", id: "child-birth", witnesses: [], cashDelta: 0,
+      title: pathText("Раждане на дете", "Birth of a child"),
+      text: pathText("Посрещнахме бебе в семейството.", "We welcomed a baby into the family."),
+    });
+  }
   if (!finished) {
     next.sceneId = sceneForYear(next);
     if (!next.path && next.profile && next.age === 7) next.enrollment = { city: next.city, index: 0, graduationAge: 14 };
@@ -683,7 +677,13 @@ function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRol
       if (moment) next.history.push(moment);
     }
   }
-  return finished ? next : settleReproductionYear(next);
+  if (finished) return next;
+  const withFamily = settleReproductionYear(next);
+  if (!full) return withFamily;
+  const opening = withFamily.history.slice(openingStart);
+  // Optional family conversations must not change the everyday memories when an older transcript is replayed.
+  const everyday = everydayEvents(withFamily, opening.filter(event => event.id !== "family-questions"));
+  return everyday.length ? { ...withFamily, history: [...withFamily.history.slice(0, openingStart), ...everyday, ...opening] } : withFamily;
 }
 
 /** Store the portrait's starting traits and replay the commands that shaped the life. */
@@ -722,8 +722,6 @@ export function decodeSave(raw: string): GameState | null {
     if (!Array.isArray(saved.commands)) return null;
     if (career ? typeof careerFrom !== "number" || !Number.isInteger(careerFrom) || careerFrom < 0
       || careerFrom > saved.commands.length : careerFrom !== null) return null;
-    const limit = career ? MAX_CAREER_COMMANDS : legacy ? MAX_CHAPTER_COMMANDS : MAX_LIFE_COMMANDS;
-    if (saved.commands.length > limit) return null;
     const familyEventsFrom = saved.familyEventsFrom ?? null;
     if (familyEventsFrom !== null && (typeof familyEventsFrom !== "number" || !Number.isInteger(familyEventsFrom)
       || familyEventsFrom < 0 || familyEventsFrom > saved.commands.length)) return null;
@@ -731,7 +729,7 @@ export function decodeSave(raw: string): GameState | null {
     if ("avatar" in saved && !avatar) return null;
     const upgradeAt = (full || (career && !profiled)) && "upgradeAt" in saved ? saved.upgradeAt : null;
     if (upgradeAt !== null && (typeof upgradeAt !== "number" || !Number.isInteger(upgradeAt)
-      || upgradeAt < 0 || upgradeAt > MAX_CHAPTER_COMMANDS || upgradeAt > saved.commands.length || "birthCity" in saved)) return null;
+      || upgradeAt < 0 || upgradeAt > saved.commands.length || "birthCity" in saved)) return null;
     if (typeof careerFrom === "number" && typeof upgradeAt === "number" && careerFrom < upgradeAt) return null;
     if (!legacy && upgradeAt === null && !isCity(saved.birthCity)) return null;
     const profile = profiled ? parseLifeProfile(saved.profile) : null;

@@ -21,9 +21,9 @@ export function BgLifeMark() {
 }
 
 function SpendPreview({option,l}: {option:LifeActivityOption;l:Language}) {
+  if (option.cashDelta >= 0) return null;
   return <span className="action-spend">
-    {option.cashDelta<0&&<span><Icon name="wallet" size={14}/>{money(-option.cashDelta,l)}</span>}
-    {option.timeCost>0&&<span><Icon name="clock" size={14}/>{option.timeCost} {copy(l,"ангажимент","time slot")}</span>}
+    <span><Icon name="wallet" size={14}/>{money(-option.cashDelta,l)}</span>
   </span>;
 }
 const signed=(value:number)=>(value>0?"+":"−")+Math.abs(value);

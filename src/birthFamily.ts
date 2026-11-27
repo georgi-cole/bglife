@@ -138,13 +138,13 @@ export function generateBirthFamily(seed: number, city: City, name: string): Bir
 }
 
 export function careAtBirth(family: BirthFamily): Text {
-  if (family.upbringing === "two-parents") return t("У дома те посрещнаха и двамата ти родители.", "Both parents welcomed you home.");
-  if (family.upbringing === "mother") return t("У дома за теб се грижи майка ти.", "Your mother is raising you at home.");
-  if (family.upbringing === "father") return t("У дома за теб се грижи баща ти.", "Your father is raising you at home.");
-  const care = family.upbringing === "grandparents" ? t("За теб се грижат баба или дядо от семейството.", "A grandparent is raising you.")
-    : family.upbringing === "relatives" ? t("Роднини поеха грижата за теб.", "Relatives took you into their care.")
-      : t("Прие те приемно семейство.", "A foster family welcomed you.");
-  return family.orphan ? t("Животът ти започна без жив родител. " + care.bg, "Your life began without a surviving parent. " + care.en) : care;
+  if (family.upbringing === "two-parents") return t("У дома ме посрещнаха и двамата ми родители.", "Both parents welcomed me home.");
+  if (family.upbringing === "mother") return t("У дома за мен се грижи майка ми.", "My mother is raising me at home.");
+  if (family.upbringing === "father") return t("У дома за мен се грижи баща ми.", "My father is raising me at home.");
+  const care = family.upbringing === "grandparents" ? t("У дома за мен се грижи баба или дядо.", "A grandparent is raising me.")
+    : family.upbringing === "relatives" ? t("За мен поеха грижа мои роднини.", "Relatives took me into their care.")
+      : t("Посрещна ме приемно семейство.", "A foster family welcomed me.");
+  return family.orphan ? t("Останах без родители още от самото начало. " + care.bg, "I had no surviving parent when I was born. " + care.en) : care;
 }
 
 export function currentCaregiver(s: GameState): Relative | undefined {

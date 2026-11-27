@@ -1,3 +1,5 @@
+import { cityIds, type City } from "./cities.ts";
+import { cityCulture } from "./cityCulture.ts";
 import type {GameState,PersonId,Text} from "./engine.ts";
 import {partnerIntimacy} from "./lifeReproduction.ts";
 import type {ActivityBranch,LifeActivityDefinition,LifeSystems} from "./lifeActivities.ts";
@@ -96,7 +98,7 @@ const contextualActivities = (contact: ContactId): LifeActivityDefinition[] =>
   }));
 
 type BranchVariant = {
-  id:string;label:Text;description:Text;city?:"sofia"|"tryavna";cost?:number;request?:number;
+  id:string;label:Text;description:Text;city?:City;cost?:number;request?:number;
   minAge?:number;maxAge?:number;impact?:number;reaction?:Text;
 };
 type BranchGroup = ActivityBranch & {variants:BranchVariant[]; minAge?:number; available?: (kind:Context)=>boolean};
@@ -134,6 +136,10 @@ const groups:BranchGroup[] = [
     available:kind=>kind!=="former"&&kind!=="mentor",variants:[moneyChoice(10,true),moneyChoice(30,true),moneyChoice(50,true),
     variant("doner","5 € за дюнер","€5 for a döner","Попитай дали може да те почерпи, че си огладнял.","Ask whether they can spot you something to eat.",{request:500})]},
   {id:"walk",label:t("Разходка","Go for a walk"),description:t("Избери къде да се видите.","Choose where to meet."),variants:[
+    ...cityIds.filter(city => city !== "sofia" && city !== "tryavna").map(city => ({
+      id: "local-" + city, city, label: cityCulture[city].places[0],
+      description: t("Разходете се заедно в района.", "Take a walk together nearby."),
+    })),
     variant("south-park","Южен парк","South Park","Направете обиколка по алеите.","Take a loop along the park paths.",{city:"sofia"}),
     variant("borisova","Борисовата градина","Borisova Garden","Минете по широките алеи в парка.","Follow the main paths through the park.",{city:"sofia"}),
     variant("ariana","Езерото Ариана","Lake Ariana","Разходете се покрай водата.","Take a walk by the water.",{city:"sofia"}),
@@ -202,7 +208,8 @@ const branchActivities = (contact: ContactId): LifeActivityDefinition[] => group
     visible:s=>{
       const age=personAge(s,contact),kind=context(s,contact);
       return age!==null&&kind!==null&&(group.available?.(kind)??true)
-        &&age>=Math.max(group.minAge??0,choice.minAge??0)&&age<=(choice.maxAge??Infinity);
+        && (!choice.id.startsWith("local-") || choice.city === s.city)
+        && age >= Math.max(group.minAge ?? 0, choice.minAge ?? 0) && age <= (choice.maxAge ?? Infinity);
     },
     resolve:s=>{
       const outcome=reaction(s,contact,group,choice);

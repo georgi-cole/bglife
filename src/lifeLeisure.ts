@@ -97,7 +97,7 @@ export const lifeLeisure: LifeActivityDefinition[] = [
     label: text("Обади се на 112", "Call 112"),
     description: text("Потърси спешна помощ при сериозен инцидент в играта.", "Get emergency help when a serious incident occurs in the game."),
     result: text("Екип на спешна помощ пристигна и те откара за преглед. Състоянието ти се стабилизира.", "An emergency team arrived and took you in for assessment. Your condition stabilized."),
-    stats: { health: 18, joy: -3 }, time: 0,
+    stats: { health: 18, joy: -3 }, beforeChoice: true,
     requires: s => s.lifeSystems.medicalIssue !== "urgent"
       ? text("Достъпно само при спешен случай в историята.", "Available during an emergency in your story.")
       : null,
@@ -180,7 +180,7 @@ export const lifeLeisure: LifeActivityDefinition[] = [
     label: text("Замини за далечна дестинация", "Visit a faraway destination"),
     description: text("Планирай по-дълго пътуване с полет и нощувки.", "Plan a longer trip with flights and accommodation."),
     result: text("След дългия полет най-сетне излезе на улицата и чу език, който досега познаваше само от записи.", "After the long flight you finally stepped outside and heard a language you had only known from recordings."),
-    cost: 180_000, stats: { joy: 11, brains: 6, health: -2 }, minAge: 18, time: 2,
+    cost: 180_000, stats: { joy: 11, brains: 6, health: -2 }, minAge: 18,
   },
 
   {
@@ -244,14 +244,14 @@ export const lifeLeisure: LifeActivityDefinition[] = [
     label: text("Направи си липосукция", "Get liposuction"),
     description: text("Планирай операция и отдели време и пари за възстановяване.", "Plan the surgery and set aside time and money for recovery."),
     result: text("След операцията освободи графика си за почивка и последващи прегледи.", "After surgery, you cleared your schedule for rest and follow-up appointments."),
-    cost: 260_000, stats: { looks: 8, health: -9, joy: -2 }, minAge: 18, city: "sofia", time: 2, requires: electiveProcedure,
+    cost: 260_000, stats: { looks: 8, health: -9, joy: -2 }, minAge: 18, city: "sofia", requires: electiveProcedure,
   },
   {
     id: "aesthetics.augmentation", category: "aesthetics",
     label: text("Направи си операция за уголемяване на бюста", "Get breast augmentation"),
     description: text("Уговори консултация, операция и период за възстановяване.", "Plan for a consultation, surgery and time to recover."),
     result: text("След операцията помоли близките си за помощ, докато се върнеш към обичайното си ежедневие.", "After surgery you asked people close to you for help while you got back to your usual routine."),
-    cost: 420_000, stats: { looks: 9, health: -10, joy: -2 }, minAge: 18, city: "sofia", time: 2, requires: electiveProcedure,
+    cost: 420_000, stats: { looks: 9, health: -10, joy: -2 }, minAge: 18, city: "sofia", requires: electiveProcedure,
   },
 
   {

@@ -63,7 +63,7 @@ export type LifeActivityDefinition = {
   stats?: StatDelta;
   minAge?: number;
   city?: City;
-  time?: number;
+  beforeChoice?: boolean;
   trust?: Partial<Record<PersonId, number>>;
   person?: PersonId;
   requires?: (s: GameState) => Text | null;
@@ -80,7 +80,6 @@ export type LifeActivityDefinition = {
 export type LifeActivityOption = Pick<LifeActivityDefinition, "id" | "category" | "label" | "description" | "minAge" | "branch"> & {
   group?: Text;
   cashDelta: number;
-  timeCost: number;
   statDelta: StatDelta;
   blocked: Text | null;
 };
@@ -116,11 +115,7 @@ export function getLifeActivityDefinition(id: string): LifeActivityDefinition | 
   return scope === "people" && isContactId(contact) ? getPeopleActivityDefinitions(contact).find(option => option.id === id) : undefined;
 }
 
-export function spentActivityTime(s: GameState): number {
-  return s.usedActions.reduce((used, id) => used + (getLifeActivityDefinition(id)?.time ?? 1), 0);
-}
-
-function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: number, timeLeft: number): Text | null {
+function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: number): Text | null {
   if ((definition.contact && s.deceased[definition.contact]) || (definition.visible && !definition.visible(s))) return { bg: "Това действие не е достъпно за този човек.", en: "This action is not available for this person." };
   if (s.finished) return { bg: "Тази история е приключила.", en: "This story has ended." };
   if (s.lifeSystems.reproduction.naming) return { bg: "Първо запиши името на бебето.", en: "Name the new baby first." };
@@ -140,7 +135,7 @@ function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: nu
   }
   const requirement = definition.requires?.(s);
   if (requirement) return requirement;
-  if (s.sceneId && s.choiceId === null && definition.time !== 0) return { bg: "Първо вземи решението за тази година в „Живот“.", en: "Make this year’s decision in Life first." };
+  if (s.sceneId && s.choiceId === null && !definition.beforeChoice) return { bg: "Първо вземи решението за тази година в „Живот“.", en: "Make this year’s decision in Life first." };
   const exclusive = definition.branch?.id ?? definition.exclusive;
   const alreadyUsed = s.usedActions.includes(definition.id) || (exclusive && s.usedActions.some(id => {
     const used = getLifeActivityDefinition(id);
@@ -149,21 +144,20 @@ function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: nu
   if (alreadyUsed) return {
     bg: "Вече е направено тази година.", en: "Already done this year.",
   };
-  if ((definition.time ?? 1) > timeLeft) return { bg: "Тази година няма достатъчно свободно време.", en: "There isn’t enough free time this year." };
   if (s.cash + cashDelta < 0) return { bg: "Няма достатъчно пари в портфейла.", en: "There isn’t enough in the wallet." };
   return null;
 }
 
-export function lifeActivityOption(s: GameState, definition: LifeActivityDefinition, timeLeft: number): LifeActivityOption {
+export function lifeActivityOption(s: GameState, definition: LifeActivityDefinition): LifeActivityOption {
   const cashDelta = definition.walletDelta?.(s) ?? (definition.cost ? -definition.cost : 0);
   const platform = definition.category === "social" ? platformNames[definition.id.split(".")[1] as Platform] : undefined;
   return {
     id: definition.id, category: definition.category, label: definition.label, description: definition.description,
     minAge: definition.minAge, branch: definition.branch,
     group: platform ? { bg: platform, en: platform } : undefined,
-    timeCost: definition.time ?? 1, cashDelta,
+    cashDelta,
     statDelta: statsChange(s.stats, applyStats(applyStats(s.stats, definition.stats ?? {}), talentBonus(s.profile?.talent, definition.id))),
-    blocked: blocked(s, definition, cashDelta, timeLeft),
+    blocked: blocked(s, definition, cashDelta),
   };
 }
 

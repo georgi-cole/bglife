@@ -1,7 +1,7 @@
 import { conditionLabel } from "./lifeHealth.ts";
 import React, { useLayoutEffect, useRef, useState } from "react";
 import {
-  annualBudget, commitmentsLeft, getEstate, getLifeActivities, lifeHeirLabel, lifePartnerLabel,
+  annualBudget, getEstate, getLifeActivities, lifeHeirLabel, lifePartnerLabel,
   type GameState, type LifeActivityCategory, type LifeActivityOption, type LifeStat, type Memory,
 } from "./engine.ts";
 import { canAccessAdoption, canAccessFertility } from "./lifeReproduction.ts";
@@ -160,12 +160,6 @@ function CategoryStatus({ life, category, l }: { life: GameState; category: Life
     <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
 }
 
-function timeLabel(time: number, l: Language) {
-  return l === "bg"
-    ? time === 1 ? "1 ангажимент" : time + " ангажимента"
-    : time === 1 ? "1 time slot" : time + " time slots";
-}
-
 function ActivityFeedback({ feedback, onJournal, l }: { feedback: Memory; onJournal?: () => void; l: Language }) {
   return <div className="activity-feedback">
     <div role="status"><strong>{feedback.title[l]}</strong><p>{feedback.text[l]}</p></div>
@@ -203,53 +197,59 @@ const socialActionIcons: Record<string, IconName> = {
 
 const rowTones = ["rose", "teal", "amber", "indigo", "sage", "violet"] as const;
 
-function ActivityCard({ category, option, feedback, onChoose, onJournal, l, tone, ageLock }: {
-  category: Category;
-  tone: typeof rowTones[number];
-  ageLock?: number;
-  option: LifeActivityOption; feedback?: Memory; onChoose: (id: string) => void; onJournal?: () => void; l: Language;
+function ActivityRow({ category, option, tone, ageLock, onOpen, l }: {
+  category: Category; option: LifeActivityOption; tone: typeof rowTones[number]; ageLock?: number;
+  onOpen: () => void; l: Language;
 }) {
+  const [domain, group, action] = option.id.split(".");
+  const icon = domain === "social" ? socialActionIcons[action] : activityIcons[option.id] ?? activityIcons[domain + "." + group];
+  const cost = option.cashDelta;
+  return <li className="activity-entry">
+    <button type="button" className="activity-card" data-activity-id={option.id} data-locked={Boolean(option.blocked)} onClick={onOpen}>
+      <span className="activity-row-icon" data-tone={tone}>{icon ? <Icon name={icon} size={16}/> : <CategoryIcon category={category} size={16}/>}</span>
+      <strong>{option.label[l]}</strong>
+      <span className="activity-row-tail">
+        {ageLock && <span className="activity-age" aria-label={copy(l, "Достъпно от " + ageLock + " г.", "Available from age " + ageLock)}>{ageLock}+</span>}
+        {!ageLock && cost !== 0 && <span className={"activity-price " + (cost > 0 ? "cash-in" : "cash-out")}>{cost > 0 ? "+" : "−"}{money(Math.abs(cost), l)}</span>}
+        {option.blocked && <span className="activity-row-lock" aria-label={copy(l, "Заключено", "Locked")}><Icon name="key" size={14}/></span>}
+        <Icon name="next" size={14}/>
+      </span>
+    </button>
+  </li>;
+}
+
+function ActivityDetails({ option, onChoose, l }: { option: LifeActivityOption; onChoose: (id: string) => void; l: Language }) {
   const t = (bg: string, en: string) => copy(l, bg, en);
   const labels = lifeStatLabels(l);
   const deltas = statOrder.filter(key => option.statDelta[key]);
-  const [domain, group, action] = option.id.split(".");
-  const icon = domain === "social" ? socialActionIcons[action] : activityIcons[option.id] ?? activityIcons[domain + "." + group];
-  const amount = option.cashDelta;
-  const cost = amount === 0 ? t("Безплатно", "Free") : (amount > 0 ? "+" : "−") + money(Math.abs(amount), l);
   const treatment = avatarTreatments.find(item => item.id === option.id);
-
-  return <li className="activity-entry">
-    <button type="button" className="activity-card" aria-disabled={!!option.blocked} tabIndex={option.blocked ? -1 : undefined}
-      onClick={() => { if (!option.blocked) onChoose(option.id); }}>
-      <span className="activity-row-copy">
-        <strong className="activity-row-title">
-          <span className="activity-row-icon" data-tone={tone}>{icon ? <Icon name={icon} size={15} /> : <CategoryIcon category={category} size={15} />}</span>
-          <span>{option.label[l]}</span>
-        </strong>
-        <span className="activity-description">{option.description[l]}</span>
-        {treatment && <span className="avatar-treatment-note">
-          {treatment.label[l]} · {treatment.years === 1 ? t("тази година","this year") : t("тази и следващата година","this year and next")}
-        </span>}
-        <span className="activity-meta">
-          {ageLock && <span className="activity-age" aria-label={t("Достъпно от "+ageLock+" г.","Available from age "+ageLock)}>{ageLock}+</span>}
-          <span><Icon name="wallet" size={14} />{cost}</span>
-          {option.timeCost > 0 && <span><Icon name="clock" size={14} />{timeLabel(option.timeCost, l)}</span>}
-          {deltas.map(stat => {
-            const delta = option.statDelta[stat] ?? 0;
-            return <span key={stat} className={`activity-delta stat-${stat}`}>{labels[stat]} {delta > 0 ? "+" : "−"}{Math.abs(delta)}</span>;
-          })}
-        </span>
-        {option.blocked && !ageLock && <span className="activity-blocked">{option.blocked[l]}</span>}
-      </span>
-      <Icon name={option.blocked ? "key" : "next"} size={17} />
-    </button>
-    {feedback && <ActivityFeedback feedback={feedback} onJournal={onJournal} l={l} />}
-  </li>;
+  const cost = option.cashDelta;
+  return <div className="activity-detail">
+    <p className="activity-description">{option.description[l]}</p>
+    <div className="activity-meta">
+      <span><Icon name="wallet" size={15}/>{cost === 0 ? t("Безплатно", "Free") : (cost > 0 ? "+" : "−") + money(Math.abs(cost), l)}</span>
+    </div>
+    {treatment && <p className="avatar-treatment-note">
+      {treatment.label[l]} · {treatment.years === 1 ? t("тази година", "this year") : t("тази и следващата година", "this year and next")}
+    </p>}
+    {deltas.length > 0 && <div className="activity-meta">
+      {deltas.map(stat => {
+        const delta = option.statDelta[stat] ?? 0;
+        return <span key={stat} className={"activity-delta stat-" + stat}>{labels[stat]} {delta > 0 ? "+" : "−"}{Math.abs(delta)}</span>;
+      })}
+    </div>}
+    {option.blocked ? <p className="activity-blocked"><Icon name="key" size={16}/>{option.blocked[l]}</p>
+      : <button type="button" className="primary-button activity-confirm" data-activity-confirm={option.id} onClick={() => onChoose(option.id)}>
+        {t("Потвърди", "Confirm")}<Icon name="right" size={17}/>
+      </button>}
+  </div>;
 }
 
 export function More({ life, l, onActivity, onGiveUp, initialCategory = null, animateEntry = false, onJournal, onAlbum, onClose, closeLabel, onCategoryBack, categoryBackLabel }: MoreProps) {
   const [selected, setSelected] = useState(initialCategory);
   const [platform, setPlatform] = useState<string | null>(null);
+  const [activityId, setActivityId] = useState<string | null>(null);
+  const returnToActivity = useRef<string | null>(null);
   const [lastAction, setLastAction] = useState<{ id: string; category: LifeActivityCategory | null; index: number } | null>(null);
   const focusHeading = useRef(initialCategory !== null);
   const animateDirectory = useRef(animateEntry);
@@ -262,27 +262,45 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
     (selected === "hospital" && item.id === "fertility" && canAccessFertility(life)) ||
     (selected === "family" && item.id === "adoption" && canAccessAdoption(life)));
   const parentTitle = categories.find(item => item.id === parent)?.title[l];
-  const availableTime = commitmentsLeft(life);
   const memory = life.history.at(-1);
   const feedback = lastAction && lastAction.category === selected && lastAction.index === life.commands.length && lastAction.id === memory?.id ? memory : undefined;
 
   useLayoutEffect(() => {
     if (!focusHeading.current) return;
     focusHeading.current = false;
+    if (!activityId && returnToActivity.current) {
+      const id = returnToActivity.current;
+      const row = screen.current?.querySelector<HTMLButtonElement>("[data-activity-id=" + CSS.escape(id) + "]");
+      returnToActivity.current = null;
+      if (row) {
+        row.scrollIntoView({ block: "nearest" });
+        row.focus({ preventScroll: true });
+        return;
+      }
+    }
     const viewport = screen.current?.closest(".game-layout");
     if (viewport) viewport.scrollTop = 0;
     heading.current?.focus({ preventScroll: true });
-  }, [selected, platform]);
+  }, [selected, platform, activityId]);
 
   function changeCategory(next: LifeActivityCategory | null) {
     animateDirectory.current = false;
     focusHeading.current = true;
+    setActivityId(null);
+    returnToActivity.current = null;
     setSelected(next);
   }
 
   function openPlatform(next: string | null) {
     focusHeading.current = true;
+    setActivityId(null);
     setPlatform(next);
+  }
+
+  function openActivity(id: string | null) {
+    focusHeading.current = true;
+    returnToActivity.current = id === null ? activityId : null;
+    setActivityId(id);
   }
 
   function chooseActivity(id: string) {
@@ -293,13 +311,12 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
   if (!category) return <section key="directory" ref={screen} className={animateDirectory.current ? "more-screen menu-enter" : "more-screen"} aria-labelledby="more-heading">
     <header className="more-heading">
       <MenuTitle onClose={onClose} closeLabel={closeLabel}><h1 ref={heading} id="more-heading" tabIndex={-1}>{t("Още", "More")}</h1></MenuTitle>
-      <span className="more-resource"><Icon name="clock" size={15} />{t("Свободно време", "Free time")}: <strong>{availableTime}</strong></span>
     </header>
     <div className="activity-directory">
       {directory.map(item => <button type="button" key={item.id} data-category={item.id}
         className={`activity-category activity-${item.id}`} onClick={() => changeCategory(item.id)}>
         <span className="activity-category-icon"><CategoryIcon category={item} /></span>
-        <span className="activity-category-copy"><strong>{item.title[l]}</strong><small>{item.clue[l]}</small></span>
+        <span className="activity-category-copy"><strong>{item.title[l]}</strong></span>
         <Icon name="next" size={15} />
       </button>)}
     </div>
@@ -320,16 +337,20 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
     else groups.set(key, [option]);
   }
 
-  return <section key={platform ?? category.id} ref={screen} className={`more-screen activity-${category.id}`} aria-labelledby="more-heading">
+  const active = optionsForCategory.find(option => option.id === activityId);
+  const result = feedback?.id === activityId ? feedback : undefined;
+  const activityTitle = active?.label[l] ?? result?.title[l];
+  const detail = Boolean(activityTitle);
+
+  return <section key={platform ?? category.id} ref={screen} className={"more-screen activity-" + category.id} aria-labelledby="more-heading">
     <header className="more-heading">
-      <MenuTitle back onClose={platform ? () => openPlatform(null) : parent ? () => changeCategory(parent) : onCategoryBack ?? (() => changeCategory(null))}
-        closeLabel={platform ? t("Назад към Социални мрежи","Back to Social media") : parentTitle ? t("Назад към " + parentTitle, "Back to " + parentTitle) : onCategoryBack ? categoryBackLabel : t("Назад към Още","Back to More")}>
-        <h1 ref={heading} id="more-heading" tabIndex={-1}>
-          {platform ?? category.title[l]}
-        </h1>
+      <MenuTitle back onClose={detail ? () => openActivity(null) : platform ? () => openPlatform(null) : parent ? () => changeCategory(parent) : onCategoryBack ?? (() => changeCategory(null))}
+        closeLabel={detail ? t("Към дейностите", "Back to activities") : platform ? t("Назад към Социални мрежи","Back to Social media") : parentTitle ? t("Назад към " + parentTitle, "Back to " + parentTitle) : onCategoryBack ? categoryBackLabel : t("Назад към Още","Back to More")}>
+        <h1 ref={heading} id="more-heading" tabIndex={-1}>{activityTitle ?? platform ?? category.title[l]}</h1>
       </MenuTitle>
-      <span className="more-resource"><Icon name="clock" size={15} />{t("Свободно време", "Free time")}: <strong>{availableTime}</strong></span>
     </header>
+    {detail ? result ? <ActivityFeedback feedback={result} onJournal={onJournal} l={l}/>
+      : active && <ActivityDetails option={active} onChoose={chooseActivity} l={l}/> : <>
     {!platform && <CategoryStatus life={life} category={category.id} l={l}/>}
     {child && <button type="button" data-category={child.id} className={`activity-category activity-${child.id}`} onClick={()=>changeCategory(child.id)}>
       <span className="activity-category-icon"><CategoryIcon category={child}/></span>
@@ -340,7 +361,7 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
       <span>{t("Първо вземи решението за тази година.", "Make this year’s story decision to unlock activities.")}</span>
       <button type="button" onClick={onJournal}>{t("Към решението", "Go to decision")}<Icon name="right" size={15} /></button>
     </div>}
-    {feedback && !optionsForCategory.some(option => option.id === feedback.id) && <ActivityFeedback feedback={feedback} onJournal={onJournal} l={l} />}
+    {feedback && !optionsForCategory.some(option => option.id === feedback.id) && <ActivityFeedback feedback={feedback} onJournal={onJournal} l={l}/>}
     {category.id === "social" && !platform ? <div className="activity-directory">
       {[...groups].map(([group, options]) => {
         const key = options[0].id.split(".")[1] as keyof typeof life.lifeSystems.social;
@@ -355,11 +376,12 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
           <Icon name="next" size={17}/>
         </button>;
       })}
-    </div> : <ul className="activity-list">
+    </div> : <ul className="activity-list" role="list">
       {(platform ? groups.get(platform) ?? [] : optionsForCategory).map((option, index) =>
-        <ActivityCard category={category} option={option} tone={rowTones[index % rowTones.length]}
-          ageLock={!life.finished && option.minAge !== undefined && life.age < option.minAge ? option.minAge : undefined} key={option.id} onChoose={chooseActivity} onJournal={onJournal} l={l}
-          feedback={feedback?.id === option.id ? feedback : undefined}/>)}
+        <ActivityRow category={category} option={option} tone={rowTones[index % rowTones.length]}
+          ageLock={!life.finished && option.minAge !== undefined && life.age < option.minAge ? option.minAge : undefined}
+          key={option.id} onOpen={() => openActivity(option.id)} l={l}/>)}
     </ul>}
+    </>}
   </section>;
 }
