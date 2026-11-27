@@ -7,3 +7,6 @@ sofia.webp
 An original game illustration inspired by Sofia's Alexander Nevsky Cathedral, central rooftops and the Vitosha skyline.
 
 Created for BgLife using OpenAI image generation, November 2026. The two cityscapes are imaginative compositions. Each is bundled locally in WebP format for offline play.
+
+HomeHub illustrations
+Stara Planina, Danube, Thrace, Pirin and Khan Asparuh. Created for BgLife using OpenAI image generation, November 2026. The landscapes and the imagined monument are original illustrations, bundled in WebP for offline play.

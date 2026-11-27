@@ -1,5 +1,6 @@
 import React, { type ReactNode } from "react";
-import type { GameState, Memory } from "./engine.ts";
+import { getCityOpportunity, type GameState, type Memory } from "./engine.ts";
+import { cityWeatherDate } from "./cityLife.ts";
 import { isJournalMilestone, journalLine } from "./journalCopy.ts";
 import { quietYear } from "./everydayEvents.ts";
 import type { Language } from "./session.ts";
@@ -24,8 +25,10 @@ function StatChanges({ delta, l }: { delta: Memory["statsDelta"]; l: Language })
 
 const hasStatChanges = (delta: Memory["statsDelta"]) => Object.values(delta ?? {}).some(Boolean);
 
-function LifeEvent({ event, l, life }: { event: Memory; l: Language; life: GameState }) {
+function LifeEvent({ event, l, life, children }: { event: Memory; l: Language; life: GameState; children?: ReactNode }) {
   const personEvent = event.kind === "action" && event.id.startsWith("people.");
+  const focusable = personEvent || (event.kind === "action" && event.id.startsWith("city-life."));
+  const eventDate = event.cityEvent && cityWeatherDate(event.cityEvent, l);
   const line = journalLine(event, l, life.birthFamily);
   const original = event.text[l];
   const showTitle = event.kind === "choice";
@@ -34,11 +37,12 @@ function LifeEvent({ event, l, life }: { event: Memory; l: Language; life: GameS
   const content = isJournalMilestone(event) ? <strong>{line}</strong> : <span>{line}</span>;
 
   return <li className="life-event"
-    id={personEvent ? "life-event-" + event.age + "-" + event.id : undefined}
-    tabIndex={personEvent ? -1 : undefined} data-person-event={personEvent || undefined} data-event-id={event.id}>
-    {showTitle || showOriginal || hasChanges ? <details className="life-event-disclosure">
+    id={focusable ? "life-event-" + event.age + "-" + event.id : undefined}
+    tabIndex={focusable ? -1 : undefined} data-person-event={personEvent || undefined} data-event-id={event.id}>
+    {showTitle || showOriginal || eventDate || hasChanges ? <details className="life-event-disclosure">
       <summary className="life-event-line">{content}<Icon name="down" size={12}/></summary>
       <div className="life-event-detail">
+        {eventDate && <small className="city-event-date">{eventDate}</small>}
         {showTitle && <p className="life-event-title">{event.title[l]}</p>}
         {showOriginal && <p>{original}</p>}
         {hasChanges && <div className="life-event-changes">
@@ -49,6 +53,7 @@ function LifeEvent({ event, l, life }: { event: Memory; l: Language; life: GameS
         </div>}
       </div>
     </details> : <p className="life-event-line">{content}</p>}
+    {children}
   </li>;
 }
 
@@ -92,7 +97,8 @@ export function JournalFinances({ s, l }: { s: GameState; l: Language }) {
   </details>;
 }
 
-export function LifeTimeline({ s, l, children }: { s: GameState; l: Language; children: ReactNode }) {
+export function LifeTimeline({ s, l, children, onAction }: { s: GameState; l: Language; children: ReactNode; onAction: (id: string) => void }) {
+  const opportunity = getCityOpportunity(s);
   return <section className="life-timeline" aria-labelledby="timeline-heading">
     <h1 id="timeline-heading" className="timeline-heading"><Icon name="journal" size={16}/>{copy(l, "Дневник", "Journal")}</h1>
     {groupLifeYears(s).map(({ age, events }) => {
@@ -102,7 +108,16 @@ export function LifeTimeline({ s, l, children }: { s: GameState; l: Language; ch
           {ageTitle(age, l)}
         </h2>
         {events.length > 0 ? <ul className="life-entries" role="list">
-          {events.map((event, index) => <LifeEvent key={event.kind + event.id + index} event={event} l={l} life={s}/>)}
+          {events.map((event, index) => <LifeEvent key={event.kind + event.id + index} event={event} l={l} life={s}>
+            {latest && opportunity?.id === event.id && <div className="city-event-actions" data-city-opportunity>
+              <small><Icon name="clock" size={13}/>{copy(l, "1 свободно време", "1 free-time slot")}</small>
+              {opportunity.options.map(({ option, blocked }) => <button key={option.id} type="button" className="secondary-button"
+                data-action={option.id} disabled={blocked} onClick={() => onAction(option.id)}>
+                <span>{option.label[l]}</span>
+                {!!option.effect?.cash && <span className={option.effect.cash > 0 ? "cash-in" : "cash-out"}>{signedMoney(option.effect.cash, l)}</span>}
+              </button>)}
+            </div>}
+          </LifeEvent>)}
         </ul> : <p className="life-quiet">{quietYear(s.seed, age)[l]}</p>}
         {latest && children}
       </section>;

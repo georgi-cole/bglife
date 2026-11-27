@@ -6,7 +6,9 @@ import { generateBirthFamily, isKin, type BirthFamily } from "./birthFamily.ts";
 import { cityPaths, jobTypes, studyFields, type Enrollment, type JobId, type SchoolLevel } from "./cityPaths.ts";
 import { kinActivities, kinActivityById } from "./kinActivities.ts";
 import { automaticAppearance, dispositions, HEIR_CASH, parseLifeProfile, talentBonus, type LifeProfile, type NewLifeDraft } from "./lifeProfile.ts";
-import { personName, storyPeople, type PeopleId } from "./peopleIdentity.ts";
+import { isKnownPerson, personCity, personName, storyPeople, type PeopleId } from "./peopleIdentity.ts";
+import { cityChoices, cityEventMemory, getCityEvent, openCityEvent, parseCityEvent, rollCityEvent } from "./cityLife.ts";
+import type { CityEventRoll } from "./cityLifeModel.ts";
 import { birthEntry, retirementEligible, yearlyMoment } from "./lifeEvents.ts";
 import { everydayEvents } from "./everydayEvents.ts";
 import { mortalityCondition, treatHealth } from "./lifeHealth.ts";
@@ -67,7 +69,8 @@ export type Action = Option & { minAge?: number; maxAge?: number };
 
 export type Command =
   | { age: number; kind: "choice" | "action" | "path"; id: string }
-  | { age: number; kind: "year" | "end" }
+  | { age: number; kind: "year"; cityEvent?: CityEventRoll | null }
+  | { age: number; kind: "end" }
   | { age: number; kind: "name-children"; names: string[]; surname: SurnameSource };
 export type Memory = {
   age: number;
@@ -82,6 +85,7 @@ export type Memory = {
   statsDelta?: StatDelta;
   movedTo?: City;
   startedCareer?: Career;
+  cityEvent?: CityEventRoll;
 };
 
 export type GameState = {
@@ -457,8 +461,35 @@ export function choose(s: GameState, optionId: string, expectedAge = s.age): Gam
   return scene && option ? applyOption(s, "choice", option, scene.title) : s;
 }
 
+export function getCityOpportunity(s: GameState) {
+  const open = openCityEvent(s);
+  if (!open) return null;
+  const friendHere = !s.deceased.friend && isKnownPerson(s, "friend") && personCity(s, "friend") === s.city;
+  const time = commitmentsLeft(s);
+  const options = cityChoices(open.event, open.roll).map(choice => {
+    const friend = choice.withFriend && friendHere ? personName(s, "friend") : null;
+    const effect: Effect = { stats: choice.stats, cash: choice.cash };
+    if (friend) {
+      effect.person = "friend";
+      effect.trust = { friend: 4 };
+    }
+    const option: Option = {
+      id: open.entry.id + "." + choice.id,
+      label: choice.label,
+      result: friend ? pathText(friend.bg + " · " + choice.outcome.bg, friend.en + " · " + choice.outcome.en) : choice.outcome,
+      effect,
+    };
+    return { option, blocked: time === 0 || !available(s, option) };
+  });
+  return { id: open.entry.id, options };
+}
+
 export function doAction(s: GameState, actionId: string, expectedAge = s.age): GameState {
   if (s.age !== expectedAge) return s;
+  if (actionId.startsWith("city-life.")) {
+    const choice = getCityOpportunity(s)?.options.find(row => row.option.id === actionId);
+    return choice && !choice.blocked ? applyOption(s, "action", choice.option, choice.option.label) : s;
+  }
   if (actionId.startsWith("move.")) {
     const city = actionId.slice(5);
     return isCity(city) ? moveTo(s, city) : s;
@@ -574,6 +605,10 @@ function currency(amount: number, locale: keyof typeof formatters): string {
 }
 
 export function advance(s: GameState, expectedAge = s.age): GameState {
+  return advanceYear(s, expectedAge, s.path ? "draw" : undefined);
+}
+
+function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRoll | null | "draw" | undefined): GameState {
   if (s.finished || s.age !== expectedAge || (s.sceneId && s.choiceId === null) || s.lifeSystems.reproduction.naming) return s;
   const full = s.lifespanStart !== null;
   const death = full ? rollDeath({
@@ -612,12 +647,13 @@ export function advance(s: GameState, expectedAge = s.age): GameState {
     },
     cashDelta: budget.net, statsDelta: statsChange(s.stats, stats),
   };
+  const yearCommand: Extract<Command, { kind: "year" }> = { age: s.age, kind: "year" };
   let closed: GameState = {
     ...s, cash: s.cash + budget.net, stats, lifeSystems, death, finished,
     serviceYears: pathYear ? Math.floor(serviceMonths(pathYear.path.work) / 12)
       : s.serviceYears + Number(s.age >= 19 && s.career !== "student" && s.retirement === null),
     path: pathYear?.path ?? null,
-    history: [...s.history, ...pathMemories, memory], commands: [...s.commands, { age: s.age, kind: "year" }],
+    history: [...s.history, ...pathMemories, memory], commands: [...s.commands, yearCommand],
     endReason: death ? "death" : finished ? "chapter" : null,
   };
   if (death) {
@@ -648,7 +684,11 @@ export function advance(s: GameState, expectedAge = s.age): GameState {
         age: next.age, city: next.city, kind: "event", id: "health-" + next.age, witnesses: [], cashDelta: 0,
         title: { bg: "Здраве", en: "Health" }, text: healthNote,
       });
-      const moment = yearlyMoment(next);
+      const roll = cityResult === "draw" ? rollCityEvent(next) : cityResult;
+      const local = roll ? cityEventMemory(next, roll) : roll;
+      const replacesMilestone = roll && getCityEvent(next.city, roll.id)?.milestone;
+      const moment = local && (cityResult !== "draw" || replacesMilestone) ? local : yearlyMoment(next, local);
+      if (roll !== undefined) yearCommand.cityEvent = moment?.cityEvent ?? null;
       if (moment) next.history.push(moment);
     }
   }
@@ -729,9 +769,18 @@ export function decodeSave(raw: string): GameState | null {
     for (const [index, c] of saved.commands.entries()) {
       if (!checkpoints(index) || !object(c) || c.age !== s.age || s.finished) return null;
       let next: GameState;
-      if (c.kind === "year" || c.kind === "end") {
+      if (c.kind === "year") {
         if ("id" in c) return null;
-        next = c.kind === "year" ? advance(s, s.age) : giveUp(s, s.age);
+        let cityResult: CityEventRoll | null | undefined;
+        if ("cityEvent" in c) {
+          if (!s.path) return null;
+          cityResult = c.cityEvent === null ? null : parseCityEvent(c.cityEvent, s.city);
+          if (cityResult === null && c.cityEvent !== null) return null;
+        }
+        next = advanceYear(s, s.age, cityResult);
+      } else if (c.kind === "end") {
+        if ("id" in c || "cityEvent" in c) return null;
+        next = giveUp(s, s.age);
       } else if (c.kind === "name-children") {
         if (!Array.isArray(c.names) || !c.names.every(name => typeof name === "string")
           || (c.surname !== "mother" && c.surname !== "father")) return null;

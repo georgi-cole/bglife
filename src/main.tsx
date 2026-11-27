@@ -1,4 +1,4 @@
-import React,{useEffect,useLayoutEffect,useRef,useState} from "react";
+import React,{useCallback,useEffect,useLayoutEffect,useRef,useState} from "react";
 import {createRoot} from "react-dom/client";
 import {choose,defaultPlayChoice,doAction,doLifeActivity,getPersonActivities,giveUp,nameNewborns,hasStartedLife,newProfileLife,playYear,doPathAction,startCareerLife,type City,type GameState,type LifeActivityCategory,type LifeActivityOption} from "./engine.ts";
 import {Album,Places} from "./Views.tsx";
@@ -14,7 +14,7 @@ import {More,StatsBars} from "./More.tsx";
 import {Icon,MenuTitle,NavigationButton,PlaySymbol,copy,lifeName,tabLabels,type Tab} from "./ui.tsx";
 import {deserialize,initialLanguage,initialTrialVip,LANGUAGE_KEY,loadSession,persist,restoreSession,SAVE_KEY,serialize,VIP_TRIAL_KEY,type Session} from "./session.ts";
 import "./style.css";
-import {StartGuide,StartScreen} from "./StartScreen.tsx";
+import {HomeHub,StartGuide} from "./HomeHub.tsx";
 import {AvatarCreator} from "./AvatarCreator.tsx";
 import {CharacterHeader,CityBadge,PlayerProfile} from "./PlayerProfile.tsx";
 import type {NewLifeDraft} from "./lifeProfile.ts";
@@ -39,6 +39,8 @@ function App(){
   const [first]=useState(loadSession),[session,setSession]=useState(first.session),[notice,setNotice]=useState(first.notice);
   const [l,setLanguage]=useState(initialLanguage),[tab,setTab]=useState<Tab>("journal"),[dialog,setDialog]=useState<Dialog>(null);
   const [screen,setScreen]=useState<Screen>("home");
+  const [homeIntro,setHomeIntro]=useState(()=>!window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const finishHomeIntro=useCallback(()=>setHomeIntro(false),[]);
   const [vip,setVip]=useState(initialTrialVip);
   const [moreMenu,setMoreMenu]=useState<{category:LifeActivityCategory|null;parent:MoreParent;version:number}>({category:null,parent:"journal",version:0});
   const [albumFromMore,setAlbumFromMore]=useState(false);
@@ -207,6 +209,9 @@ function App(){
     if(updated!==current.life){
       const entry=updated.history.at(-1);
       if(entry?.kind==="choice")nextLogPosition.current={age:entry.age,focus:true};
+      else if(entry?.kind==="action"&&entry.id.startsWith("city-life.")){
+        nextLogPosition.current={age:entry.age,activityId:entry.id,focus:true};
+      }
       commit({...current,life:updated});
     }
   }
@@ -306,8 +311,8 @@ function App(){
     {notice&&<div className="save-notice" role="status"><span>{notice==="temporary"?t("Браузърът не запази играта. Можеш да изтеглиш копие от Настройки.","This browser couldn’t save your game. Download a backup in Settings."):notice==="recovered"?t("Дневникът е възстановен от предишния запис.","Your journal was restored from its previous save."):t("Предишният запис е повреден. Започваш нова глава.","The previous save was damaged. A new chapter has begun.")}</span><NavigationButton label={t("Затвори","Dismiss")} onClick={()=>setNotice(null)}/></div>}
     <div className={screen==="avatar"?"game-layout avatar-layout":screen==="game"?(tab==="journal"?"game-layout journal-layout":tab==="more"||tab==="people"?"game-layout more-layout":"game-layout"):"game-layout start-layout"} ref={viewportRef}>
       <main className={screen==="home"?"main-column start-column":(showJournal===false&&(tab==="people"||tab==="places")&&screen==="game"&&slideMenu)?"main-column menu-enter":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
-      {screen==="home"?<StartScreen life={s} l={l} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
-        onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</StartScreen>:
+      {screen==="home"?<HomeHub life={s} l={l} intro={homeIntro} onIntroEnd={finishHomeIntro} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
+        onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</HomeHub>:
        screen==="avatar"?<AvatarCreator l={l} vip={vip} onVip={toggleTrialVip} onClose={cancelAvatarCreator} onStart={startWithAvatar}/>:
        screen==="album"?<Album {...menuProps} back s={s} archive={session.album} l={l}/>:
        tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore}/>:

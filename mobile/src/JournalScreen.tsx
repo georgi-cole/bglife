@@ -5,8 +5,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { selectionAsync } from "expo-haptics";
 import { getAvatarLook, getAvatarTreatments } from "../../src/avatar.ts";
 import { cleanFirstName } from "../../src/babyNames.ts";
+import { cityWeatherDate } from "../../src/cityLife.ts";
 import {
-  choose, defaultPlayChoice, getChoices, getScene, nameNewborns, playYear, type GameState, type Memory,
+  choose, defaultPlayChoice, doAction, getChoices, getCityOpportunity, getScene, nameNewborns, playYear, type GameState, type Memory,
 } from "../../src/engine.ts";
 import { newbornName, newbornSurname, type BirthNaming } from "../../src/reproduction.ts";
 import type { Language } from "../../src/sessionCodec.ts";
@@ -31,7 +32,14 @@ function journalYears(life: GameState): Year[] {
   }).reverse();
 }
 
-function YearCard({ year, language, current }: { year: Year; language: Language; current: boolean }) {
+function YearCard({ year, language, current, opportunity, saving, onCityAction }: {
+  year: Year;
+  language: Language;
+  current: boolean;
+  opportunity: ReturnType<typeof getCityOpportunity>;
+  saving: boolean;
+  onCityAction: (id: string) => void;
+}) {
   const events = year.entries.filter(entry => entry.kind !== "year");
   const budget = year.entries.find(entry => entry.kind === "year");
   return (
@@ -45,7 +53,19 @@ function YearCard({ year, language, current }: { year: Year; language: Language;
       {events.map((entry, index) => (
         <View key={entry.id + "-" + index} style={styles.entry}>
           <Text style={styles.entryTitle}>{entry.title[language]}</Text>
+          {entry.cityEvent && <Text style={base.muted}>{cityWeatherDate(entry.cityEvent, language)}</Text>}
           <Text style={base.body}>{entry.text[language]}</Text>
+          {current && opportunity?.id === entry.id && (
+            <View style={styles.cityChoices} testID="city-opportunity">
+              <Text style={base.muted}>{translation(language, "1 свободно време", "1 free-time slot")}</Text>
+              {opportunity.options.map(({ option, blocked }) => {
+                const cash = option.effect?.cash ?? 0;
+                const label = option.label[language] + (cash ? " · " + (cash > 0 ? "+" : "") + money(cash, language) : "");
+                return <Button key={option.id} label={label} secondary disabled={saving || blocked}
+                  testID={option.id} onPress={() => onCityAction(option.id)} />;
+              })}
+            </View>
+          )}
           {entry.cashDelta !== 0 && (
             <Text style={[styles.delta, entry.cashDelta < 0 && styles.negative]}>
               {entry.cashDelta > 0 ? "+" : ""}{money(entry.cashDelta, language)}
@@ -118,7 +138,15 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
   const birth = life.lifeSystems.reproduction.naming;
   const scene = getScene(life);
   const choices = getChoices(life);
+  const opportunity = archived ? null : getCityOpportunity(life);
   const blocked = Boolean(birth || (scene && life.choiceId === null && !defaultPlayChoice(life)));
+
+  function takeCityAction(id: string) {
+    void updateSession(current => {
+      const next = doAction(current.life, id, age);
+      return next === current.life ? current : { ...current, life: next };
+    });
+  }
 
   async function advance() {
     void selectionAsync().catch(() => {});
@@ -133,7 +161,8 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
     <SafeAreaView style={base.page} edges={["bottom"]} testID="journal-screen">
       <FlatList ref={list} data={years} keyExtractor={year => String(year.age)} contentContainerStyle={base.scroll}
         keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets
-        renderItem={({ item }) => <YearCard year={item} language={language} current={item.age === life.age && !life.finished && !archived} />}
+        renderItem={({ item }) => <YearCard year={item} language={language} current={item.age === age && !life.finished && !archived}
+          opportunity={opportunity} saving={saving} onCityAction={takeCityAction} />}
         ListHeaderComponent={(
           <View style={styles.journalHeader}>
             <View style={styles.profile}>
@@ -188,6 +217,7 @@ const styles = StyleSheet.create({
   current: { color: color.green, fontSize: 12, fontWeight: "800" },
   entry: { borderLeftWidth: 2, borderLeftColor: color.lightGreen, paddingLeft: 11, gap: 3 },
   entryTitle: { fontSize: 15, fontWeight: "800", color: color.ink },
+  cityChoices: { gap: 6, marginTop: 6 },
   delta: { color: color.green, fontSize: 13, fontWeight: "700" },
   negative: { color: color.red },
   budget: { paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderColor: color.line, gap: 3 },

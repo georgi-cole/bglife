@@ -1,8 +1,9 @@
-import React from "react";
-import { art } from "../scripts/art";
+import React, { useEffect, useRef, useState } from "react";
+import { pickHomeScene, rememberHomeScene } from "./homeScenes.ts";
 import { hasStartedLife, type GameState } from "./engine.ts";
 import type { Language } from "./session.ts";
 import { Icon, PlaySymbol, ageLabel, copy, lifeName, town } from "./ui.tsx";
+import { KolequantSplash } from "./KolequantSplash.tsx";
 import "./start.css";
 
 type Props = {
@@ -12,49 +13,60 @@ type Props = {
   onNewLife: () => void;
   onAlbum: () => void;
   onGuide: () => void;
+  intro: boolean;
+  onIntroEnd: () => void;
   children: React.ReactNode;
 };
 
-export function StartScreen({ life, l, onContinue, onNewLife, onAlbum, onGuide, children }: Props) {
+export function HomeHub({ life, l, onContinue, onNewLife, onAlbum, onGuide, intro, onIntroEnd, children }: Props) {
   const t = (bg: string, en: string) => copy(l, bg, en);
+  const [scene] = useState(pickHomeScene);
+  const artwork = useRef<HTMLImageElement>(null);
+  const flag = useRef<HTMLSpanElement>(null);
+  useEffect(() => rememberHomeScene(scene), [scene]);
   const hasLife = hasStartedLife(life);
   const progress = [ageLabel(life.age, l), town(life.city, l)];
   if (life.endReason === "gaveUp") progress.push(t("Приключена история", "Story ended"));
   else if (life.death) progress.push(t("Край на живота", "Life ended"));
   else if (life.finished) progress.push(t("Завършена история", "Story complete"));
 
-  return <div className="start-screen">
-    <header className="start-cover">
-      <img className="start-cover-art" src={art.tryavna} alt="" fetchPriority="high" />
-      <div className="start-cover-actions">{children}</div>
-      <div className="start-cover-title">
-        <h1>Bg<em>Life</em></h1>
-        <p>{t("Симулатор на живота в България", "A life simulator set in Bulgaria")}</p>
-      </div>
-    </header>
+  return <>
+    <div className="start-screen" data-home-scene={scene.id} inert={intro}>
+      <figure className="start-cover">
+        <img ref={artwork} className="start-cover-art" src={scene.art} alt="" fetchPriority="high" />
+        <div className="start-cover-actions">{children}</div>
+        <figcaption className="start-caption">{scene[l]}</figcaption>
+      </figure>
 
-    <nav className="start-actions" aria-label={t("Начално меню", "Main menu")}>
-      <button className="start-primary" onClick={hasLife ? onContinue : onNewLife}>
-        <span className="start-play"><PlaySymbol /></span>
-        <span className="start-primary-text">
-          <strong>{hasLife ? t("Продължи", "Continue") : t("Нов живот", "New life")}</strong>
-          <small>{(hasLife ? [lifeName(l, life), ...progress] : [t("Избери име, град и талант", "Choose a name, city and talent")]).join(" · ")}</small>
-        </span>
-        <Icon name="next" size={19} />
-      </button>
+      <h1 className="start-cover-title">
+        <span ref={flag} className="bg-flag" aria-hidden="true" />
+        <span className="start-wordmark">BgLife</span>
+      </h1>
 
-      {hasLife && <button className="start-option start-option-wide" onClick={onNewLife}>
-        <Icon name="plus" size={20} />
-        <span>{t("Нов живот", "New life")}</span>
-        <Icon name="next" size={17} />
-      </button>}
+      <nav className="start-actions" aria-label={t("Начално меню", "Main menu")}>
+        <button className="start-primary" onClick={hasLife ? onContinue : onNewLife}>
+          <span className="start-play"><PlaySymbol /></span>
+          <span className="start-primary-text">
+            <strong>{hasLife ? t("Продължи", "Continue") : t("Нов живот", "New life")}</strong>
+            <small>{(hasLife ? [lifeName(l, life), ...progress] : [t("Избери име, град и талант", "Choose a name, city and talent")]).join(" · ")}</small>
+          </span>
+          <Icon name="next" size={19} />
+        </button>
 
-      <div className="start-shortcuts">
-        <button className="start-option" onClick={onAlbum}><Icon name="album" size={20} />{t("Албум", "Album")}</button>
-        <button className="start-option" onClick={onGuide}><Icon name="help" size={20} />{t("Как се играе", "How to play")}</button>
-      </div>
-    </nav>
-  </div>;
+        {hasLife && <button className="start-option start-option-wide" onClick={onNewLife}>
+          <Icon name="plus" size={20} />
+          <span>{t("Нов живот", "New life")}</span>
+          <Icon name="next" size={17} />
+        </button>}
+
+        <div className="start-shortcuts">
+          <button className="start-option" onClick={onAlbum}><Icon name="album" size={20} />{t("Албум", "Album")}</button>
+          <button className="start-option" onClick={onGuide}><Icon name="help" size={20} />{t("Как се играе", "How to play")}</button>
+        </div>
+      </nav>
+    </div>
+    {intro && <KolequantSplash artwork={artwork} flag={flag} onFinish={onIntroEnd} />}
+  </>;
 }
 
 export function StartGuide({ l }: { l: Language }) {

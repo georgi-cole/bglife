@@ -10,10 +10,15 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F9F5EB",
+    "icon": "./assets/bglife-icon.png",
     "android": {
       "package": "com.georgicole.bglife.playtest",
       "versionCode": 1,
-      "predictiveBackGestureEnabled": true
+      "predictiveBackGestureEnabled": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/bglife-icon.png",
+        "backgroundColor": "#071426"
+      }
     },
     "ios": {
       "bundleIdentifier": "com.georgicole.bglife.playtest",

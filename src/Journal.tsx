@@ -73,7 +73,7 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onMore}: P
       <span><strong>{copy(l,"Предложение за осиновяване","Adoption match")}</strong><small>{adoptionOffer[l]}</small></span>
       <button className="secondary-button" onClick={()=>onMore("adoption")}>{copy(l,"Виж","View")}<Icon name="next" size={15}/></button>
     </div>}
-    <LifeTimeline s={s} l={l}>
+    <LifeTimeline s={s} l={l} onAction={onAction}>
       {s.finished ? (
         <section className="story-card ending-card">
           <p className="section-kicker"><Icon name="album"/>{copy(l, "Епилог", "Epilogue")}</p>

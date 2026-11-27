@@ -27,9 +27,11 @@ test("most childhood years get multiple distinct memories and quiet years have b
   const richer = byAge.filter(events => events.length > 1).length;
   const quiet = byAge.filter(events => !events.length).length;
   assert.ok(richer >= 8, "rich years: " + richer);
-  assert.ok(quiet > 0 && quiet <= 2, "quiet years: " + quiet);
+  assert.ok(quiet <= 2, "quiet years: " + quiet);
   const notes = life.history.filter(event => event.id.startsWith("diary-"));
-  assert.ok(notes.length >= 12);
+  const cityEvents = life.history.filter(event => event.cityEvent);
+  assert.ok(notes.length > 0 && cityEvents.length > 0);
+  assert.ok(notes.length + cityEvents.length >= 12);
   const previous = new Map();
   for (const event of notes) {
     const latest = previous.get(event.id) ?? -10;

@@ -66,6 +66,16 @@ Each playable city has cultural content in `src/cityCulture.ts` and school, stud
 
 Profiles saved before this update keep their original family and avatar data. The new family model applies when starting a new life.
 
+### City life
+
+Every playable city has a bilingual profile in `src/cityLifeData/<city-id>.ts`. Its first two places are used for childhood and outings. Add more places to the same list as the city grows. Population is the city proper on 31 December 2025 ([NSI table](https://www.nsi.bg/statistical-data/206/648)). `cityLifeModel.ts` records the population snapshot and the [IBE–BAS speech atlas](https://ibl.bas.bg/nova_dialektna_karta/) and [NIMH climate normals](https://meteo.bg/meteo7/en/node/776) used as references for fictional speech and game weather.
+
+- Shared scenes in `src/lifeVignettes.ts` use the same saved event IDs. Give them age ranges and optional eligibility rules for facts such as a living sibling at home, current schooling or a player-selected talent. An empty choice list records a journal moment. The first birthday, preschool and first school day draw among variants of their own milestone. Shared scenes appear at most once per life across cities.
+- Edit `occasion` for the local celebration. Store the organizer’s link and a date or plausible month window for editions that move. Write original BG/EN dialogue and explain which people and places are involved in the scene.
+- Edit `story.opening` and `story.continuation` for the main two-part story. `from` and `through` control the opening’s ages. The first offer can arrive over a window of up to four ages from `from`. Step `months` can restrict it to the appropriate season. Amounts are in cents. Additional `events` can define age ranges, calendar windows, cooldowns, choices and follow-ups with `after: { action: "event-id.choice-id", years: 1 }`. The separate Surova visit in `pernik.ts` is an example.
+- Keep released event and choice IDs stable. Each new-year command records the actual scene and date so adding entries does not redraw an old game. Keep old options and effects available to replay. Set `retired: true` on a custom event to stop future invitations while keeping saved years playable. Give a substantially different scene a new ID.
+- Add a city in `cities.ts`, `cityCulture.ts`, `cityPaths.ts` and the `cityLifeData` index. Run `npm run typecheck` and `npm test` to check coverage, dates, option IDs, story links and saved games.
+
 ## Education, work, and social insurance
 
 Every new life starts at birth. Education is available through childhood, with first-grade enrollment at age seven. From age 18, Career contains school, university, work, and social insurance. Annual outcomes appear in the journal and the wallet uses the same income and expenses as the yearly settlement.
