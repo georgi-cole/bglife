@@ -110,7 +110,6 @@ export function LifeTimeline({ s, l, children, onAction }: { s: GameState; l: La
         {events.length > 0 ? <ul className="life-entries" role="list">
           {events.map((event, index) => <LifeEvent key={event.kind + event.id + index} event={event} l={l} life={s}>
             {latest && opportunity?.id === event.id && <div className="city-event-actions" data-city-opportunity>
-              <small><Icon name="clock" size={13}/>{copy(l, "1 свободно време", "1 free-time slot")}</small>
               {opportunity.options.map(({ option, blocked }) => <button key={option.id} type="button" className="secondary-button"
                 data-action={option.id} disabled={blocked} onClick={() => onAction(option.id)}>
                 <span>{option.label[l]}</span>

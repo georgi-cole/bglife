@@ -45,7 +45,7 @@
   inset-block-start: 0;
   z-index: 2;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: .42rem;
   padding: .25rem var(--gutter);
@@ -71,17 +71,6 @@
   letter-spacing: .015em;
 }
 .more-heading h1:focus-visible { outline: 2px solid var(--focus); outline-offset: .2rem; }
-.more-resource {
-  grid-column: 2;
-  justify-self: end;
-  display: inline-flex;
-  align-items: center;
-  gap: .28rem;
-  color: #e5d1b8;
-  font-size: .72rem;
-  line-height: 1.2;
-}
-.more-resource strong { color: var(--ink); }
 
 .activity-directory { display: grid; background: #292325; }
 .activity-directory > button + button { border-top: 1px solid #514146; }

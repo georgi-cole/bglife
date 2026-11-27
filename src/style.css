@@ -121,17 +121,16 @@ img { display: block; max-width: 100%; }
 .life-year-budget > summary > span:nth-of-type(2), .life-year-balance strong { font-variant-numeric: tabular-nums; }
 .city-event-date { display: block; margin-top: .12rem; color: var(--secondary); font-size: .75rem; }
 .city-event-actions { display: grid; gap: .36rem; margin-top: .54rem; }
-.city-event-actions small { display: flex; align-items: center; gap: .25rem; color: var(--secondary); }
 .city-event-actions .secondary-button { min-height: 2.6rem; justify-content: space-between; text-align: start; white-space: normal; }
 .city-event-actions .secondary-button span:last-child:not(:first-child) { flex-shrink: 0; }
 .city-speech-sample { margin: .16rem 0 0; }
 .life-year .ending-card { margin-top: .66rem; }
-.commitments { border-top: 1px solid var(--rule); margin-top: .8rem; }
+.journal-actions { border-top: 1px solid var(--rule); margin-top: .8rem; }
 summary { cursor: pointer; }
-.commitments > summary, .mem-details > summary, .year-page > summary { display: flex; align-items: center; gap: .5rem; min-height: 2.8rem; font-weight: 650; list-style: none; }
+.journal-actions > summary, .mem-details > summary, .year-page > summary { display: flex; align-items: center; gap: .5rem; min-height: 2.8rem; font-weight: 650; list-style: none; }
 summary::-webkit-details-marker { display: none; }
-.commitments > summary span, .mem-details > summary span { margin-inline-start: auto; color: var(--secondary); }
-.commitments[open] > summary > svg:last-child, .year-page[open] > summary > svg { transform: rotate(180deg); }
+.mem-details > summary span { margin-inline-start: auto; color: var(--secondary); }
+.journal-actions[open] > summary > svg:last-child, .year-page[open] > summary > svg { transform: rotate(180deg); }
 .journal-action-list { display: grid; }
 .journal-action-list button {
   display: flex; align-items: center; justify-content: space-between; gap: .48rem;

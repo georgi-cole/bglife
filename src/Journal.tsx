@@ -1,6 +1,6 @@
 import React from "react";
 import {conditionLabel} from "./lifeHealth.ts";
-import {annualBudget, commitmentsLeft, defaultPlayChoice, getActions, getChoices, getEstate, getScene, lifeHeirLabel, type GameState, type LifeActivityCategory} from "./engine.ts";
+import {annualBudget, defaultPlayChoice, getActions, getChoices, getEstate, getScene, lifeHeirLabel, type GameState, type LifeActivityCategory} from "./engine.ts";
 import {JournalFinances, LifeTimeline} from "./LifeTimeline.tsx";
 import {pathBudget} from "./lifePath.ts";
 import {endingCopy} from "./story.ts";
@@ -56,13 +56,12 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onMore}: P
   const estate = s.finished ? getEstate(s) : null;
   const pregnancy = s.finished ? null : pregnancyStatus(s);
   const adoptionOffer = !s.finished && s.lifeSystems.reproduction.adoption?.stage === "offer" ? adoptionStatus(s) : null;
-  const time = commitmentsLeft(s);
 
   return <>
     {!s.finished && s.lifeSystems.medicalIssue && <div className={"journal-health-alert " + (s.lifeSystems.medicalIssue==="urgent"?"urgent":"")}>
       <span><strong>{healthCondition ? conditionLabel(healthCondition)[l] : s.lifeSystems.medicalIssue==="urgent"
         ? copy(l,"Спешен случай в историята","In-game emergency") : copy(l,"Здравословен проблем","Health concern")}</strong>
-      <small>{s.lifeSystems.medicalIssue==="urgent" ? copy(l,"Спешната помощ в играта не отнема свободно време.","In-game emergency help uses no free time.") : copy(l,"В „Болница“ можеш да избереш преглед.","You can arrange a checkup in Hospital.")}</small></span>
+      <small>{s.lifeSystems.medicalIssue==="urgent" ? copy(l,"В „Болница“ можеш да се обадиш на 112.","You can call 112 from Hospital.") : copy(l,"В „Болница“ можеш да избереш преглед.","You can arrange a checkup in Hospital.")}</small></span>
       <button className="secondary-button" onClick={()=>onMore("hospital")}>{copy(l,"Болница","Hospital")}<Icon name="next" size={15}/></button>
     </div>}
     {pregnancy && <div className="journal-health-alert journal-family-alert">
@@ -101,8 +100,8 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onMore}: P
           </div>
           {fallback && <p className="play-default" id="play-default"><PlaySymbol/>{copy(l, "При продължаване избираш", "On Play, you choose")} <strong>{fallback.label[l]}</strong></p>}
         </section>
-      ) : <details className="commitments" open={actions.some(action => action.id.startsWith("life.")) || undefined}>
-        <summary><Icon name="clock" size={17}/>{copy(l, "Свободно време", "Free time")}<span>{time}/2</span><Icon name="down" size={15}/></summary>
+      ) : actions.length > 0 && <details className="journal-actions" open={actions.some(action => action.id.startsWith("life.")) || undefined}>
+        <summary><Icon name="journal" size={17}/>{copy(l, "Действия", "Activities")}<Icon name="down" size={15}/></summary>
         <div className="journal-action-list">
           {actions.map(action => <button type="button" key={action.id} data-action={action.id} onClick={() => onAction(action.id)}>{action.label[l]}<Icon name="next" size={14}/></button>)}
           <button type="button" onClick={()=>onMore()}>{copy(l,"Още дейности","More activities")}<Icon name="next" size={14}/></button>

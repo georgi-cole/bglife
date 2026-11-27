@@ -1,7 +1,7 @@
 import { conditionLabel } from "./lifeHealth.ts";
 import React, { useLayoutEffect, useRef, useState } from "react";
 import {
-  annualBudget, commitmentsLeft, getEstate, getLifeActivities, lifeHeirLabel, lifePartnerLabel,
+  annualBudget, getEstate, getLifeActivities, lifeHeirLabel, lifePartnerLabel,
   type GameState, type LifeActivityCategory, type LifeActivityOption, type LifeStat, type Memory,
 } from "./engine.ts";
 import { canAccessAdoption, canAccessFertility } from "./lifeReproduction.ts";
@@ -160,12 +160,6 @@ function CategoryStatus({ life, category, l }: { life: GameState; category: Life
     <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
 }
 
-function timeLabel(time: number, l: Language) {
-  return l === "bg"
-    ? time === 1 ? "1 ангажимент" : time + " ангажимента"
-    : time === 1 ? "1 time slot" : time + " time slots";
-}
-
 function ActivityFeedback({ feedback, onJournal, l }: { feedback: Memory; onJournal?: () => void; l: Language }) {
   return <div className="activity-feedback">
     <div role="status"><strong>{feedback.title[l]}</strong><p>{feedback.text[l]}</p></div>
@@ -234,7 +228,6 @@ function ActivityDetails({ option, onChoose, l }: { option: LifeActivityOption; 
     <p className="activity-description">{option.description[l]}</p>
     <div className="activity-meta">
       <span><Icon name="wallet" size={15}/>{cost === 0 ? t("Безплатно", "Free") : (cost > 0 ? "+" : "−") + money(Math.abs(cost), l)}</span>
-      {option.timeCost > 0 && <span><Icon name="clock" size={15}/>{timeLabel(option.timeCost, l)}</span>}
     </div>
     {treatment && <p className="avatar-treatment-note">
       {treatment.label[l]} · {treatment.years === 1 ? t("тази година", "this year") : t("тази и следващата година", "this year and next")}
@@ -269,7 +262,6 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
     (selected === "hospital" && item.id === "fertility" && canAccessFertility(life)) ||
     (selected === "family" && item.id === "adoption" && canAccessAdoption(life)));
   const parentTitle = categories.find(item => item.id === parent)?.title[l];
-  const availableTime = commitmentsLeft(life);
   const memory = life.history.at(-1);
   const feedback = lastAction && lastAction.category === selected && lastAction.index === life.commands.length && lastAction.id === memory?.id ? memory : undefined;
 
@@ -319,7 +311,6 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
   if (!category) return <section key="directory" ref={screen} className={animateDirectory.current ? "more-screen menu-enter" : "more-screen"} aria-labelledby="more-heading">
     <header className="more-heading">
       <MenuTitle onClose={onClose} closeLabel={closeLabel}><h1 ref={heading} id="more-heading" tabIndex={-1}>{t("Още", "More")}</h1></MenuTitle>
-      <span className="more-resource" aria-label={t("Свободно време ", "Free time ") + availableTime + "/2"}><Icon name="clock" size={15}/><strong>{availableTime}/2</strong></span>
     </header>
     <div className="activity-directory">
       {directory.map(item => <button type="button" key={item.id} data-category={item.id}
@@ -357,7 +348,6 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
         closeLabel={detail ? t("Към дейностите", "Back to activities") : platform ? t("Назад към Социални мрежи","Back to Social media") : parentTitle ? t("Назад към " + parentTitle, "Back to " + parentTitle) : onCategoryBack ? categoryBackLabel : t("Назад към Още","Back to More")}>
         <h1 ref={heading} id="more-heading" tabIndex={-1}>{activityTitle ?? platform ?? category.title[l]}</h1>
       </MenuTitle>
-      <span className="more-resource" aria-label={t("Свободно време ", "Free time ") + availableTime + "/2"}><Icon name="clock" size={15}/><strong>{availableTime}/2</strong></span>
     </header>
     {detail ? result ? <ActivityFeedback feedback={result} onJournal={onJournal} l={l}/>
       : active && <ActivityDetails option={active} onChoose={chooseActivity} l={l}/> : <>

@@ -2,7 +2,7 @@ import {useLayoutEffect,useRef,useState} from "react";
 import {currentCaregiver,relativeLabel,type KinRole,type Relative} from "./birthFamily.ts";
 import {AvatarPortrait} from "./AvatarPortrait.tsx";
 import {getAvatarLook} from "./avatar.ts";
-import {commitmentsLeft,getPersonActivities,type GameState,type LifeActivityOption,type PersonId} from "./engine.ts";
+import {getPersonActivities,type GameState,type LifeActivityOption,type PersonId} from "./engine.ts";
 import {isKnownPerson,personAge,personAvatarTraits,personCity,personName,personRelationship,type PeopleId} from "./peopleIdentity.ts";
 import {deathCauses,type Death} from "./mortality.ts";
 import {pregnancyStatus} from "./reproduction.ts";
@@ -113,9 +113,8 @@ function ActionRow({options,l,onClick}: {options:LifeActivityOption[];l:Language
     <span className="people-action-icon"><Icon name={symbol} size={20}/></span>
     <span className="people-action-copy">
       <strong>{(branch?.label??action.label)[l]}</strong>
-      {!branch&&(action.cashDelta<0||action.timeCost>0)&&<span className="people-action-cost">
-        {action.cashDelta<0&&<span><Icon name="wallet" size={13}/>{money(-action.cashDelta,l)}</span>}
-        {action.timeCost>0&&<span><Icon name="clock" size={13}/>{copy(l,action.timeCost+" ангажимент",action.timeCost+" time slot")}</span>}
+      {!branch&&action.cashDelta<0&&<span className="people-action-cost">
+        <span><Icon name="wallet" size={13}/>{money(-action.cashDelta,l)}</span>
       </span>}
       {blocked&&<small className="people-action-blocked">{blocked[l]}</small>}
     </span>
@@ -176,7 +175,6 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
       {!person.death && <section className="people-actions" aria-labelledby="people-actions-title">
         <h2 id="people-actions-title" className="people-group-heading">
           {t("Действия","Activities")}
-          <span><Icon name="clock" size={14}/>{t("Свободно време","Free time")} <strong>{commitmentsLeft(s)}</strong></span>
         </h2>
         {[...actionRows].map(([key,options])=><div className="people-action-entry" key={key}>
           <ActionRow options={options} l={l} onClick={()=>onActivity(person.id,options)}/>

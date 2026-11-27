@@ -57,7 +57,6 @@ function YearCard({ year, language, current, opportunity, saving, onCityAction }
           <Text style={base.body}>{entry.text[language]}</Text>
           {current && opportunity?.id === entry.id && (
             <View style={styles.cityChoices} testID="city-opportunity">
-              <Text style={base.muted}>{translation(language, "1 свободно време", "1 free-time slot")}</Text>
               {opportunity.options.map(({ option, blocked }) => {
                 const cash = option.effect?.cash ?? 0;
                 const label = option.label[language] + (cash ? " · " + (cash > 0 ? "+" : "") + money(cash, language) : "");

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  advance, annualBudget, choose, commitmentsLeft, decodeSave, doAction, doLifeActivity, encodeSave,
+  advance, annualBudget, choose, decodeSave, doAction, doLifeActivity, encodeSave,
   getChoices, getEstate, getLifeActivities, getPersonActivities, giveUp, lifeStatKeys, newChapterLife as newLife, playYear,
 } from "../src/engine.ts";
 import { personAvatarTraits, personName } from "../src/peopleIdentity.ts";
@@ -42,7 +42,7 @@ function roundTrip(s) {
   assert.deepEqual(decodeSave(encodeSave(s)), s);
 }
 
-test("activities, story actions and longer outings share the yearly time budget", () => {
+test("distinct activities, story actions and longer outings can share a year", () => {
   const fresh = newLife(108);
   assert.ok(option(fresh, "gym.run").blocked);
   assert.ok(option(fresh, "social.onlyfans.register").blocked);
@@ -50,37 +50,32 @@ test("activities, story actions and longer outings share the yearly time budget"
   const chosen = pick(fresh);
   const afterRun = doActivity(chosen, "gym.run");
   assert.ok(afterRun.stats.health > chosen.stats.health);
-  assert.equal(commitmentsLeft(afterRun), 1);
   assert.strictEqual(doLifeActivity(afterRun, "gym.run"), afterRun);
   const afterMarket = doAction(afterRun, "market-morning");
-  assert.equal(commitmentsLeft(afterMarket), 0);
-  assert.strictEqual(doLifeActivity(afterMarket, "holidays.picnic"), afterMarket);
-  const next = advance(afterMarket);
-  assert.equal(commitmentsLeft(next), 2);
+  const afterPicnic = doActivity(afterMarket, "holidays.picnic");
+  assert.equal(afterPicnic.usedActions.length, 3);
+  roundTrip(afterPicnic);
+  const next = advance(afterPicnic);
   assert.ok(next.history.at(-1).statsDelta.brains > 0);
   roundTrip(next);
 
   const grown = pick(toAge(23));
   const trip = doActivity(grown, "holidays.abroad");
-  assert.equal(commitmentsLeft(trip), 0);
   roundTrip(trip);
 });
 
-test("an urgent in-game issue permits 112 independently of the story choice and free time", () => {
+test("an urgent in-game issue permits 112 before the story choice and after other activities", () => {
   const s = playYear(newLife(40));
   assert.equal(s.lifeSystems.medicalIssue, "urgent");
   assert.equal(s.choiceId, null);
   assert.ok(option(s, "hospital.clinic").blocked);
   const emergency = doActivity(s, "hospital.emergency");
-  assert.equal(commitmentsLeft(emergency), 2);
   assert.equal(emergency.lifeSystems.medicalIssue, null);
   assert.strictEqual(doLifeActivity(emergency, "hospital.emergency"), emergency);
   roundTrip(emergency);
 
   const full = doActivity(doActivity(pick(s), "hospital.grandma"), "holidays.picnic");
-  assert.equal(commitmentsLeft(full), 0);
   const after = doActivity(full, "hospital.emergency");
-  assert.equal(commitmentsLeft(after), 0);
   roundTrip(after);
 });
 
@@ -176,7 +171,7 @@ test("platform options require an account and posts have persistent followers an
   roundTrip(after);
 });
 
-test("profile actions use time, money and trust and replay with the same outcome", () => {
+test("profile actions use money and trust and replay with the same outcome", () => {
   const s=pick(toAge(16));
   assert.ok(getPersonActivities(s,"niki").some(action=>action.id==="people.niki.game"));
   assert.ok(!getPersonActivities(s,"niki").some(action=>action.id==="people.niki.gaming"));
@@ -186,7 +181,6 @@ test("profile actions use time, money and trust and replay with the same outcome
   const after=doLifeActivity(s,"people.rumi.coffee");
   assert.equal(after.trust.rumi,s.trust.rumi+7);
   assert.equal(after.cash,s.cash-800);
-  assert.equal(commitmentsLeft(after),commitmentsLeft(s)-1);
   assert.equal(after.history.at(-1).person,"rumi");
   assert.strictEqual(doLifeActivity(after,"people.rumi.coffee"),after);
   roundTrip(after);

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  advance, annualBudget, choose, commitmentsLeft, decodeSave, doAction, encodeSave,
+  advance, annualBudget, choose, decodeSave, doAction, encodeSave,
   getActions, getChoices, getScene, newChapterLife as newLife, playYear, yearRecap,
 } from "../src/engine.ts";
 import { actions, scenes } from "../src/story.ts";
@@ -61,7 +61,7 @@ test("the resolver cannot skip an open decision, reuse a choice or advance a sta
   assert.deepEqual(decodeSave(encodeSave(next)), next);
 });
 
-test("the move quotes agree with the ledger and the Friday agreement reserves time", () => {
+test("the move quotes agree with the ledger and preserve the Friday agreement", () => {
   const original = toAge(19);
   const rumi = move("rumi");
   const shared = move("shared");
@@ -70,8 +70,7 @@ test("the move quotes agree with the ledger and the Friday agreement reserves ti
   assert.equal(shared.deposit, 40000);
   assert.equal(rumi.deposit, 0);
   assert.equal(rumi.city, "sofia");
-  assert.equal(commitmentsLeft(rumi), 1);
-  assert.equal(commitmentsLeft(shared), 2);
+  assert.ok(rumi.flags.includes("fridays"));
   for (const [state, net] of [[rumi, 240000], [shared, 60000]]) {
     const next = advance(state);
     assert.equal(annualBudget(state).net, net);
@@ -104,17 +103,15 @@ test("the life journal retains choices, milestones and the balance for the year 
   assert.equal(stayedEvent.startedCareer, "woodcarver");
 });
 
-test("an optional commitment can be spent once, cannot overdraw capacity, and resets next year", () => {
+test("optional story actions can be taken once per year", () => {
   let s = move("rumi");
   const action = getActions(s)[0];
   assert.ok(action);
   const after = doAction(s, action.id);
-  assert.equal(commitmentsLeft(after), 0);
-  assert.deepEqual(getActions(after), []);
+  assert.ok(getActions(after).some(other => other.id !== action.id));
   assert.strictEqual(doAction(after, action.id), after);
   s = advance(after);
   assert.deepEqual(s.usedActions, []);
-  assert.equal(commitmentsLeft(s), 1);
   assert.deepEqual(getActions(s), []);
 });
 

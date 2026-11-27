@@ -54,9 +54,6 @@
 .people-profile-copy h2 { margin: 0 0 .22rem; color: #f6e4df; font-size: 1.12rem; line-height: 1.12; overflow-wrap: anywhere; }
 .people-profile-copy > small { color: var(--secondary); font-size: .76rem; }
 .people-profile-copy .people-meter { margin-top: .36rem; }
-.people-actions > .people-group-heading { display: flex; justify-content: space-between; align-items: center; gap: .4rem; }
-.people-actions > .people-group-heading span { display: flex; align-items: center; gap: .28rem; font-weight: 500; }
-.people-actions > .people-group-heading svg { color: #d4a9b6; }
 .people-action-entry { border-bottom: 1px solid #4b3b43; }
 .people-action {
   display: grid;

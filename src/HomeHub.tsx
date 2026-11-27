@@ -75,7 +75,7 @@ export function StartGuide({ l }: { l: Language }) {
     <li>{t("Започваш като новородено. Избери име, град на раждане и талант. Дневникът събира събитията и решенията ти.", "You start as a newborn. Choose your name, birth city and talent. The journal records your events and choices.")}</li>
     <li>{t("В „Даскало“ избираш училище. След 18 г. в „Кариера“ намираш следване, работа и осигуряване.", "Use Education to choose a school. From age 18, Career covers university, work and social insurance.")}</li>
     <li>{t("Натисни „+1 година“, за да продължиш. Дневникът показва какво се е случило през годината.", "Tap “+1 year” to move on. The journal shows what happened that year.")}</li>
-    <li>{t("В „Още“ избираш как да използваш свободното си време. Показателите под навигацията се променят с решенията, дейностите и изминалите години.", "Use More to decide how to spend your free time. The bars below navigation change with decisions, activities, and the passing years.")}</li>
+    <li>{t("В „Още“ ще намериш различни дейности. Показателите под навигацията се променят с решенията, дейностите и изминалите години.", "Open More to find activities. The bars below navigation change with decisions, activities, and the passing years.")}</li>
     <li>{t("Играта се запазва автоматично в този браузър. Миналите истории са в „Албум“.", "The game saves automatically in this browser. Past stories are in Album.")}</li>
   </ol>;
 }
