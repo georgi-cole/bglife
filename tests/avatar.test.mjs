@@ -4,6 +4,7 @@ import { avatarPresets, avatarStages, defaultAvatar, defaultMaleAvatar, getAvata
 import { advance, choose, continueLife, decodeSave, doLifeActivity, encodeSave, getChoices, newChapterLife as newLife } from "../src/engine.ts";
 import { personAge, personAvatarTraits, personGender } from "../src/peopleIdentity.ts";
 import { deserialize, serialize } from "../src/session.ts";
+import { startPregnancyPlay } from "../src/pregnancyTimeline.ts";
 
 const custom = {
   ...defaultAvatar, face: "diamond", hair: "slick", eyes: "narrow", brows: "angled", lips: "full",
@@ -80,7 +81,7 @@ test("a birthday changes the fitted avatar while a save and its album retain the
   assert.equal(getAvatarLook(adultLife.avatar, adultLife.age).traits.hair, "slick");
   assert.deepEqual(adultLife.avatar, custom);
   assert.deepEqual(deserialize(serialize({ life: adultLife, album: [teenageLife] })), {
-    life: continueLife(adultLife), album: [teenageLife],
+    life: startPregnancyPlay(continueLife(adultLife)), album: [teenageLife],
   });
 
   const legacy = JSON.parse(encodeSave(adultLife));

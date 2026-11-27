@@ -47,7 +47,7 @@ export function settlePeople(s: GameState): GameState {
       housing: id === "rumi" && result.housing === "rumi" ? "home" : result.housing,
       lifeSystems: {
         ...systems,
-        family: partner ? { ...systems.family, partner: null, bond: 0, stage: "single" } : systems.family,
+        family: partner ? { ...systems.family, partner: null, bond: 0, stage: "single", relationship: null } : systems.family,
         legacy: { heirs: keptHeirs, prepared: systems.legacy.prepared && keptHeirs.length > 0 },
       },
     };

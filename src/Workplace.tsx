@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Actions, Row } from "./Career.tsx";
 import type { GameState } from "./engine.ts";
+import { maternityStatus } from "./maternity.ts";
 import { netMonthly } from "./pathPolicy.ts";
 import type { Language } from "./session.ts";
 import { Icon, MenuTitle, copy, money } from "./ui.tsx";
@@ -17,6 +18,7 @@ export function Workplace({ s, l, onAction, onClose, onCareer }: {
 }) {
   const t = (bg: string, en: string) => copy(l, bg, en);
   const work = s.finished ? null : workplaceView(s);
+  const leave = maternityStatus(s);
   const [openPerson, setOpenPerson] = useState<string | null>(null);
   const last = s.history.at(-1);
   const feedback = last?.age === s.age && !last.decision && (last.id.startsWith("workplace.") || ["work.raise", "work.leave"].includes(last.id)) ? last : null;
@@ -90,8 +92,8 @@ export function Workplace({ s, l, onAction, onClose, onCareer }: {
         </div>
       </details>
     </> : <section className="career-card">
-      <h2>{t("Нямаш текуща работа", "No current job")}</h2>
-      <button className="secondary-button" type="button" onClick={onCareer}>{t("Към обявите", "Browse vacancies")}<Icon name="next" size={15}/></button>
+      <h2>{leave?.[l] ?? t("Нямаш текуща работа", "No current job")}</h2>
+      <button className="secondary-button" type="button" onClick={onCareer}>{leave ? t("Към кариерата", "Go to Career") : t("Към обявите", "Browse vacancies")}<Icon name="next" size={15}/></button>
     </section>}
   </section>;
 }

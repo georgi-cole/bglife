@@ -25,9 +25,13 @@ function StatChanges({ delta, l }: { delta: Memory["statsDelta"]; l: Language })
 
 const hasStatChanges = (delta: Memory["statsDelta"]) => Object.values(delta ?? {}).some(Boolean);
 
-function LifeEvent({ event, l, life, children }: { event: Memory; l: Language; life: GameState; children?: ReactNode }) {
+function LifeEvent({ event, l, life, latestWithId, children }: {
+  event: Memory; l: Language; life: GameState; latestWithId: boolean; children?: ReactNode;
+}) {
   const personEvent = event.kind === "action" && event.id.startsWith("people.");
-  const focusable = event.decision || personEvent || (event.kind === "action" && event.id.startsWith("city-life."));
+  const pregnancyEvent = event.kind === "event" && (event.id.startsWith("pregnancy-") || (event.id === "birth" && event.age > 0));
+  const familyEvent = pregnancyEvent || event.id === "relationship-anniversary" || event.id === "wedding-anniversary" || event.id.startsWith("maternity-");
+  const focusable = latestWithId && (event.decision || personEvent || familyEvent || (event.kind === "action" && event.id.startsWith("city-life.")));
   const eventDate = event.cityEvent && cityWeatherDate(event.cityEvent, l);
   const line = journalLine(event, l, life.birthFamily);
   const original = event.text[l];
@@ -41,6 +45,7 @@ function LifeEvent({ event, l, life, children }: { event: Memory; l: Language; l
   return <li className="life-event"
     id={focusable ? "life-event-" + event.age + "-" + event.id : undefined}
     tabIndex={focusable ? -1 : undefined} data-person-event={personEvent || undefined} data-event-id={event.id}>
+    {familyEvent && <span className="family-event-title">{event.title[l]}</span>}
     {showTitle || showOriginal || eventDate || hasChanges ? <details className="life-event-disclosure">
       <summary className={"life-event-line" + (event.decision ? " work-decision-line" : "")}>
         {event.decision && <Icon name="bag" size={14}/>}
@@ -118,12 +123,13 @@ export function LifeTimeline({ s, l, children, onAction }: { s: GameState; l: La
     <h1 id="timeline-heading" className="timeline-heading"><Icon name="journal" size={16}/>{copy(l, "Дневник", "Journal")}</h1>
     {groupLifeYears(s).map(({ age, events }) => {
       const latest = age === s.age;
+      const lastIndex = new Map(events.map((event, index) => [event.id, index]));
       return <section className={"life-year" + (latest ? " life-year-latest" : "")} key={age} data-life-year={age} aria-labelledby={"life-year-" + age}>
         <h2 className="life-year-title" id={"life-year-" + age} tabIndex={-1} aria-current={latest && !s.finished ? "step" : undefined}>
           {ageTitle(age, l)}
         </h2>
         {events.length > 0 ? <ul className="life-entries" role="list">
-          {events.map((event, index) => <LifeEvent key={event.kind + event.id + index} event={event} l={l} life={s}>
+          {events.map((event, index) => <LifeEvent key={event.kind + event.id + index} event={event} l={l} life={s} latestWithId={lastIndex.get(event.id)===index}>
             {latest && opportunity?.id === event.id && <div className="city-event-actions" data-city-opportunity>
               {opportunity.options.map(({ option, blocked }) => <button key={option.id} type="button" className="secondary-button"
                 data-action={option.id} disabled={blocked} onClick={() => onAction(option.id)}>

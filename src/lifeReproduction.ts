@@ -1,11 +1,13 @@
 import { hasSteadyIncome } from "./lifePath.ts";
+import { activeContraceptive, conceptionWithProtection, contraceptionNames, type Contraceptive } from "./contraception.ts";
+import { conceptionRoll, offerPregnancyCheck } from "./pregnancyTimeline.ts";
 import type { GameState, Text } from "./engine.ts";
 import { clinicChance, familyRoll, menopauseAge, naturalChance, type ConceptionMethod } from "./fertilityModel.ts";
 import type { ActivityBranch, ActivityResolution, LifeActivityDefinition, PartnerId } from "./lifeActivities.ts";
 import { isChild, personAge, personGender, type ContactId } from "./peopleIdentity.ts";
 import {
-  acceptAdoption, adoptionAges, adoptionSpouse, casualParent, conception, contactParent, isExpecting,
-  naturalParents, playerParent, updateReproduction, type Parent,
+  acceptAdoption, adoptionAges, adoptionSpouse, casualParent, conception, contactParent, familyEvent, familyPlayEnabled, isExpecting,
+  naturalParents, playerParent, updateReproduction, type Parent, type Parents,
 } from "./reproduction.ts";
 
 const t = (bg: string, en: string): Text => ({ bg, en });
@@ -17,10 +19,10 @@ const treated = (s: GameState) => s.lifeSystems.reproduction.treatmentUntil >= s
 
 type IntimacyChoice = "protected" | "unprotected" | "try";
 const modes = {
-  protected: { label: t("С предпазване", "Use protection"), description: t("И двамата сте съгласни да използвате предпазни средства.",
-    "You both agree to use protection.") },
-  unprotected: { label: t("Без предпазване", "Without protection"), description: t("И двамата приемате възможните последици.",
-    "You both agree to go ahead without protection.") },
+  protected: { label: t("С предпазване", "Use protection"), description: t("И двамата сте съгласни да използвате презерватив.",
+    "You both agree to use a condom.") },
+  unprotected: { label: t("Без предпазване", "Without protection"), description: t("И двамата сте съгласни да не използвате презерватив. Действащата контрацепция остава в сила.",
+    "You both agree to go without a condom. Any ongoing birth control still applies.") },
   try: { label: t("Опити за бебе", "Try for a baby"), description: t("Уговаряте се да опитате за дете в рамките на един цикъл.",
     "You agree to try for a baby over one cycle.") },
 } satisfies Record<IntimacyChoice, { label: Text; description: Text }>;
@@ -28,8 +30,48 @@ const intimacy: ActivityBranch = { id: "intimacy", label: t("Интимност"
   description: t("Обсъдете какво искате и с какво се чувствате комфортно.", "Talk about what you want and what you’re comfortable with.") };
 const ordinaryNight = t("Прекарахте вечерта заедно.", "You spent the evening together.");
 
+function encounterCount(s: GameState, partner: Parent["id"]): number {
+  const prefix = partner === "casual" ? "family.casual." : "people." + partner + ".intimacy.";
+  return s.usedActions.filter(id => id.startsWith(prefix)).length;
+}
+
+function naturalPregnancyCheck(s: GameState, parents: Parents, mode: IntimacyChoice, key: string, cycles = 1) {
+  const { mother } = parents;
+  const stimulation = mother.id === "player" && treated(s);
+  const basis = naturalChance(mother.age, menopauseFor(s, mother), mode === "try" || cycles > 1, stimulation);
+  if (basis === 0) return null;
+  const method = stimulation ? "stimulated" : "natural";
+  const chance = conceptionWithProtection(1 - (1 - basis) ** cycles,
+    mother.id === "player" ? activeContraceptive(s) : null, mode === "protected");
+  const positive = conceptionRoll(s, mother, chance, key);
+  const recoveredThisYear = s.lifeSystems.reproduction.recoveries[mother.id + "." + mother.name.bg]?.age === s.age;
+  const falseAlarm = !recoveredThisYear && familyRoll(s.seed, s.age, key + ".suspicion") < (cycles > 1 ? 0.024 : 0.02);
+  return positive || falseAlarm ? offerPregnancyCheck(s, parents, method, positive, key) : null;
+}
+
+export function backgroundPregnancy(s: GameState): GameState {
+  const { partner, bond, stage, relationship } = s.lifeSystems.family;
+  if (!familyPlayEnabled(s) || s.finished || s.age < 18 || !partner || s.deceased[partner] || bond < 48
+    || !relationship || (stage === "dating" && bond < 60) || isExpecting(s)
+    || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.deliveredAt === s.age - 1) return s;
+  const partnerParent = contactParent(s, partner);
+  if (partnerParent.age < 18) return s;
+  const parents = naturalParents(playerParent(s), partnerParent);
+  if (!parents) return s;
+  const check = naturalPregnancyCheck(s, parents, relationship.usesCondom === false ? "unprotected" : "protected",
+    "couple." + partner + "." + relationship.startedAt, 2);
+  return check ? familyEvent({ ...s, lifeSystems: check.lifeSystems }, "pregnancy-suspected",
+    t("Неочаквана новина", "Unexpected news"), check.result) : s;
+}
+
 function resolveIntimacy(s: GameState, partner: Parent, mode: IntimacyChoice): ActivityResolution {
   const parents = naturalParents(playerParent(s), partner);
+  if (familyPlayEnabled(s)) {
+    const count = encounterCount(s, partner.id);
+    const check = parents && !isExpecting(s)
+      ? naturalPregnancyCheck(s, parents, mode, partner.id + ".encounter." + count) : null;
+    return { result: ordinaryNight, stats: count === 0 ? { joy: 3 } : {}, ...check };
+  }
   if (mode === "protected" || !parents || isExpecting(s)) return { result: ordinaryNight, stats: { joy: 3 } };
   const { mother } = parents;
   const stimulation = mother.id === "player" && treated(s);
@@ -48,7 +90,7 @@ export function partnerIntimacy(contact: ContactId): LifeActivityDefinition[] {
   if (isChild(contact) || contact === "rumi" || contact === "niki") return [];
   const modesForPartner: IntimacyChoice[] = ["protected", "unprotected", "try"];
   return modesForPartner.map(mode => ({
-    id: "people." + contact + ".intimacy." + mode, category: "family", contact, minAge: 18, branch: intimacy,
+    id: "people." + contact + ".intimacy." + mode, category: "family", contact, minAge: 18, branch: intimacy, repeatable: true,
     ...modes[mode], result: ordinaryNight,
     visible: s => s.age >= 18 && s.lifeSystems.family.partner === contact && (personAge(s, contact) ?? 0) >= 18
       && (mode !== "try" || personGender(s, contact) !== playerParent(s).gender),
@@ -58,12 +100,19 @@ export function partnerIntimacy(contact: ContactId): LifeActivityDefinition[] {
         return t("И двамата трябва да сте готови за тази стъпка. Прекарайте още време заедно.",
           "You both need to feel ready for this step. Spend more time together.");
       }
-      return mode === "try" ? expecting(s) : null;
+      if (mode !== "try") return null;
+      if (familyPlayEnabled(s) && playerParent(s).gender === "female" && activeContraceptive(s)) {
+        return t("Промени метода за контрацепция в „Фертилност“, преди да планираш опити.",
+          "Review your birth control in Fertility before trying for a baby.");
+      }
+      return expecting(s);
     },
     resolve: s => {
-      const outcome = resolveIntimacy(s, contactParent(s, contact), mode);
+      const other = contactParent(s, contact);
+      const outcome = resolveIntimacy(s, other, mode);
       const systems = outcome.lifeSystems ?? s.lifeSystems;
-      return { ...outcome, lifeSystems: { ...systems, family: { ...systems.family, bond: Math.min(100, systems.family.bond + 3) } } };
+      const gain = familyPlayEnabled(s) && encounterCount(s, contact) > 0 ? 0 : 3;
+      return { ...outcome, lifeSystems: { ...systems, family: { ...systems.family, bond: Math.min(100, systems.family.bond + gain) } } };
     },
   }));
 }
@@ -81,17 +130,56 @@ const casualActivities: LifeActivityDefinition[] = (["protected", "unprotected"]
 }));
 
 export const canAccessFertility = (s: GameState): boolean => s.age >= 18 && s.avatar?.presentation !== "male";
+const canManageContraception = (s: GameState) => canAccessFertility(s) && familyPlayEnabled(s);
+const contraceptionOptions: { method: Contraceptive; cost: number; description: Text; result: Text }[] = [
+  { method: "pill", cost: 3500, description: t("Започни редовен прием за предпазване от бременност.",
+      "Start a regular method of birth control."),
+    result: t("Започна прием на противозачатъчни таблетки.", "You started taking birth control pills.") },
+  { method: "iud", cost: 14000, description: t("Уговори поставяне на медна спирала. В играта действа до десет години.",
+      "Arrange a copper IUD fitting. It lasts up to ten years in the game."),
+    result: t("Поставиха ти медна спирала.", "You had a copper IUD fitted.") },
+  { method: "tubal", cost: 48000, description: t("Връзване на маточните тръби. Решението е трайно, а рискът от бременност остава много малък.",
+      "Tubal ligation is a permanent choice. A very small chance of pregnancy remains."),
+    result: t("Избра трайна контрацепция чрез връзване на маточните тръби.", "You chose permanent contraception through tubal ligation.") },
+];
+
+const contraceptionActivities: LifeActivityDefinition[] = [
+  ...contraceptionOptions.map(({ method, cost, description, result }) => ({
+    id: "fertility.contraception-" + method, category: "fertility" as const, minAge: 18, beforeChoice: true, cost,
+    label: method === "tubal" ? t("Връзване на тръбите", "Tubal ligation") : contraceptionNames[method],
+    description, result, repeatable: true,
+    visible: (s: GameState) => canManageContraception(s) && activeContraceptive(s) !== "tubal",
+    requires: (s: GameState) => clinicRestriction(s) ?? (activeContraceptive(s) === method
+      ? t("Вече използваш този метод.", "You’re already using this method.") : null),
+    update: (s: GameState) => updateReproduction(s, { contraception: { method, startedAt: s.age } }),
+  })),
+  {
+    id: "fertility.contraception-stop", category: "fertility", minAge: 18, beforeChoice: true, repeatable: true,
+    label: t("Спри контрацепцията", "Stop birth control"),
+    description: t("Спри приема на таблетките или уговори премахване на спиралата.",
+      "Stop taking the pill or arrange to have the IUD removed."),
+    result: t("Прекрати текущия метод за контрацепция.", "You stopped your current birth control method."),
+    visible: s => canManageContraception(s) && activeContraceptive(s) !== "tubal" && s.lifeSystems.reproduction.contraception !== null,
+    requires: clinicRestriction,
+    update: s => updateReproduction(s, { contraception: null }),
+  },
+];
 
 function clinicRestriction(s: GameState): Text | null {
   if (s.lifeSystems.medicalIssue === "urgent") return t("Първо потърси помощ за спешния проблем.", "Get help for the urgent health issue first.");
   return expecting(s);
 }
 
-function fertilityClearance(s: GameState, donorEggs = false): Text | null {
+function fertilityClearance(s: GameState, method: ClinicalMethod | "treatment"): Text | null {
   const blocked = clinicRestriction(s);
   if (blocked) return blocked;
   if (s.lifeSystems.reproduction.evaluationAt === null) return t("Първо запази консултация.", "Book a fertility consultation first.");
-  if (donorEggs) return s.age > 50 || s.stats.health < 40
+  const contraception = activeContraceptive(s);
+  if (contraception === "pill" || contraception === "iud") return t("Първо промени контрацепцията си.", "Review your birth control first.");
+  if (contraception === "tubal" && (method === "iui" || method === "treatment")) {
+    return t("След тази операция можеш да обсъдиш инвитро с клиниката.", "You can discuss IVF with the clinic after this surgery.");
+  }
+  if (method === "donor-ivf") return s.age > 50 || s.stats.health < 40
     ? t("Клиниката не одобрява процедурата за този персонаж.", "The clinic hasn’t cleared this character for the procedure.") : null;
   return s.age >= menopauseFor(s, playerParent(s))
     ? t("Процедурата е недостъпна след настъпила менопауза.", "This option is unavailable after menopause.") : null;
@@ -113,7 +201,10 @@ function resolveProcedure(s: GameState, method: ClinicalMethod): ActivityResolut
   const father = partner && personGender(s, partner) === "male" && (personAge(s, partner) ?? 0) >= 18
     ? contactParent(s, partner) : null;
   const chance = clinicChance(method, s.age, menopauseFor(s, mother), treated(s));
-  if (familyRoll(s.seed, s.age, "clinic." + method) < chance) {
+  const key = "clinic." + method;
+  if (familyPlayEnabled(s)) return offerPregnancyCheck(s, { mother, father }, method,
+    conceptionRoll(s, mother, chance, key), key);
+  if (familyRoll(s.seed, s.age, key) < chance) {
     return { ...conception(s, { mother, father }, method), stats: { joy: 6 } };
   }
   return { result: t("Този опит не доведе до бременност. Клиниката предлага да обсъдите следващата стъпка.",
@@ -137,14 +228,14 @@ const fertilityActivities: LifeActivityDefinition[] = [
       "A supervised course that boosts natural attempts and insemination for two in-game years."),
     result: t("Започна лечение под наблюдение. То действа тази и следващата година.",
       "You started supervised treatment. It lasts through this year and the next."),
-    requires: s => fertilityClearance(s) ?? (treated(s) ? t("Лечението още действа.", "The treatment is still active.") : null),
+    requires: s => fertilityClearance(s, "treatment") ?? (treated(s) ? t("Лечението още действа.", "The treatment is still active.") : null),
     update: s => updateReproduction(s, { treatmentUntil: s.age + 1 }),
   },
   ...procedures.map(procedure => ({
     ...procedure, id: "fertility." + procedure.id, category: "fertility" as const, minAge: 18,
     visible: canAccessFertility, exclusive: "fertility-cycle",
     result: t("Приключи процедурата.", "You completed the procedure."),
-    requires: (s: GameState) => fertilityClearance(s, procedure.id === "donor-ivf"),
+    requires: (s: GameState) => fertilityClearance(s, procedure.id),
     resolve: (s: GameState) => resolveProcedure(s, procedure.id),
   })),
 ];
@@ -198,4 +289,4 @@ const adoptionActions: LifeActivityDefinition[] = [
   },
 ];
 
-export const lifeReproduction = [...casualActivities, ...fertilityActivities, ...adoptionActions];
+export const lifeReproduction = [...casualActivities, ...contraceptionActivities, ...fertilityActivities, ...adoptionActions];

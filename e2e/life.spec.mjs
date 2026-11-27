@@ -3,7 +3,9 @@ import { once } from "node:events";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import { builtGameServer, sitePath } from "./serve-built-game.mjs";
-import { doPathAction, newLife, playYear, startCareerLife } from "../src/engine.ts";
+import { choose, doLifeActivity, doPathAction, getChoices, newChapterLife, newLife, playYear, startCareerLife } from "../src/engine.ts";
+import { familyRoll } from "../src/fertilityModel.ts";
+import { startPregnancyPlay } from "../src/pregnancyTimeline.ts";
 import { getWorkDecision } from "../src/workplace.ts";
 import { serialize } from "../src/sessionCodec.ts";
 
@@ -91,6 +93,92 @@ test("the standalone playtest can open without network access", async ({ page, c
   await page.getByRole("button", { name: "Switch to English" }).tap();
   await page.getByRole("button", { name: /^New life/ }).tap();
   await expect(page.getByLabel("Birth city")).toBeVisible();
+});
+
+test("intimacy can repeat and a confirmed pregnancy changes Play until the birth", async ({ page }) => {
+  const first = "appMatch.encounter.0";
+  const second = "appMatch.encounter.1";
+  const seed = Array.from({ length: 1024 }, (_, i) => i).find(i =>
+    familyRoll(i, 21, first + ".conception") > 0.07 && familyRoll(i, 21, first + ".suspicion") > 0.02
+    && familyRoll(i, 21, second + ".conception") < 0.05 && familyRoll(i, 21, second + ".loss") > 0.2
+    && familyRoll(i, 21, second + ".late-loss") > 0.01);
+  expect(seed).toBeDefined();
+  const chooseStory = s => {
+    const choices = getChoices(s);
+    const option = choices.find(choice => choice.id === "stay") ?? choices[0];
+    return option ? choose(s, option.id) : s;
+  };
+  let life = newChapterLife(seed);
+  while (life.age < 21) {
+    const next = playYear(chooseStory(life));
+    expect(next.age).toBe(life.age + 1);
+    life = next;
+  }
+  life = startPregnancyPlay(doLifeActivity(chooseStory(life), "family.tinder"));
+  await page.addInitScript(saved => {
+    localStorage.setItem("bglife.language", "en");
+    if (!localStorage.getItem("bglife.journal.v1")) localStorage.setItem("bglife.journal.v1", saved);
+  }, serialize({ life, album: [] }));
+  await page.goto("./");
+  const resume = page.getByRole("button", { name: /^Continue.*Mila Nikolova/ });
+  await resume.tap();
+  await page.locator('[data-tab="people"]').tap();
+  await page.locator('[data-person="appMatch"]').tap();
+  await page.locator('[data-action-group="intimacy"]').tap();
+  await page.getByRole("button", { name: /Without protection/ }).tap();
+  const confirm = page.locator('.person-dialog-actions').getByRole("button", { name: "Confirm", exact: true });
+  await confirm.tap();
+  await page.getByRole("button", { name: "Repeat", exact: true }).tap();
+  await confirm.tap();
+
+  const alert = page.locator("[data-pregnancy-notice]");
+  await expect(alert).toHaveAttribute("data-pregnancy-notice", "test");
+  await alert.getByRole("button", { name: "Take the test" }).tap();
+  await expect(alert).toHaveAttribute("data-pregnancy-notice", "confirmed");
+  await alert.getByRole("button", { name: "Continue", exact: true }).tap();
+
+  const age = page.getByTestId("chapter-age");
+  const play = page.getByTestId("advance");
+  await expect(play).toHaveAttribute("data-play-mode", "pregnancy");
+  await expect(play).toHaveAccessibleName("Trimester 1");
+  await page.getByRole("button", { name: "End the pregnancy" }).tap();
+  await page.getByRole("dialog", { name: "End the pregnancy" }).getByRole("button", { name: "Back" }).tap();
+  await expect(play).toHaveAccessibleName("Trimester 1");
+  await play.tap();
+  await expect(page.locator('[data-event-id="pregnancy-dating-scan"]')).toBeVisible();
+  await expect(play).toHaveAccessibleName("Trimester 2");
+  await play.tap();
+  await expect(age).toHaveText(/^21(?!\d)/);
+  await expect(page.getByRole("button", { name: "End the pregnancy" })).toHaveCount(0);
+
+  await page.reload();
+  await resume.tap();
+  await expect(play).toHaveAccessibleName("Trimester 3");
+  await play.tap();
+  await expect(play).toHaveAccessibleName("Birth");
+  await play.tap();
+  const naming = page.locator("dialog.birth-naming");
+  await expect(naming).toBeVisible();
+  await naming.getByRole("button", { name: /^Save name/ }).tap();
+  await expect(play).toHaveAttribute("data-play-mode", "year");
+  await expect(age).toHaveText(/^21(?!\d)/);
+  const leave = page.locator("[data-maternity-status]");
+  await expect(leave).toContainText("Maternity leave · first year");
+  await leave.getByRole("button", { name: "Career" }).tap();
+  const careerLeave = page.locator("[data-career-maternity]");
+  await expect(careerLeave).toContainText("Benefit this year");
+  await expect(page.getByTestId("open-workplace")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Return to work", exact: true })).toHaveCount(0);
+  await play.tap();
+  await expect(age).toHaveText(/^22(?!\d)/);
+  await expect(leave).toContainText("Maternity leave · second year");
+  await leave.getByRole("button", { name: "Career" }).tap();
+  await expect(careerLeave).toContainText("4,785.72");
+  await careerLeave.getByRole("button", { name: "Return to work", exact: true }).tap();
+  await expect(careerLeave).toHaveCount(0);
+  await page.getByTestId("open-workplace").tap();
+  await expect(page.getByTestId("workplace").locator("[data-work-contact]")).toHaveCount(3);
+  await expect(age).toHaveText(/^22(?!\d)/);
 });
 
 function beforeWorkDecision() {
