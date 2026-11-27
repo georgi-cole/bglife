@@ -101,7 +101,8 @@ const actionIcons: Record<string,IconName> = {
   park:"leaf", bedtime:"journal", playground:"sun", "board-game":"sparkle", skate:"shoes",
   compliment:"sparkle", conversation:"people", gift:"bag", "give-money":"wallet", "ask-money":"wallet",
   walk:"places", fitness:"bolt", insult:"bolt", argue:"live", persuade:"heart", intimacy:"heart",
-  "family-time":"heart", "family-story":"journal",
+  "family-time":"heart", "family-story":"journal", "hold-hands":"heart", "first-kiss":"heart", kiss:"heart",
+  "inside-joke":"sparkle", "sunday-ritual":"clock", "future-together":"people",
 };
 
 function ActionRow({options,l,onClick}: {options:LifeActivityOption[];l:Language;onClick:()=>void}) {

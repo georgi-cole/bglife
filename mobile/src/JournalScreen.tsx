@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -9,9 +9,12 @@ import { getAvatarLook, getAvatarTreatments } from "../../src/avatar.ts";
 import { cleanFirstName } from "../../src/babyNames.ts";
 import { cityWeatherDate } from "../../src/cityLife.ts";
 import {
-  choose, defaultPlayChoice, doAction, doPathAction, getChoices, getCityOpportunity, getScene, nameNewborns, playYear, type GameState, type Memory,
+  choose, defaultPlayChoice, doAction, doMaternityReturn, doPathAction, doPregnancyAction, getChoices, getCityOpportunity, getScene,
+  nameNewborns, playYear, type GameState, type Memory,
 } from "../../src/engine.ts";
-import { newbornName, newbornSurname, type BirthNaming } from "../../src/reproduction.ts";
+import { maternityPay, maternityStatus, maternityYear } from "../../src/maternity.ts";
+import { canEndPregnancy, pregnancyNoticeCopy, pregnancyTurnLabel } from "../../src/pregnancyTimeline.ts";
+import { newbornName, newbornSurname, pregnancyStatus, type BirthNaming } from "../../src/reproduction.ts";
 import type { Language } from "../../src/sessionCodec.ts";
 import { getWorkDecision } from "../../src/workplace.ts";
 import { Avatar } from "./Avatar";
@@ -198,27 +201,43 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
   if (!life || !look) return <View style={base.page} />;
 
   const age = life.age;
-  const birth = life.lifeSystems.reproduction.naming;
+  const { naming: birth, notice } = life.lifeSystems.reproduction;
+  const turn = pregnancyTurnLabel(life);
+  const pregnancy = pregnancyStatus(life);
+  const pregnancyPrompt = !archived && focused && notice ? pregnancyNoticeCopy(notice) : null;
+  const maternity = maternityStatus(life);
   const scene = getScene(life);
   const choices = getChoices(life);
   const opportunity = archived ? null : getCityOpportunity(life);
   const workDecision = !archived && focused ? getWorkDecision(life) : null;
-  const blocked = Boolean(birth || (scene && life.choiceId === null && !defaultPlayChoice(life)));
+  const blocked = Boolean(birth || notice || (!turn && scene && life.choiceId === null && !defaultPlayChoice(life)));
 
-  function takeCityAction(id: string) {
-    void updateSession(current => {
-      const next = doAction(current.life, id, age);
+  function changeLife(change: (state: GameState) => GameState) {
+    return updateSession(current => {
+      if (archived || current.life !== life) return current;
+      const next = change(current.life);
       return next === current.life ? current : { ...current, life: next };
     });
   }
 
   async function advance() {
     void selectionAsync().catch(() => {});
-    const changed = await updateSession(current => {
-      const next = playYear(current.life, age);
-      return next === current.life ? current : { ...current, life: next };
-    });
+    const changed = await changeLife(current => playYear(current, age));
     if (changed) list.current?.scrollToOffset({ offset: 0, animated: true });
+  }
+
+  function proceedWithPregnancyNotice() {
+    void changeLife(current => doPregnancyAction(current, notice?.kind === "test" ? "pregnancy-test" : "pregnancy-read", age));
+  }
+
+  function askToEndPregnancy() {
+    Alert.alert(t("Прекъсване на бременността", "End the pregnancy"),
+      t("Потвърди решението си. След това Play се връща към годишния цикъл.",
+        "Confirm your decision. Play then returns to the yearly cycle."), [
+        { text: text.cancel, style: "cancel" },
+        { text: t("Потвърди", "Confirm"), style: "destructive",
+          onPress: () => { void changeLife(current => doPregnancyAction(current, "pregnancy-end", age)); } },
+      ]);
   }
 
   return (
@@ -226,7 +245,7 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
       <FlatList ref={list} data={years} keyExtractor={year => String(year.age)} contentContainerStyle={base.scroll}
         keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets
         renderItem={({ item }) => <YearCard year={item} language={language} current={item.age === age && !life.finished && !archived}
-          opportunity={opportunity} saving={saving} onCityAction={takeCityAction} />}
+          opportunity={opportunity} saving={saving} onCityAction={id => { void changeLife(current => doAction(current, id, age)); }} />}
         ListHeaderComponent={(
           <View style={styles.journalHeader}>
             <View style={styles.profile}>
@@ -243,10 +262,22 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
             {!archived && !life.finished && life.path && age >= 7 && <View style={base.row}>
               <Button label={age < 18 ? t("Даскало", "Education") : t("Кариера", "Career")} secondary testID="open-career"
                 onPress={() => navigation.navigate("Occupation", { section: "career" })}/>
-              {life.path.work.job && <Button label={t("Работа", "Work")} secondary testID="open-workplace"
+              {life.path.work.job && !maternity && <Button label={t("Работа", "Work")} secondary testID="open-workplace"
                 onPress={() => navigation.navigate("Occupation", { section: "work" })}/>}
             </View>}
             {life.finished && <Text style={base.section} testID="life-ended">{t("Животът приключи", "Life ended")}</Text>}
+            {!archived && pregnancy && <View style={base.card}>
+              <Text style={base.section}>{pregnancy[language]}</Text>
+              {canEndPregnancy(life) && <Button label={t("Прекъсване по желание", "End the pregnancy")} secondary
+                disabled={saving} onPress={askToEndPregnancy} />}
+            </View>}
+            {!archived && maternity && <View style={base.card}>
+              <Text style={base.section}>{maternity[language]}</Text>
+              <Text style={base.body}>{t("Обезщетение за годината", "Benefit this year")} · {money(maternityPay(life), language)}</Text>
+              {maternityYear(life) === 2 && <Button label={life.path?.work.job ? t("Върни се на работа", "Return to work")
+                : t("Приключи отпуска", "End maternity leave")} secondary disabled={saving || Boolean(birth || notice)}
+                onPress={() => { void changeLife(current => doMaternityReturn(current, age)); }} />}
+            </View>}
             {!archived && birth && <BirthNames key={life.seed + "-" + life.age} life={life} birth={birth} />}
             {!archived && !birth && !life.finished && scene && choices.length > 0 && (
               <View style={base.card}>
@@ -254,10 +285,7 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
                 <Text style={base.body}>{scene.body[language]}</Text>
                 {choices.map(option => (
                   <Button key={option.id} label={option.label[language]} secondary disabled={saving}
-                    onPress={() => { void updateSession(current => {
-                      const next = choose(current.life, option.id, life.age);
-                      return next === current.life ? current : { ...current, life: next };
-                    }); }} />
+                    onPress={() => { void changeLife(current => choose(current, option.id, age)); }} />
                 ))}
               </View>
             )}
@@ -268,17 +296,32 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
         <View style={styles.dock}>
           {life.finished
             ? <Button style={styles.play} label={text.newLife} onPress={() => navigation.replace("NewLife")} />
-            : <Button style={styles.play} label={text.ageUp} testID="advance-year" disabled={saving || blocked}
-                onPress={() => { void advance(); }} />}
+            : <Button label={turn?.[language] ?? text.ageUp} style={[styles.play, turn && styles.pregnancyPlay]}
+                testID="advance-year" disabled={saving || blocked} onPress={() => { void advance(); }} />}
           <Button label={assetTitle[language]} testID="assets" secondary onPress={() => navigation.navigate("Assets")} />
         </View>
       )}
+      {pregnancyPrompt && <Modal transparent animationType="fade" onRequestClose={() => {
+        if (!saving && notice?.kind !== "test") proceedWithPregnancyNotice();
+      }}>
+        <View style={styles.modalShade}>
+          <View style={[base.card, styles.modalCard]} accessibilityViewIsModal>
+            <Text accessibilityRole="header" style={base.section}>{pregnancyPrompt.title[language]}</Text>
+            <Text style={base.body}>{pregnancyPrompt.text[language]}</Text>
+            <Button label={pregnancyPrompt.action[language]} style={styles.pregnancyPlay}
+              disabled={saving} onPress={proceedWithPregnancyNotice} />
+          </View>
+        </View>
+      </Modal>}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   journalHeader: { gap: 16 },
+  pregnancyPlay: { backgroundColor: "#7B3656" },
+  modalShade: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20, backgroundColor: "#231924B3" },
+  modalCard: { width: "100%", maxWidth: 450 },
   profile: {
     backgroundColor: color.deep, borderRadius: 19, padding: 14, flexDirection: "row", alignItems: "center", gap: 14,
   },

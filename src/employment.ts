@@ -1,6 +1,7 @@
 import { cities, type City } from "./cities.ts";
 import { jobTypes, type JobId } from "./cityPaths.ts";
 import type { Career, GameState, Text } from "./engine.ts";
+import { maternityPay, onMaternityLeave } from "./maternity.ts";
 import { average, limit, pathRoll, type PathAction, type PathEvent } from "./pathActions.ts";
 import { fields, legacyGenericJob, legacyLocalJobId, pathCities, pathMoney, pathText as t, type Field, type Job } from "./pathCatalog.ts";
 import { netMonthly, policy } from "./pathPolicy.ts";
@@ -161,6 +162,7 @@ function registered(s: GameState, work: EmploymentState, field: RegulatedField) 
 
 export function currentJobActions(s: GameState, work: EmploymentState): PathAction<EmploymentState>[] {
   const actions: PathAction<EmploymentState>[] = [];
+  if (onMaternityLeave(s)) return actions;
   const current = work.job;
   const job = current && findJob(current.city, current.job);
   if (current && job) {
@@ -198,6 +200,7 @@ export function currentJobActions(s: GameState, work: EmploymentState): PathActi
 }
 
 export function workView(s: GameState, work: EmploymentState) {
+  if (onMaternityLeave(s)) return { actions: [], vacancies: [] };
   const actions = currentJobActions(s, work);
   const vacancies = s.age < MIN_YOUTH_AGE ? [] : pathCities[s.city].jobs.filter(job => s.age >= 18 || job.youth);
   if (s.age < MIN_YOUTH_AGE) return { actions, vacancies };
@@ -337,7 +340,8 @@ export function healthCoverage(s: GameState, work: EmploymentState): HealthCover
 }
 
 export function employmentIncome(s: GameState, work: EmploymentState) {
-  const wage = work.job ? activeMonths(work.job) * netMonthly(work.job.gross) : 0;
+  const maternity = maternityPay(s, work);
+  const wage = work.job && !onMaternityLeave(s) ? activeMonths(work.job) * netMonthly(work.job.gross) : 0;
   const benefit = work.benefit ? work.benefit.daily * WORKDAYS_PER_MONTH * work.benefit.months : 0;
   const pension = work.pension ? work.pension.monthly * 12 : 0;
   const coverage = healthCoverage(s, work);
@@ -347,7 +351,7 @@ export function employmentIncome(s: GameState, work: EmploymentState) {
       && !(s.age < 26 && s.path?.university.student && !s.path.university.student.paused)
       && !(s.age < 22 && s.path?.school.grade != null && !s.path.school.left) ? (12 - activeMonths(work.job)) * policy.ownHealth
       : 0;
-  return { wage, benefit, pension, health };
+  return { wage, benefit, pension, health, maternity };
 }
 
 export function closeEmploymentYear(s: GameState, work: EmploymentState) {
@@ -365,13 +369,14 @@ export function closeEmploymentYear(s: GameState, work: EmploymentState) {
   };
   const events: PathEvent[] = [];
   if (current) {
-    const performance = limit(current.performance + (work.worked ? 1 : s.stats.health < 50 ? -5 : -2), 0, 100);
+    const onLeave = onMaternityLeave(s);
+    const performance = onLeave ? current.performance : limit(current.performance + (work.worked ? 1 : s.stats.health < 50 ? -5 : -2), 0, 100);
     const remaining = current.monthsLeft === null ? null : current.monthsLeft - months;
     const expired = remaining !== null && remaining === 0;
-    const dismissed = !expired && performance < 35 && pathRoll(s, "dismissal." + current.job) < .48;
+    const dismissed = !onLeave && !expired && performance < 35 && pathRoll(s, "dismissal." + current.job) < .48;
     next.job = expired || dismissed ? null : { ...current, monthsLeft: remaining, tenure: current.tenure + months, performance };
     const title = findJob(current.city, current.job)?.title ?? t("Трудов договор", "Employment contract");
-    events.push({ id: "work-year-" + s.age, title,
+    if (!onLeave) events.push({ id: "work-year-" + s.age, title,
       note: t(months + " месеца с трудов договор. Отчетени са заплатата и осигуровките.", months + " months on contract. Pay and contributions have been recorded.") });
     if (expired || dismissed) {
       next.separation = { age: s.age + 1, reason: expired ? "expiry" : "dismissal" };

@@ -1,6 +1,10 @@
 import { cleanFirstName } from "./babyNames.ts";
 import { getPeopleActivityDefinitions } from "./peopleActivities.ts";
-import { applyNewbornNames, settleReproductionYear, updateReproduction, type SurnameSource } from "./reproduction.ts";
+import { applyNewbornNames, familyPlayEnabled, settleReproductionYear, updateReproduction, type SurnameSource } from "./reproduction.ts";
+import { backgroundPregnancy } from "./lifeReproduction.ts";
+import { advancePregnancy, dismissPregnancyNotice, resolvePregnancyCheck, startPregnancyPlay, terminatePregnancy } from "./pregnancyTimeline.ts";
+import { markAnniversaries, trackRelationship } from "./relationships.ts";
+import { markMaternityYear, maternityPay, onMaternityLeave, returnFromMaternity } from "./maternity.ts";
 import { cities, inCityBg, isCity, type City } from "./cities.ts";
 import { generateBirthFamily, isKin, type BirthFamily } from "./birthFamily.ts";
 import { cityPaths, jobTypes, studyFields, type Enrollment, type JobId, type SchoolLevel } from "./cityPaths.ts";
@@ -66,13 +70,21 @@ export type Scene = {
   choices: Option[];
   when?: Condition;
   priority?: number;
+  requiresWork?: boolean;
 };
-export type Action = Option & { minAge?: number; maxAge?: number };
+export type Action = Option & { minAge?: number; maxAge?: number; requiresWork?: boolean };
 
+const pregnancyActions = {
+  "pregnancy-test": resolvePregnancyCheck,
+  "pregnancy-read": dismissPregnancyNotice,
+  "pregnancy-turn": advancePregnancy,
+  "pregnancy-end": terminatePregnancy,
+};
+export type PregnancyAction = keyof typeof pregnancyActions;
 export type Command =
   | { age: number; kind: "choice" | "action" | "path"; id: string }
   | { age: number; kind: "year"; cityEvent?: CityEventRoll | null; workEvent?: string }
-  | { age: number; kind: "end" }
+  | { age: number; kind: "end" | "maternity-return" | PregnancyAction }
   | { age: number; kind: "name-children"; names: string[]; surname: SurnameSource };
 export type Memory = {
   age: number;
@@ -151,8 +163,10 @@ function eligible(s: GameState, filter?: Condition): boolean {
 function sceneForYear(s: GameState): string {
   if (!s.storyRoute || s.age < CHAPTER_START || s.age > CHAPTER_END) return "";
   if (s.path && s.age === 18 && (s.path.school.grade !== 12 || s.path.school.left)) return "";
-  const eligibleScenes = scenes.filter((scene) => scene.age === s.age && eligible(s, scene.when));
-  if (eligibleScenes.length === 0) throw new Error("Missing eligible scene for age " + s.age);
+  const matches = scenes.filter((scene) => scene.age === s.age && eligible(s, scene.when));
+  if (matches.length === 0) throw new Error("Missing eligible scene for age " + s.age);
+  const eligibleScenes = onMaternityLeave(s) ? matches.filter(scene => !scene.requiresWork) : matches;
+  if (!eligibleScenes.length) return "";
   const priority = Math.max(...eligibleScenes.map((scene) => scene.priority ?? 0));
   const pool = eligibleScenes.filter((scene) => (scene.priority ?? 0) === priority);
   // Keep a stable draw even when the player backgrounds or reopens a decision.
@@ -181,7 +195,7 @@ function createLife(seed: number, avatar: AvatarTraits | null, birthCity: City, 
   };
   s.sceneId = sceneForYear(s);
   if (!chapter) s.history.push(birthEntry(s));
-  return s;
+  return chapter ? s : startPregnancyPlay(s);
 }
 
 export function newLife(seed = randomSeed(), avatar: AvatarTraits | null = null, city: City = "tryavna"): GameState {
@@ -253,12 +267,13 @@ function available(s: GameState, option: Option): boolean {
 }
 
 export function getChoices(s: GameState): Option[] {
-  if (s.finished || s.choiceId !== null || s.lifeSystems.reproduction.naming) return [];
+  if (s.finished || s.choiceId !== null || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice) return [];
   return getScene(s)?.choices.filter((option) => available(s, option)) ?? [];
 }
 
 /** The Play button can take the displayed low-commitment choice on behalf of the player. */
 export function defaultPlayChoice(s: GameState): Option | undefined {
+  if (s.lifeSystems.reproduction.pregnancy?.gestation) return undefined;
   const choices = getChoices(s);
   if (s.sceneId === "spare-key") return choices.find((option) => option.id === "stay");
   return choices.find((option) => (option.effect?.cash ?? 0) >= 0
@@ -268,7 +283,9 @@ export function defaultPlayChoice(s: GameState): Option | undefined {
 }
 
 export function playYear(s: GameState, expectedAge = s.age): GameState {
-  if (s.age !== expectedAge || s.finished || s.lifeSystems.reproduction.naming) return s;
+  const { pregnancy, naming, notice } = s.lifeSystems.reproduction;
+  if (s.age !== expectedAge || s.finished || naming || notice) return s;
+  if (pregnancy?.gestation) return doPregnancyAction(s, "pregnancy-turn", expectedAge);
   if (!s.sceneId || s.choiceId !== null) return advance(s, expectedAge);
   const option = defaultPlayChoice(s);
   return option ? advance(choose(s, option.id, expectedAge), expectedAge) : s;
@@ -311,7 +328,7 @@ function studyActions(s: GameState): Action[] {
 }
 
 function workActions(s: GameState): Action[] {
-  if (s.sceneId || s.age < 19 || s.retirement || s.career !== "student" || s.localJob) return [];
+  if (s.sceneId || s.age < 19 || s.retirement || s.career !== "student" || s.localJob || onMaternityLeave(s)) return [];
   if (!s.profile) return [localWork];
   if (s.enrollment && s.enrollment.graduationAge > s.age) return [];
   return cityPaths[s.city].jobs.map(id => ({
@@ -322,9 +339,11 @@ function workActions(s: GameState): Action[] {
 }
 
 export function getActions(s: GameState): Action[] {
-  if (s.finished || (s.sceneId && s.choiceId === null) || s.lifeSystems.reproduction.naming) return [];
+  if (s.finished || (s.sceneId && s.choiceId === null) || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice) return [];
+  const onLeave = onMaternityLeave(s);
   const availableActions = s.sceneId ? actions.filter((action) =>
     s.age >= (action.minAge ?? CHAPTER_START) && s.age <= (action.maxAge ?? CHAPTER_END)
+    && (!onLeave || !action.requiresWork)
     && (!s.path || action.id !== "extra-shift" || s.path.work.job?.job.startsWith("sofia-qa"))
     && !s.usedActions.includes(action.id) && available(s, action),
   ) : [];
@@ -346,6 +365,7 @@ export function moveBlocker(s: GameState, city: City): Text | null {
     en: "You can move independently from age 18.",
   };
   if (s.lifeSystems.reproduction.naming) return { bg: "Първо запиши името на бебето.", en: "Name the new baby first." };
+  if (s.lifeSystems.reproduction.notice) return { bg: "Първо виж съобщението за бременността.", en: "Read the pregnancy update first." };
   if (city === s.city) return { bg: "Вече живееш в този град.", en: "You already live in this city." };
   if (s.path) {
     if (s.sceneId === "spare-key" && s.choiceId === null)
@@ -382,8 +402,9 @@ export function pocketMoney(s: GameState): number {
 }
 
 function baseBudget(s: GameState): BaseBudget {
+  const maternity = maternityPay(s);
   if (s.age < 19 || s.career === "student") {
-    const pay = pocketMoney(s);
+    const pay = pocketMoney(s) + maternity;
     return { pay, essentials: 0, housing: 0, net: pay };
   }
   const payScale = s.localJob ? jobTypes[s.localJob].pay : s.city === "sofia" ? 1_380_000 : 1_110_000;
@@ -391,7 +412,7 @@ function baseBudget(s: GameState): BaseBudget {
   const livingCosts = s.city === "sofia" ? 660_000 : 510_000;
   const homeCosts = { home: 150_000, rumi: 180_000, shared: 360_000 }[s.housing];
   const retired = s.retirement !== null;
-  const pay = s.retirement?.payment ?? salary;
+  const pay = (s.retirement?.payment ?? (onMaternityLeave(s) ? 0 : salary)) + maternity;
   const essentials = retired ? Math.round(livingCosts * 0.78) : livingCosts;
   const housing = retired ? Math.round(homeCosts * 0.80) : homeCosts;
   return { pay, essentials, housing, net: pay - essentials - housing };
@@ -476,7 +497,7 @@ export function getCityOpportunity(s: GameState) {
 }
 
 export function doAction(s: GameState, actionId: string, expectedAge = s.age): GameState {
-  if (s.age !== expectedAge) return s;
+  if (s.age !== expectedAge || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice) return s;
   if (actionId.startsWith("city-life.")) {
     const choice = getCityOpportunity(s)?.options.find(row => row.option.id === actionId);
     return choice && !choice.blocked ? applyOption(s, "action", choice.option, choice.option.label) : s;
@@ -538,12 +559,13 @@ function applyLifeActivity(s: GameState, id: string, expectedAge: number, replay
     },
   };
   const result = applyOption(s, "action", option, label);
-  const lifeSystems = resolution?.lifeSystems ?? definition.update?.(s) ?? s.lifeSystems;
+  const changedSystems = resolution?.lifeSystems ?? definition.update?.(s) ?? s.lifeSystems;
+  const lifeSystems = trackRelationship(s, changedSystems, id);
   return { ...result, lifeSystems: definition.resolvesMedicalIssue ? treatHealth(lifeSystems, s.age) : lifeSystems };
 }
 
 export function doPathAction(s: GameState, id: string, expectedAge = s.age): GameState {
-  if (s.finished || s.age !== expectedAge || !s.path || s.lifeSystems.reproduction.naming) return s;
+  if (s.finished || s.age !== expectedAge || !s.path || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice) return s;
   let result = resolvePathAction(s, id);
   if (!result) return s;
   let base = s;
@@ -576,8 +598,20 @@ export function nameNewborns(s: GameState, names: string[], surname: SurnameSour
   return next === s ? s : { ...next, commands: [...s.commands, { age: s.age, kind: "name-children", names: clean, surname }] };
 }
 
+export function doPregnancyAction(s: GameState, kind: PregnancyAction, expectedAge = s.age): GameState {
+  if (s.finished || s.age !== expectedAge || !familyPlayEnabled(s)) return s;
+  const next = pregnancyActions[kind](s);
+  return next === s ? s : { ...next, commands: [...s.commands, { age: s.age, kind }] };
+}
+
+export function doMaternityReturn(s: GameState, expectedAge = s.age): GameState {
+  if (s.age !== expectedAge) return s;
+  const next = returnFromMaternity(s);
+  return next === s ? s : { ...next, commands: [...s.commands, { age: s.age, kind: "maternity-return" }] };
+}
+
 export function giveUp(s: GameState, expectedAge = s.age): GameState {
-  if (s.finished || s.age !== expectedAge || s.lifeSystems.reproduction.naming) return s;
+  if (s.finished || s.age !== expectedAge || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice) return s;
   const memory: Memory = {
     age: s.age, city: s.city, kind: "end", id: "end-" + s.age, witnesses: [], cashDelta: 0,
     title: { bg: "Край на историята", en: "End of the story" },
@@ -588,7 +622,7 @@ export function giveUp(s: GameState, expectedAge = s.age): GameState {
   };
   return {
     ...s, finished: true, endReason: "gaveUp", sceneId: "", choiceId: null,
-    lifeSystems: updateReproduction(s, { pregnancy: null, adoption: null }),
+    lifeSystems: updateReproduction(s, { pregnancy: null, adoption: null, notice: null }),
     history: [...s.history, memory], commands: [...s.commands, { age: s.age, kind: "end" }],
   };
 }
@@ -605,7 +639,8 @@ export function advance(s: GameState, expectedAge = s.age): GameState {
 
 function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRoll | null | "draw" | undefined,
   workResult?: string): GameState {
-  if (s.finished || s.age !== expectedAge || (s.sceneId && s.choiceId === null) || s.lifeSystems.reproduction.naming) return s;
+  const { pregnancy, naming, notice } = s.lifeSystems.reproduction;
+  if (s.finished || s.age !== expectedAge || (s.sceneId && s.choiceId === null) || naming || notice || pregnancy?.gestation) return s;
   const full = s.lifespanStart !== null;
   const death = full ? rollDeath({
     age: s.age, sex: s.avatar?.presentation ?? "female", city: s.city, player: true,
@@ -628,6 +663,9 @@ function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRol
       bg: `Доход ${currency(budget.pay, "bg-BG")} · Издръжка ${currency(budget.essentials, "bg-BG")} · Дом ${currency(budget.housing, "bg-BG")}.`,
       en: `Income ${currency(budget.pay, "en-IE")} · Everyday costs ${currency(budget.essentials, "en-IE")} · Housing ${currency(budget.housing, "en-IE")}.`,
     };
+  const maternity = pathFinances?.maternity ?? maternityPay(s);
+  if (maternity) notes.push(pathText("Обезщетение за майчинство " + currency(maternity, "bg-BG") + ".",
+    "Maternity benefit " + currency(maternity, "en-IE") + "."));
   if (pathFinances?.tuition) notes.push(pathText("Такса за обучение " + currency(pathFinances.tuition, "bg-BG") + ".",
     "Tuition " + currency(pathFinances.tuition, "en-IE") + "."));
   if (pathFinances?.health) notes.push(pathText("Лични здравни вноски " + currency(pathFinances.health, "bg-BG") + ".",
@@ -692,14 +730,15 @@ function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRol
   }
   if (finished) return workResult && workResult !== "draw" ? s : next;
   const withFamily = settleReproductionYear(next);
-  if (!full) return withFamily;
+  if (!full) return familyPlayEnabled(s) ? backgroundPregnancy(markAnniversaries(markMaternityYear(withFamily, true))) : withFamily;
   const opening = withFamily.history.slice(openingStart);
   // Optional family conversations must not change the everyday memories when an older transcript is replayed.
   const everyday = everydayEvents(withFamily, opening.filter(event => event.id !== "family-questions"));
-  const year = everyday.length ? { ...withFamily, history: [...withFamily.history.slice(0, openingStart), ...everyday, ...opening] } : withFamily;
+  const yearWithMemories = everyday.length ? { ...withFamily, history: [...withFamily.history.slice(0, openingStart), ...everyday, ...opening] } : withFamily;
+  const year = familyPlayEnabled(s) ? backgroundPregnancy(markAnniversaries(markMaternityYear(yearWithMemories, true))) : yearWithMemories;
   const workId = workResult === "draw" ? drawWorkEvent(year) : workResult;
   if (!workId) return year;
-  const otherDecision = year.sceneId || year.lifeSystems.reproduction.naming || getCityOpportunity(year);
+  const otherDecision = year.sceneId || year.lifeSystems.reproduction.naming || year.lifeSystems.reproduction.notice || getCityOpportunity(year);
   if (otherDecision) return workResult === "draw" ? year : s;
   const queued = queueWorkEvent(year, workId);
   if (queued === year) return s;
@@ -709,10 +748,11 @@ function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRol
 
 /** Store the portrait's starting traits and replay the commands that shaped the life. */
 export function encodeSave(s: GameState): string {
-  const { familyEventsFrom } = s.lifeSystems.reproduction;
+  const { familyEventsFrom, familyPlayFrom } = s.lifeSystems.reproduction;
   const base = {
     format: FORMAT, seed: s.seed, ...(s.avatar && { avatar: s.avatar }),
-    ...(familyEventsFrom !== null && { familyEventsFrom }), ...(s.careerFrom !== null && { careerFrom: s.careerFrom }), commands: s.commands,
+    ...(familyEventsFrom !== null && { familyEventsFrom }), ...(familyPlayFrom !== null && { familyPlayFrom }),
+    ...(s.careerFrom !== null && { careerFrom: s.careerFrom }), commands: s.commands,
   };
   if (s.lifespanStart === null) return JSON.stringify({ ...base, version: 1, content: ORIGINAL_CONTENT });
   const edition = s.careerFrom !== null ? { version: 4, content: CAREER_CONTENT }
@@ -746,6 +786,9 @@ export function decodeSave(raw: string): GameState | null {
     const familyEventsFrom = saved.familyEventsFrom ?? null;
     if (familyEventsFrom !== null && (typeof familyEventsFrom !== "number" || !Number.isInteger(familyEventsFrom)
       || familyEventsFrom < 0 || familyEventsFrom > saved.commands.length)) return null;
+    const familyPlayFrom = saved.familyPlayFrom ?? null;
+    if (familyPlayFrom !== null && (typeof familyPlayFrom !== "number" || !Number.isInteger(familyPlayFrom)
+      || familyPlayFrom < 0 || familyPlayFrom > saved.commands.length)) return null;
     const avatar = "avatar" in saved ? parseAvatar(saved.avatar) : null;
     if ("avatar" in saved && !avatar) return null;
     const upgradeAt = (full || (career && !profiled)) && "upgradeAt" in saved ? saved.upgradeAt : null;
@@ -758,7 +801,7 @@ export function decodeSave(raw: string): GameState | null {
     let s = legacy || upgradeAt !== null ? newChapterLife(saved.seed, avatar) : profile && avatar
       ? newProfileLife({ seed: saved.seed, city: saved.birthCity as City, presentation: avatar.presentation ?? "female", avatar, profile })
       : newLife(saved.seed, avatar, saved.birthCity as City);
-    s = { ...s, lifeSystems: updateReproduction(s, { familyEventsFrom }) };
+    s = { ...s, lifeSystems: updateReproduction(s, { familyEventsFrom, familyPlayFrom: null }) };
     function checkpoints(index: number): boolean {
       if (index === upgradeAt) {
         s = continueLife(s);
@@ -767,6 +810,10 @@ export function decodeSave(raw: string): GameState | null {
       if (index === careerFrom) {
         s = startCareerLife(s);
         if (s.careerFrom !== index) return false;
+      }
+      if (index === familyPlayFrom) {
+        s = startPregnancyPlay(s);
+        if (s.lifeSystems.reproduction.familyPlayFrom !== index) return false;
       }
       return true;
     }
@@ -786,6 +833,12 @@ export function decodeSave(raw: string): GameState | null {
       } else if (c.kind === "end") {
         if ("id" in c || "cityEvent" in c || "workEvent" in c) return null;
         next = giveUp(s, s.age);
+      } else if (c.kind === "maternity-return") {
+        if ("id" in c || "cityEvent" in c) return null;
+        next = doMaternityReturn(s, s.age);
+      } else if (typeof c.kind === "string" && Object.hasOwn(pregnancyActions, c.kind)) {
+        if ("id" in c || "cityEvent" in c) return null;
+        next = doPregnancyAction(s, c.kind as PregnancyAction, s.age);
       } else if (c.kind === "name-children") {
         if (!Array.isArray(c.names) || !c.names.every(name => typeof name === "string")
           || (c.surname !== "mother" && c.surname !== "father")) return null;

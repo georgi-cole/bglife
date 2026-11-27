@@ -1,8 +1,9 @@
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { movingCost, type GameState } from "./engine.ts";
 import { CityPicker } from "./CityPicker.tsx";
-import { applicationLabel, employmentIncome, healthCoverage, insuranceView, jobGross, recentInsuredMonths, requirementName, workView } from "./employment.ts";
+import { applicationLabel, employmentIncome, findJob, healthCoverage, insuranceView, jobGross, recentInsuredMonths, requirementName, workView } from "./employment.ts";
 import { isSchoolAge, pathActionBlock } from "./lifePath.ts";
+import { maternityPay, maternityStatus, maternityYear, onMaternityLeave } from "./maternity.ts";
 import { mark, type PathAction } from "./pathActions.ts";
 import { fields, pathCities, pathMoney, subjects, type Subject } from "./pathCatalog.ts";
 import { netMonthly, PATH_POLICY_YEAR, policy } from "./pathPolicy.ts";
@@ -17,6 +18,7 @@ type Props = {
   l: Language;
   onAction: (id: string) => void;
   onClose: () => void;
+  onMaternityReturn: () => void;
   onWorkplace: () => void;
 };
 type TrackProps = Pick<Props, "s" | "l" | "onAction">;
@@ -330,6 +332,29 @@ function University({ s, l, onAction }: TrackProps) {
   </>;
 }
 
+function MaternityCard({ s, l, onMaternityReturn }: Pick<Props, "s" | "l" | "onMaternityReturn">) {
+  const work = s.path!.work;
+  const t = (bg: string, en: string) => copy(l, bg, en);
+  const current = work.job;
+  const job = current && findJob(current.city, current.job);
+
+  const maternity = maternityStatus(s);
+  if (!maternity) return null;
+  const pay = maternityPay(s, work);
+  return <section className="career-card" data-career-maternity>
+    <div className="career-card-title"><Icon name="bag"/><h2>{maternity[l]}</h2></div>
+    {job && <Row label={t("Трудов договор", "Employment contract")}>{job.title[l]}</Row>}
+    <Row label={t("Обезщетение за годината", "Benefit this year")}>{money(pay, l)}</Row>
+    {maternityYear(s) === 2 && <>
+      {pay > 0 && <p>{t("Ако се върнеш сега, ще получаваш заплатата си и 50% от обезщетението.",
+        "If you return now, you will receive your salary and 50% of the benefit.")}</p>}
+      <button type="button" className="secondary-button" onClick={onMaternityReturn}>
+        {current ? t("Върни се на работа", "Return to work") : t("Потърси работа", "Look for work")}
+      </button>
+    </>}
+  </section>;
+}
+
 function Vacancies({ s, l, onAction }: TrackProps) {
   const work = s.path!.work;
   const view = workView(s, work);
@@ -387,7 +412,8 @@ function Insurance({ s, l, onAction }: TrackProps) {
   const healthDue = employmentIncome(s, work).health;
   const coverage = {
     public: t("За сметка на държавата", "State-covered"),
-    employee: t("По трудов договор за месеците на работа", "Payroll contributions for months worked"),
+    employee: onMaternityLeave(s) ? t("По трудов договор по време на отпуска", "Through your contract during leave")
+      : t("По трудов договор за месеците на работа", "Payroll contributions for months worked"),
     pension: t("Като пенсионер", "Pensioner coverage"),
     benefit: t("За периода с обезщетение", "Covered during unemployment benefits"),
     own: t("За твоя сметка", "Self-paid contributions"),
@@ -422,11 +448,11 @@ function Insurance({ s, l, onAction }: TrackProps) {
 
 type Panel = "education" | "vacancies" | "insurance";
 
-export function Career({ s, l, onAction, onClose, onWorkplace }: Props) {
+export function Career({ s, l, onAction, onClose, onWorkplace, onMaternityReturn }: Props) {
   const t = (bg: string, en: string) => copy(l, bg, en);
   const path = s.path;
   const child = isSchoolAge(s.age);
-  const [selected, setSelected] = useState<Panel>(child || (path?.school.grade != null && !path.school.left) || path?.university.student ? "education" : "vacancies");
+  const [selected, setSelected] = useState<Panel>(!onMaternityLeave(s) && (child || (path?.school.grade != null && !path.school.left) || path?.university.student) ? "education" : "vacancies");
   const panels: { id: Panel; label: string }[] = [{ id: "education", label: child ? t("Училище", "School") : t("Образование", "Education") }];
   if (s.age >= 16) panels.push({ id: "vacancies", label: child ? t("Летни обяви", "Summer jobs") : t("Обяви", "Vacancies") });
   if (!child) panels.push({ id: "insurance", label: t("Осигуряване", "Social insurance") });
@@ -457,7 +483,7 @@ export function Career({ s, l, onAction, onClose, onWorkplace }: Props) {
         closeLabel={subject ? t("Към предметите", "Back to subjects") : t("Към дневника", "Back to journal")} back>
         <h1 id="career-title" ref={heading} tabIndex={-1}>{subject ? subjects[subject][l] : child ? t("Даскало", "Education") : t("Кариера", "Career")}</h1>
       </MenuTitle>
-      {!subject && (path?.work.job && !s.finished
+      {!subject && (path?.work.job && !s.finished && !onMaternityLeave(s)
         ? <button type="button" className="career-route-link" data-testid="open-workplace" onClick={onWorkplace}>
           <Icon name="bag" size={16}/>{t("Работа", "Work")}<Icon name="next" size={13}/>
         </button>
@@ -471,7 +497,9 @@ export function Career({ s, l, onAction, onClose, onWorkplace }: Props) {
       {subject ? <SubjectView {...track} subject={subject}/> : panel === "education" ? <>
         <School {...track} onSubject={id => { returnTo.current = id; setSubject({ id, age: s.age, city: s.city }); }}/>
         {!child && <University {...track}/>}
-      </> : panel === "vacancies" ? <Vacancies {...track}/> : <Insurance {...track}/>}
+      </> : panel === "vacancies" ? (
+        onMaternityLeave(s) ? <MaternityCard s={s} l={l} onMaternityReturn={onMaternityReturn}/> : <Vacancies {...track}/>
+      ) : <Insurance {...track}/>}
     </> : <section className="career-card"><p>{t("Тази история е приключила. Можеш да разгледаш дневника ѝ.", "This life has ended. You can still read its journal.")}</p></section>}
   </section>;
 }

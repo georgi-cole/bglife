@@ -7,6 +7,7 @@ import { assetPurchase, assetValues, canUpgradeAsset, fundIds, funds, isHomePurc
   transferRecipients, type Fund, type OwnedAsset } from "./lifeAssets.ts";
 import { mortgageQuote, mortgageYear } from "./lifeEconomy.ts";
 import { pathBudget } from "./lifePath.ts";
+import { maternityPay } from "./maternity.ts";
 import { personName } from "./peopleIdentity.ts";
 
 const t = (bg: string, en: string): Text => ({ bg, en });
@@ -93,6 +94,8 @@ function walletGroups(s: GameState): AssetPageData["groups"] {
     { label: t("Такса за обучение", "Tuition"), value: -path.tuition },
     { label: t("Лични здравни вноски", "Health contributions"), value: -path.health },
   ].filter(field => field.value !== 0) : [];
+  const maternity = path?.maternity ?? maternityPay(s);
+  if (maternity) incomeParts.push({ label: t("Обезщетение за майчинство", "Maternity benefit"), value: maternity });
   const expenses: Field[] = [
     { label: t("Всекидневни разходи", "Living costs"), value: -budget.essentials },
     { label: t("Жилище", "Housing"), value: -budget.housing },

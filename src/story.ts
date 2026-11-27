@@ -10,6 +10,8 @@ function scene(id: string, age: number, title: Text, body: Text, choices: Option
   return { id, age, title, body, choices, when, priority };
 }
 
+const workScene = (...args: Parameters<typeof scene>): Scene => ({ ...scene(...args), requiresWork: true });
+
 export const personProfiles: Record<PersonId, { name: Text; role: Text; detail: Text; city: City }> = {
   rumi: {
     name: t('Леля Руми', 'Aunt Rumi'), role: t('Леля ти', 'Your aunt'), city: 'sofia',
@@ -73,7 +75,7 @@ export const scenes: Scene[] = [
       choice('gather','Събери всички отново','Round everyone up','Ели намира последните двама при баничарницата. Има снимка, преди да е заваляло.','Eli finds the last two at the bakery. You get your picture before the rain.',{flags:['gradPhoto'],trust:{friend:6},person:'friend'}),
       choice('finish','Довърши рамката','Finish the frame','На гърба изписваш годината и имената. Оставяш място за снимката.','You carve the year and the names on the back, leaving a space for the photograph.',{flags:['leafSkill'],trust:{mentor:6},person:'mentor'}),
     ],{without:['marketBook']}),
-  scene('spare-key',19,t('Резервният ключ','The spare key'),
+  workScene('spare-key',19,t('Резервният ключ','The spare key'),
     t('В София има интервю за стаж в софтуерен екип. Руми предлага стая срещу 150 € месечно и петъчните репетиции на Ники. Съквартирантка иска 300 € на месец. В Трявна Стефан предлага чирашко място.',
       'A Sofia software team is interviewing trainees. Rumi offers a room for €150 a month if you collect Niki on Fridays. A flatmate wants €300 a month. Back in Tryavna, Stefan offers you an apprenticeship.'),[
       choice('rumi','Вземи ключа · 60 € за път','Take Rumi’s key · €60 move','Ключът тежи в джоба ти. На хладилника в Младост пише „Ники, петък, 18:00“. Започваш стажа.','The key is heavy in your pocket. The fridge reads “Niki, Friday, 6 pm.” You start the traineeship.',{city:'sofia',housing:'rumi',career:'qa',cash:-6000,flags:['fridays'],trust:{rumi:6},person:'rumi'}),
@@ -90,23 +92,23 @@ export const scenes: Scene[] = [
       choice('supper','Покани всички на вечеря','Host a kitchen supper','Вечерята свършва в единайсет. Руми си тръгва с два буркана и адреса на съквартирантката.','Supper lasts until eleven. Rumi leaves with two jars and your flatmate’s contact details.',{flags:['jarsShared'],trust:{rumi:7},person:'rumi'}),
       choice('keep','Запази бурканите за гости','Save the jars for visitors','Под леглото се събира целият кашон. Ели вече има повод да дойде.','The whole box fits under the bed. Eli now has a standing invitation.',{flags:['recipe'],trust:{friend:6},person:'friend'}),
     ],share),
-  scene('workshop-sign',20,t('Първата табела','Your first sign'),
+  workScene('workshop-sign',20,t('Първата табела','Your first sign'),
     t('Кафенето до моста иска табела, готова до понеделник. Стефан ти оставя ключа за работилницата. Ели познава собственичката.','The café by the bridge wants a sign by Monday. Stefan leaves you the workshop key. Eli knows the owner.'),[
       choice('lettering','Изрежи буквите на ръка','Carve the letters by hand','В неделя вечер пръстите ти болят. На сутринта взимаш първия си хонорар за надпис.','Your fingers ache on Sunday night. In the morning you collect your first lettering fee.',{cash:6000,flags:['firstSign'],trust:{mentor:5},person:'mentor'}),
       choice('design','Направи скица с Ели','Sketch it with Eli','Ели рисува чашата, ти оформяш буквите. В долния ъгъл оставяте два подписа.','Eli draws the cup and you shape the letters. Two signatures go in the corner.',{cash:3000,flags:['duoSign'],trust:{friend:8},person:'friend'}),
     ],home),
-  scene('friday-promise',21,t('Точно в петък','Of course it’s Friday'),
+  workScene('friday-promise',21,t('Точно в петък','Of course it’s Friday'),
     t('Платен пробен ден за новия екип. В петък до седем. Ники праща снимка на палките си с въпрос „В шест, нали?“. Руми вече е на смяна.','A paid trial with the new team runs until seven on Friday. Niki sends a picture of his drumsticks. “Six, right?” Rumi is already at work.'),[
       choice('keep','Вземи Ники, откажи пробата','Pick up Niki, decline the trial','Той репетира още пет минути, защото знае, че го чакаш. По пътя ти разказва за първото си соло.','He practises five minutes longer because he knows you are waiting. Walking home, he tells you about his first solo.',{flags:['keptFriday'],trust:{niki:12,rumi:7},person:'niki'}),
       choice('cover','Уговори смяна с Руми','Arrange cover with Rumi','Руми потвърждава с друга майка. Ти поемаш следващата репетиция и изкарваш 90 € на пробния ден.','Rumi confirms another parent can collect him. You take the next rehearsal and earn €90 at the trial.',{cash:9000,flags:['coveredFriday','qaTrial'],trust:{rumi:5},person:'rumi'}),
       choice('miss','Остани на пробата','Stay for the trial','Печелиш 90 €. Ники звъни от празното фоайе. Руми праща кола и повече не оставя петъка на теб.','You earn €90. Niki calls from an empty lobby. Rumi sends a car and takes Fridays off your hands.',{cash:9000,flags:['missedFriday','qaTrial'],removeFlags:['fridays'],trust:{rumi:-15,niki:-12},person:'niki'}),
     ],aunt),
-  scene('free-friday',21,t('Свободен петък','A Friday of your own'),
+  workScene('free-friday',21,t('Свободен петък','A Friday of your own'),
     t('Пробният ден за новия екип е в петък. Можеш да останеш до седем. Ники свири първото си соло същата вечер и ти е запазил място.','The new team’s trial is on Friday and you can stay until seven. Niki has his first solo that evening and has saved you a seat.'),[
       choice('trial','Избери платената проба','Take the paid trial','Получаваш 90 € и покана за следващия проект. Ники ти праща запис от залата.','You earn €90 and an invitation to the next project. Niki sends a recording from the hall.',{cash:9000,flags:['qaTrial'],trust:{niki:1},person:'niki'}),
       choice('solo','Иди на първото соло','Go hear the solo','От задния ред виждаш как Ники търси лицето ти. В края получаваш едната му палка за спомен.','From the back row you see him searching the audience for you. Afterwards he gives you a drumstick.',{flags:['heardSolo'],trust:{niki:12},person:'niki'}),
     ],share),
-  scene('second-bench',21,t('Вторият тезгях','The second workbench'),
+  workScene('second-bench',21,t('Вторият тезгях','The second workbench'),
     t('Стефан смята, че е време за твой тезгях. Първата поръчка е за читалището и плаща скромно. Ели има клиент с по-дебел портфейл.','Stefan thinks you are ready for your own bench. The first order is for the community centre and pays modestly. Eli knows a customer with deeper pockets.'),[
       choice('centre','Приеми поръчката за читалището','Take the community commission','Изкарваш 75 €. На премиерата организаторите споменават името ти.','You earn €75. On opening night the organisers thank you by name.',{cash:7500,flags:['centreWork'],trust:{mentor:7},person:'mentor'}),
       choice('private','Срещни се с клиента на Ели','Meet Eli’s customer','Работата носи 140 €. Ели донася касов ордер и две банички за отпразнуване.','The job pays €140. Eli brings a receipt and two cheese pastries to celebrate.',{cash:14000,flags:['privateWork'],trust:{friend:8},person:'friend'}),
@@ -121,7 +123,7 @@ export const scenes: Scene[] = [
       choice('photo','Намери старата снимка','Find the move-in photo','Ето я плочката зад кашона с книгите. Почти нищо не се вижда, но пукнатината си личи. Депозитът е запазен.','There it is behind the box of books. The crack is just visible. The deposit stays intact.',{flags:['tilePhoto']}),
       choice('patch','Разделете малкия ремонт · 20 €','Split the small repair · €20','Двете взимате нова плочка. Старата пазиш за поставка под горещите тенджери.','You buy a replacement together. The old tile gets another life under hot pans.',{cash:-2000,flags:['tileCoaster']}),
     ],share),
-  scene('borrowed-tool',22,t('Чуждото длето','A borrowed chisel'),
+  workScene('borrowed-tool',22,t('Чуждото длето','A borrowed chisel'),
     t('Стефан е оставил любимото си длето на твоя тезгях. Острието е леко нащърбено. Утре ще му трябва за демонстрация.','Stefan’s favourite chisel is on your bench. There is a small nick in its edge. He needs it for a demonstration tomorrow.'),[
       choice('sharpen','Наточи го заедно със Стефан','Sharpen it together','Два часа по-късно острието реже хартия. Стефан ти подарява стария си камък.','Two hours later the edge slices paper. Stefan gives you his old sharpening stone.',{flags:['sharpeningStone'],trust:{mentor:8},person:'mentor'}),
       choice('find-backup','Донеси резервното на Ели','Bring Eli’s spare','Баща ѝ има цяло чекмедже с инструменти. Демонстрацията минава чудесно, а ти връщаш длетото лично.','Her dad has a whole drawer of tools. The demonstration goes smoothly and you deliver the chisel back yourself.',{flags:['toolReturned'],trust:{friend:6,mentor:2},person:'friend'}),
@@ -136,7 +138,7 @@ export const scenes: Scene[] = [
       choice('meet','Посрещни я с баничка','Meet her with a warm pastry','Тя познава първо гласа ти. Целият път до Младост минава в наваксване.','She recognises your voice first. You spend the whole ride to Mladost catching up.',{flags:['eliVisit'],trust:{friend:9},person:'friend'}),
       choice('invite-niki','Покани Ники да я посрещнете','Bring Niki to meet her','Ники носи табела „Официална делегация от Трявна“. Ели настоява да я вземе за спомен.','Niki brings a sign reading “Official delegation from Tryavna”. Eli insists on keeping it.',{flags:['eliVisit','stationSign'],trust:{niki:4,friend:6},person:'friend'}),
     ],share),
-  scene('pepper-roast',23,t('Печените чушки','Roasted peppers'),
+  workScene('pepper-roast',23,t('Печените чушки','Roasted peppers'),
     t('Ели е донесла чувал с чушки и още топъл хляб. Дворът мирише на есен. Поръчката в работилницата може да изчака, но клиентът ще иска отстъпка.','Eli turns up with a sack of peppers and bread that’s still warm. The yard smells of autumn. Your commission can wait, although the customer will expect a discount.'),[
       choice('cook','Остани за лютеницата · 15 €','Stay for the lyutenitsa · €15','Покриваш отстъпката. На капачката на първия буркан пишете годината и двете си имена.','You cover the discount. On the first lid you write the year and both your names.',{cash:-1500,flags:['recipe'],trust:{friend:8},person:'friend'}),
       choice('deliver','Предай поръчката навреме','Deliver the commission on time','Клиентът плаща 65 €. Когато се връщаш, Ели ти е оставила хляб, буркан и огромна купчина тави за миене.','The customer pays €65. Back home you find bread, a jar and an enormous stack of trays Eli has left you to wash.',{cash:6500,flags:['orderKept'],trust:{mentor:4},person:'mentor'}),
@@ -156,7 +158,7 @@ export const scenes: Scene[] = [
       choice('host','Дай ѝ своята стая','Give her your room','Ели спи спокойно, а ти откриваш точния ъгъл, под който диванът мълчи. Тя ти оставя бележка под възглавницата.','Eli sleeps well. You discover the exact angle at which the sofa stays quiet. She leaves a note under your pillow.',{flags:['hostedEli'],trust:{friend:10},person:'friend'}),
       choice('room','Помогни за стая наблизо · 30 €','Chip in for a room nearby · €30','Намирате място през две пресечки. Всяка вечер се виждате за по една разходка.','You find a place two streets away and go out walking together each evening.',{cash:-3000,flags:['helpedEli'],trust:{friend:6},person:'friend'}),
     ],share),
-  scene('young-maker',24,t('Първото криво листо','A crooked first leaf'),
+  workScene('young-maker',24,t('Първото криво листо','A crooked first leaf'),
     t('Момиче от читалището е дошло да се учи. Първото ѝ дървено листо е криво, точно като твоето някога. Пита дали да започне отначало.','A girl from the community centre wants to learn. Her first wooden leaf is crooked, just as yours once was. She asks whether to start over.'),[
       choice('show','Покажи как се поправя','Show her how to mend it','До вечерта листото има собствена извивка. Тя идва пак следващата събота.','By evening the leaf has a curve of its own. She comes back the next Saturday.',{flags:['student'],trust:{mentor:8},person:'mentor'}),
       choice('invent','Измислете нов мотив','Invent a pattern together','От едно криво листо правите цяла върба. Ели иска такава табела за пазара.','One crooked leaf becomes a whole willow. Eli wants one for the market stall.',{flags:['willowDesign'],trust:{friend:6,mentor:3},person:'friend'}),
@@ -168,17 +170,17 @@ export const scenes: Scene[] = [
       choice('neighbour','Питай съседа от първия етаж','Ask the downstairs neighbour','Той пази касовата бележка в кутия за локум. Карето на покривката е поизбеляло, сумата още се чете.','He keeps the receipt in a Turkish delight tin. The printed pattern has faded, but the total is legible.',{flags:['buildingWitness'],trust:{rumi:4},person:'rumi'}),
       choice('help','Поеми покупките на Руми','Carry Rumi’s shopping upstairs','Спорът за цената продължава. Руми се радва, че поне картофите са стигнали до шестия етаж.','The argument carries on. Rumi is glad the potatoes, at least, have made it up six floors.',{trust:{rumi:6},person:'rumi'}),
     ],aunt),
-  scene('release-week',25,t('Преди последното метро','Before the last metro'),
+  workScene('release-week',25,t('Преди последното метро','Before the last metro'),
     t('Пет минути преди края на смяната колежка открива грешка в приложението. Тя може да оправи описанието сама, но това ще ѝ струва вечерта.','Five minutes before the end of your shift a colleague spots a bug in the app. She can write it up herself, at the cost of her evening.'),[
       choice('pair','Довършете го двете','Finish it together','Снимате последния екран и хващате метрото. Тя те препоръчва за следващия проект.','You capture the last screen and catch the metro. She recommends you for the next project.',{flags:['teamLead'],cash:8000,person:'friend'}),
       choice('morning','Поеми утрешната проверка','Take the morning check','Оставяте ясно описание за сутринта. Тя си тръгва навреме, ти отменяш утрешното кафе.','You leave clear notes for the morning. She gets home on time. You give up tomorrow’s coffee break.',{flags:['handoverNote']}),
     ],share),
-  scene('two-aprons',25,t('Още една престилка','A second apron'),
+  workScene('two-aprons',25,t('Още една престилка','A second apron'),
     t('Ученичката вече има свое длето. За първата ѝ поръчка искат твоя подпис. Стефан кима към празното място до твоето име.','Your apprentice now owns a chisel. Her first client asks for your signature. Stefan nods at the space beside your name.'),[
       choice('both','Подпишете се и двете','Sign both names','Клиентът плаща 95 €. Момичето копира подписа си още три пъти, за да го запомни.','The client pays €95. She copies her signature three more times so she will remember it.',{cash:9500,flags:['twoNames'],trust:{mentor:9},person:'mentor'}),
       choice('hers','Остави само нейното име','Leave just her name','Тя прибира първата си поръчка в портфолиото. Стефан ѝ намира кукичка за новата престилка.','She adds the first commission to her portfolio. Stefan finds a hook for the new apron.',{flags:['mentored'],trust:{mentor:10},person:'mentor'}),
     ],{housing:'home',flags:['student']}),
-  scene('shop-front',25,t('Табела за твоята врата','A sign for your own door'),
+  workScene('shop-front',25,t('Табела за твоята врата','A sign for your own door'),
     t('Намира се малко помещение за работа на двайсет крачки от пазара. Ели носи метър. Стефан е дошъл уж само за кафе.','A tiny workspace opens up twenty paces from the market. Eli brings a measuring tape. Stefan says he is only here for the coffee.'),[
       choice('lease','Запази помещението · 120 €','Reserve the space · €120','Вратата заяжда. Когато най-после я отваряш, и двамата ръкопляскат.','The door sticks. When you finally push it open, they both applaud.',{cash:-12000,flags:['ownStudio'],trust:{friend:5,mentor:3},person:'friend'}),
       choice('bench','Сподели тезгяха със Стефан','Keep sharing Stefan’s bench','Стефан изважда второ чекмедже. На табелката отпред е твоето име.','Stefan clears a second drawer. The nameplate on the front has your name on it.',{flags:['sharedBench'],trust:{mentor:8},person:'mentor'}),
@@ -206,10 +208,10 @@ export const scenes: Scene[] = [
 ];
 
 export const actions: Action[] = [
-  {id:'market-morning',label:t('Помогни на сергията','Help at the market'),result:t('Ели ти отделя 12 € от днешния оборот. Прибирате сенника заедно.','Eli sets aside €12 from the day’s takings. You fold the awning together.'),effect:{cash:1200,trust:{friend:3},person:'friend'},when:{city:'tryavna'}},
+  {id:'market-morning',requiresWork:true,label:t('Помогни на сергията','Help at the market'),result:t('Ели ти отделя 12 € от днешния оборот. Прибирате сенника заедно.','Eli sets aside €12 from the day’s takings. You fold the awning together.'),effect:{cash:1200,trust:{friend:3},person:'friend'},when:{city:'tryavna'}},
   {id:'tea-with-stefan',label:t('Мини през работилницата','Visit the workshop'),result:t('Стефан оставя чайника на тезгяха. Половин час чертаете нови листа на амбалажна хартия.','Stefan sets the teapot on the bench. You spend half an hour sketching leaves on brown paper.'),effect:{trust:{mentor:4},person:'mentor'},when:{city:'tryavna'}},
   {id:'rehearsal',label:t('Чуй репетицията на Ники','Hear Niki rehearse'),result:t('Оставаш за последната песен. На излизане Ники пита коя част ти е харесала.','You stay for the last song. On the way out Niki asks which part you liked.'),effect:{trust:{niki:4},person:'niki'},when:{city:'sofia'}},
-  {id:'extra-shift',label:t('Поеми допълнителна смяна','Pick up an extra shift'),result:t('Намираш пропуснат проблем и записваш стъпките. Допълнителната смяна носи 40 €.','You find a missed issue and write up the steps. The extra shift pays €40.'),effect:{cash:4000},when:{city:'sofia'},minAge:19},
+  {id:'extra-shift',requiresWork:true,label:t('Поеми допълнителна смяна','Pick up an extra shift'),result:t('Намираш пропуснат проблем и записваш стъпките. Допълнителната смяна носи 40 €.','You find a missed issue and write up the steps. The extra shift pays €40.'),effect:{cash:4000},when:{city:'sofia'},minAge:19},
   {id:'call-rumi',label:t('Звънни на леля Руми','Call Aunt Rumi'),result:t('Каза, че има само пет минути. След половин час още обсъждате коя тенджера загаря.','She said she had five minutes. Half an hour later you are still debating which pot burns at the bottom.'),effect:{trust:{rumi:3},person:'rumi'}},
   {id:'visit-home',label:t('Посети Трявна · 18 €','Visit Tryavna · €18'),result:t('Ели те изпраща с малък пакет за из път. Вечерта се прибираш отново в София.','Eli sends you off with a parcel for the journey. You return to Sofia that evening.'),effect:{cash:-1800,trust:{friend:5},person:'friend'},when:{city:'sofia'},minAge:19},
 ];

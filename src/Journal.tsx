@@ -2,8 +2,10 @@ import React from "react";
 import {conditionLabel} from "./lifeHealth.ts";
 import {defaultPlayChoice, getActions, getChoices, getEstate, getScene, lifeHeirLabel, type GameState, type LifeActivityCategory} from "./engine.ts";
 import {LifeTimeline} from "./LifeTimeline.tsx";
+import {maternityStatus} from "./maternity.ts";
 import {endingCopy} from "./story.ts";
 import {adoptionStatus, pregnancyStatus} from "./reproduction.ts";
+import {canEndPregnancy} from "./pregnancyTimeline.ts";
 import type {Language} from "./session.ts";
 import {Icon,PlaySymbol,copy,lifeName,money} from "./ui.tsx";
 
@@ -15,8 +17,10 @@ type Props = {
   onReplay: () => void;
   onAlbum: () => void;
   onMore: (category?: LifeActivityCategory) => void;
+  onEndPregnancy: () => void;
+  onCareer: () => void;
 };
-export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onMore}: Props) {
+export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onMore, onEndPregnancy, onCareer}: Props) {
   const scene = getScene(s);
   const choices = getChoices(s);
   const actions = getActions(s);
@@ -25,6 +29,7 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onMore}: P
   const { healthCondition } = s.lifeSystems;
   const estate = s.finished ? getEstate(s) : null;
   const pregnancy = s.finished ? null : pregnancyStatus(s);
+  const maternity = maternityStatus(s);
   const adoptionOffer = !s.finished && s.lifeSystems.reproduction.adoption?.stage === "offer" ? adoptionStatus(s) : null;
 
   return <>
@@ -34,9 +39,16 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onMore}: P
       <small>{s.lifeSystems.medicalIssue==="urgent" ? copy(l,"В „Болница“ можеш да се обадиш на 112.","You can call 112 from Hospital.") : copy(l,"В „Болница“ можеш да избереш преглед.","You can arrange a checkup in Hospital.")}</small></span>
       <button className="secondary-button" onClick={()=>onMore("hospital")}>{copy(l,"Болница","Hospital")}<Icon name="next" size={15}/></button>
     </div>}
-    {pregnancy && <div className="journal-health-alert journal-family-alert">
-      <span><strong>{copy(l,"Бременност","Pregnancy")}</strong><small>{pregnancy[l]}</small></span>
-      <button className="secondary-button" onClick={()=>onMore("family")}>{copy(l,"Семейство","Family")}<Icon name="next" size={15}/></button>
+    {pregnancy && <div className="journal-health-alert journal-family-alert pregnancy-status">
+      <span><strong>{pregnancy[l]}</strong></span>
+      <div className="pregnancy-status-actions">
+        <button className="secondary-button" onClick={()=>onMore("family")}>{copy(l,"Семейство","Family")}<Icon name="next" size={15}/></button>
+        {canEndPregnancy(s) && <button className="secondary-button pregnancy-end" onClick={onEndPregnancy}>{copy(l,"Прекъсване по желание","End the pregnancy")}</button>}
+      </div>
+    </div>}
+    {maternity && <div className="journal-health-alert journal-family-alert" data-maternity-status>
+      <span><strong>{maternity[l]}</strong></span>
+      <button className="secondary-button" onClick={onCareer}>{copy(l,"Кариера","Career")}<Icon name="next" size={15}/></button>
     </div>}
     {adoptionOffer && <div className="journal-health-alert journal-family-alert">
       <span><strong>{copy(l,"Предложение за осиновяване","Adoption match")}</strong><small>{adoptionOffer[l]}</small></span>

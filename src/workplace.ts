@@ -1,6 +1,7 @@
 
 import { currentJobActions, findJob, type EmploymentState } from "./employment.ts";
 import type { GameState, Text } from "./engine.ts";
+import { onMaternityLeave } from "./maternity.ts";
 import { limit, pathRoll, type PathAction, type PathResult } from "./pathActions.ts";
 import { pathText as t } from "./pathCatalog.ts";
 import { workScenarios, workTrack, type WorkContactId, type WorkEffect } from "./workplaceContent.ts";
@@ -23,6 +24,7 @@ const contacts = ["boss", "colleague-1", "colleague-2"] as const;
 const startingWorkBond = (id: WorkContactId) => id === "boss" ? 55 : 50;
 
 function workplaceContext(s: GameState) {
+  if (onMaternityLeave(s)) return null;
   const work = s.path?.work;
   const contract = work?.job;
   const job = contract && findJob(contract.city, contract.job);
@@ -125,7 +127,8 @@ export function queueWorkEvent(s: GameState, id: string): GameState {
 function decisionFor(s: GameState, place: Workplace) {
   const progress = place.contract.workplace;
   const event = progress?.event;
-  if (s.finished || s.lifeSystems.reproduction.naming || !progress || !event || event.handled || event.age !== s.age) return null;
+  if (s.finished || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice
+    || s.lifeSystems.reproduction.pregnancy?.gestation || !progress || !event || event.handled || event.age !== s.age) return null;
   const scenario = scenarioPool(place).find(item => item.id === event.id);
   if (!scenario) return null;
   const key = place.key + ".event." + scenario.id;
