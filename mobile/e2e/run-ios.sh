@@ -3,8 +3,9 @@ set -euo pipefail
 
 simulator="$(xcrun simctl list devices available --json | node -e '
   const { devices } = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
-  const device = Object.entries(devices).filter(([runtime]) => runtime.includes(".iOS-")).reverse()
-    .flatMap(([, items]) => items).find(item => item.name.includes("iPhone"));
+  const phones = Object.entries(devices).filter(([runtime]) => runtime.includes(".iOS-")).reverse()
+    .flatMap(([, items]) => items).filter(item => item.name.startsWith("iPhone"));
+  const device = phones.find(item => /^iPhone [0-9]+$/.test(item.name)) ?? phones[0];
   if (!device) throw new Error("No iPhone simulator is installed");
   process.stdout.write(device.udid);
 ')"
