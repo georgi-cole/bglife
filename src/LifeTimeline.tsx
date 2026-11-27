@@ -1,5 +1,6 @@
 import React, {type ReactNode} from "react";
-import type { GameState, Memory } from "./engine.ts";
+import { getCityOpportunity, type GameState, type Memory } from "./engine.ts";
+import { cityWeatherDate } from "./cityLife.ts";
 import type { Language } from "./session.ts";
 import { Icon, copy, lifeStatLabels, money, occupation, town } from "./ui.tsx";
 
@@ -18,18 +19,22 @@ function StatChanges({delta, l}: {delta: Memory["statsDelta"]; l: Language}) {
   })}</>;
 }
 
-function LifeEvent({event, l, avatar}: {event: Memory; l: Language; avatar: GameState["avatar"]}) {
+function LifeEvent({event, l, avatar, children}: {event: Memory; l: Language; avatar: GameState["avatar"]; children?: ReactNode}) {
   const action = event.kind === "action";
   const personEvent=action&&event.id.startsWith("people.");
+  const localResult = action && event.id.startsWith("city-life.");
+  const focusable = personEvent || localResult;
   const loss = event.kind === "end" || event.id.startsWith("loss-");
   const health = event.id.startsWith("health-");
   const education = event.kind === "path" && /^(school|university|degree|scholarship|tuition)/.test(event.id);
   return <li className={"life-event " + (loss ? "life-loss" : health ? "life-health" : action ? "life-action" : "life-decision")}
-    id={personEvent?"life-event-"+event.age+"-"+event.id:undefined} tabIndex={personEvent?-1:undefined} data-person-event={personEvent||undefined}>
-    <span className="life-event-icon"><Icon name={loss ? "journal" : health ? "heart" : education ? "school" : event.kind === "path" ? "bag" : action ? "clock" : event.kind === "event" ? "sparkle" : "check"} size={16}/></span>
+    id={focusable?"life-event-"+event.age+"-"+event.id:undefined} tabIndex={focusable?-1:undefined} data-person-event={personEvent||undefined}>
+    <span className="life-event-icon"><Icon name={loss ? "journal" : health ? "heart" : education ? "school" : event.kind === "path" ? "bag" : event.cityEvent ? "pin" : action ? "clock" : event.kind === "event" ? "sparkle" : "check"} size={16}/></span>
     <div className="life-event-content">
       <h4>{event.title[l]}</h4>
+      {event.cityEvent && <small className="city-event-date">{cityWeatherDate(event.cityEvent, l)}</small>}
       <p>{event.text[l]}</p>
+      {children}
       {(event.movedTo || event.startedCareer || event.cashDelta !== 0 || event.statsDelta) && <div className="life-event-changes">
         {event.movedTo && <span className="move-event"><Icon name="pin" size={13}/>{copy(l, "Нов град", "New city")} · {town(event.movedTo, l)}</span>}
         {event.startedCareer && <span className="career-event"><Icon name="bag" size={13}/>{copy(l, "Нова работа", "New job")} · {occupation(event.startedCareer, l, avatar)}</span>}
@@ -40,7 +45,8 @@ function LifeEvent({event, l, avatar}: {event: Memory; l: Language; avatar: Game
   </li>;
 }
 
-export function LifeTimeline({s, l, children}: {s: GameState; l: Language; children: ReactNode}) {
+export function LifeTimeline({s, l, children, onAction}: {s: GameState; l: Language; children: ReactNode; onAction: (id: string) => void}) {
+  const opportunity = getCityOpportunity(s);
   const eventsByAge = new Map<number, Memory[]>();
   let totalDelta = 0;
   for (const event of s.history) {
@@ -66,7 +72,16 @@ export function LifeTimeline({s, l, children}: {s: GameState; l: Language; child
           {latest && !s.finished && <small>{copy(l, "Сега", "Now")}</small>}
         </h3>
         {eventsToShow.length > 0 && <ul className="life-entries">
-          {eventsToShow.map((event,index) => <LifeEvent key={event.kind + event.id + index} event={event} l={l} avatar={s.avatar}/>)}
+          {eventsToShow.map((event,index) => <LifeEvent key={event.kind + event.id + index} event={event} l={l} avatar={s.avatar}>
+            {latest && opportunity?.id === event.id && <div className="city-event-actions" data-city-opportunity>
+              <small><Icon name="clock" size={13}/>{copy(l, "1 свободно време", "1 free-time slot")}</small>
+              {opportunity.options.map(({option, blocked}) => <button key={option.id} type="button" className="secondary-button"
+                data-action={option.id} disabled={blocked} onClick={() => onAction(option.id)}>
+                <span>{option.label[l]}</span>
+                {!!option.effect?.cash && <span className={option.effect.cash > 0 ? "cash-in" : "cash-out"}>{signedMoney(option.effect.cash, l)}</span>}
+              </button>)}
+            </div>}
+          </LifeEvent>)}
         </ul>}
         {budget && <details className="life-year-budget">
           <summary>

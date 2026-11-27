@@ -110,7 +110,7 @@ export function AvatarCreator({ l, vip, onVip, onClose, onStart }: Props) {
       </fieldset>
       <div className="setup-field">
         <label htmlFor="birth-city">{t("Град на раждане", "Birth city")}</label>
-        <CityPicker id="birth-city" city={birthCity} language={l} onChange={setBirthCity}/>
+        <CityPicker id="birth-city" city={birthCity} language={l} onChange={setBirthCity} allowRandom/>
       </div>
       <div className="setup-field">
         <label htmlFor="life-talent">{t("Талант","Talent")}</label>

@@ -131,6 +131,12 @@ button.hud-stat:hover { background: var(--raised); }
 .life-health .life-event-icon { background: #663d36; color: #ffb5a0; }
 .life-loss .life-event-icon { background: #383b50; color: #d1d5e5; }
 .life-event-content { min-width: 0; }
+.city-event-date { display: block; margin-top: .12rem; color: var(--secondary); font-size: .75rem; }
+.city-event-actions { display: grid; gap: .36rem; margin-top: .54rem; }
+.city-event-actions small { display: flex; align-items: center; gap: .25rem; color: var(--secondary); }
+.city-event-actions .secondary-button { min-height: 2.6rem; justify-content: space-between; text-align: start; white-space: normal; }
+.city-event-actions .secondary-button span:last-child:not(:first-child) { flex-shrink: 0; }
+.city-speech-sample { margin: .16rem 0 0; }
 .life-event h4 { margin: .14rem 0; font-size: .92rem; line-height: 1.32; }
 .life-event p, .life-year-budget p { margin: .19rem 0 0; color: #cdd5e5; font-size: .9rem; line-height: 1.47; overflow-wrap: anywhere; }
 .life-event-changes { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .39rem; }
