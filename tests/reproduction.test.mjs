@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { defaultMaleAvatar } from "../src/avatar.ts";
 import {
-  choose, continueLife, decodeSave, doAction, doLifeActivity, encodeSave, getActions, getChoices, getLifeActivities, getPersonActivities,
+  choose, continueLife, decodeSave, doAction, doLifeActivity, doPregnancyAction, encodeSave, getActions, getChoices, getLifeActivities, getPersonActivities,
   nameNewborns, newChapterLife, newProfileLife, playYear,
 } from "../src/engine.ts";
 import { birthCount, clinicChance, familyRoll, menopauseAge, miscarriageChance, naturalChance } from "../src/fertilityModel.ts";
@@ -245,10 +245,12 @@ function customLife(seed) {
 }
 
 test("a named life started at birth passes its own surname to the next generation", () => {
-  const mother = "serviceMatch.Даниела Маринова";
-  const seed = findSeed(seed => conceptionDraw(seed, 23, "serviceMatch") < 0.25 && lossDraw(seed, 24, mother) > 0.2
-    && birthCount(25, "natural", familyRoll(seed, 24, mother + ".birth-count")) === 1
-    && !rollDeath({ age: 25, sex: "female", city: "varna" }, personSeed(seed, "serviceMatch")));
+  const event = "serviceMatch.encounter.0.";
+  const seed = findSeed(seed => familyRoll(seed, 23, event + "conception") < 0.25
+    && familyRoll(seed, 23, event + "loss") > 0.2 && familyRoll(seed, 23, event + "late-loss") > 0.01
+    && familyRoll(seed, 23, "couple.serviceMatch.21.conception") > 0.05
+    && familyRoll(seed, 23, "couple.serviceMatch.21.suspicion") > 0.024
+    && birthCount(25, "natural", familyRoll(seed, 23, event + "count")) === 1);
   let s = ageUp(customLife(seed), 20);
   assert.equal(s.history[0].age, 0);
   const work = getActions(s).find(item => item.id.startsWith("life.work."));
@@ -258,8 +260,11 @@ test("a named life started at birth passes its own surname to the next generatio
   s = birthday(s);
   s = ageUp(activity(activity(s, "family.time-together"), "family.commit"), 23);
   s = activity(s, "people.serviceMatch.intimacy.try");
+  s = doPregnancyAction(s, "pregnancy-test");
   assert.equal(s.lifeSystems.reproduction.pregnancy.father.name.bg, "Явор Тодоров");
-  const born = birthday(s);
+  let born = doPregnancyAction(s, "pregnancy-read");
+  for (let turn = 0; turn < 4; turn++) born = playYear(born);
+  assert.equal(born.age, 23);
   assert.equal(born.lifeSystems.reproduction.naming.father.name.en, "Yavor Todorov");
   assert.strictEqual(doAction(born, "move.sofia"), born);
   const female = personGender(born, "child-0") === "female";

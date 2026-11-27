@@ -1,6 +1,7 @@
 import { pocketMoney, type City, type GameState, type Text } from "./engine.ts";
 import { closeEmploymentYear, employmentIncome, findJob, insuranceView, startEmployment, workView, type EmploymentState } from "./employment.ts";
 import { limit, type PathAction, type PathEvent } from "./pathActions.ts";
+import { onMaternityLeave } from "./maternity.ts";
 import { pathCities, pathMoney, pathText as t } from "./pathCatalog.ts";
 import { closeSchoolYear, moveSchool, schoolView, startSchool, type SchoolState } from "./school.ts";
 import { closeUniversityYear, startUniversity, universityCosts, universityView, type UniversityState } from "./university.ts";
@@ -30,6 +31,7 @@ export function hasSteadyIncome(s: GameState) {
 }
 
 export function pathOccupation(s: GameState): Text | null {
+  if (onMaternityLeave(s)) return t("В майчинство", "On maternity leave");
   const path = s.path;
   if (!path || s.age < 7) return null;
   const masculine = s.avatar?.presentation === "male";
@@ -67,7 +69,7 @@ export function pathBudget(s: GameState, path: LifePath) {
   const employment = employmentIncome(s, path.work);
   const study = universityCosts(path.university);
   const pocket = pocketMoney(s);
-  const pay = pocket + employment.wage + employment.benefit + employment.pension + study.scholarship;
+  const pay = pocket + employment.wage + employment.maternity + employment.benefit + employment.pension + study.scholarship;
   const dependent = s.age < 18 || (s.age < 20 && path.school.grade !== null && !path.school.left && s.housing === "home");
   const student = path.university.student && !path.university.student.paused;
   const retired = path.work.pension !== null && !path.work.job;

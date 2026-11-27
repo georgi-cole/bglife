@@ -2,6 +2,7 @@ import { cityIds, type City } from "./cities.ts";
 import { cityCulture } from "./cityCulture.ts";
 import type {GameState,PersonId,Text} from "./engine.ts";
 import {partnerIntimacy} from "./lifeReproduction.ts";
+import {relationshipActivities} from "./relationships.ts";
 import type {ActivityBranch,LifeActivityDefinition,LifeSystems} from "./lifeActivities.ts";
 import {childIndex,isChild,isKnownPerson,personAge,personRelationship,personSeed,type ContactId} from "./peopleIdentity.ts";
 
@@ -225,5 +226,5 @@ const branchActivities = (contact: ContactId): LifeActivityDefinition[] => group
 }));
 
 export function getPeopleActivityDefinitions(contact: ContactId): LifeActivityDefinition[] {
-  return [...partnerIntimacy(contact), ...contextualActivities(contact), ...branchActivities(contact)];
+  return [...relationshipActivities(contact), ...partnerIntimacy(contact), ...contextualActivities(contact), ...branchActivities(contact)];
 }

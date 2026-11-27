@@ -11,6 +11,7 @@ export const policy = {
   ownHealth: pathMoney(22.03),
   unemploymentMin: pathMoney(9.21),
   unemploymentMax: pathMoney(54.78),
+  maternity: { insuredMonths: 12, pregnancyRate: .9, childcareMonthly: pathMoney(398.81), returnShare: .5 },
   pensionMin: pathMoney(347.51),
   pensionCeiling: pathMoney(1738.4),
   women: { age: 62 * 12 + 6, service: 36 * 12 + 10 },

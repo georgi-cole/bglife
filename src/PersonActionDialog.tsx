@@ -28,8 +28,8 @@ function SpendPreview({option,l}: {option:LifeActivityOption;l:Language}) {
 }
 const signed=(value:number)=>(value>0?"+":"−")+Math.abs(value);
 
-export function PersonActionDialog({flow,life,l,onClose,onSelect,onConfirm}: {
-  flow:PersonActionFlow;life:GameState;l:Language;onClose:()=>void;onSelect:(id:string|null)=>void;onConfirm:()=>void;
+export function PersonActionDialog({flow,life,l,onClose,onSelect,onConfirm,onRepeat}: {
+  flow:PersonActionFlow;life:GameState;l:Language;onClose:()=>void;onSelect:(id:string|null)=>void;onConfirm:()=>void;onRepeat:()=>void;
 }) {
   const ref=useRef<HTMLDialogElement>(null),heading=useRef<HTMLHeadingElement>(null);
   const t=(bg:string,en:string)=>copy(l,bg,en);
@@ -85,7 +85,10 @@ export function PersonActionDialog({flow,life,l,onClose,onSelect,onConfirm}: {
           })}
           {flow.outcome.entry.cashDelta!==0&&<span>{t("Портфейл","Cash")} {flow.outcome.entry.cashDelta>0?"+":"−"}{money(Math.abs(flow.outcome.entry.cashDelta),l)}</span>}
         </div>
-        <button type="button" className="primary-button person-dialog-done" onClick={onClose}>{t("Към дневника","Go to journal")}</button>
+        <div className="person-dialog-actions">
+          {selected?.repeatable && !selected.blocked && <button type="button" className="secondary-button" onClick={onRepeat}>{t("Повтори","Repeat")}</button>}
+          <button type="button" className="primary-button person-dialog-done" onClick={onClose}>{t("Към дневника","Go to journal")}</button>
+        </div>
       </>}
     </div>
   </dialog>;
