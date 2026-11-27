@@ -140,6 +140,11 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
           security list-keychains -d user -s "$keychain"
           security default-keychain -s "$keychain"
+          signing_identity="$(security find-identity -v -p codesigning "$keychain" | awk '$1 == "1)" { print $2 }')"
+          if [[ ! "$signing_identity" =~ ^[0-9A-F]{40}$ ]]; then
+            echo "::error::No valid distribution signing identity was found in the testflight keychain."
+            exit 1
+          fi
 
           profiles="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
           mkdir -p "$profiles"
@@ -155,7 +160,7 @@ jobs:
             <key>destination</key><string>upload</string>
             <key>signingStyle</key><string>manual</string>
             <key>teamID</key><string>$IOS_TEAM_ID</string>
-            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>signingCertificate</key><string>$signing_identity</string>
             <key>provisioningProfiles</key>
             <dict><key>$IOS_BUNDLE_ID</key><string>$profile_uuid</string></dict>
             <key>manageAppVersionAndBuildNumber</key><false/>
