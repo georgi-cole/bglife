@@ -4,8 +4,19 @@ import type { Career, GameState, Text } from "./engine.ts";
 import { average, limit, pathRoll, type PathAction, type PathEvent } from "./pathActions.ts";
 import { fields, legacyGenericJob, legacyLocalJobId, pathCities, pathMoney, pathText as t, type Field, type Job } from "./pathCatalog.ts";
 import { netMonthly, policy } from "./pathPolicy.ts";
+import type { WorkplaceProgress } from "./workplace.ts";
 
-type Contract = { job: string; city: City; gross: number; hours: 4 | 8; monthsLeft: number | null; tenure: number; performance: number };
+type Contract = {
+  job: string;
+  city: City;
+  gross: number;
+  hours: 4 | 8;
+  monthsLeft: number | null;
+  tenure: number;
+  performance: number;
+  startedAt: number;
+  workplace?: WorkplaceProgress;
+};
 type Application = "interview" | "offer" | "no-callback" | "interview-failed" | "declined" | "accepted";
 type Separation = { age: number; reason: "leave" | "expiry" | "dismissal" };
 type Benefit = { months: number; daily: number };
@@ -88,7 +99,7 @@ export function startEmployment(s: GameState): EmploymentState {
       ? "full" as const : "reduced" as const, monthly: Math.round(s.retirement.payment / 12),
   } : null;
   return {
-    job: placed ? { job: placed.id, city: s.city, gross, hours: 8, monthsLeft: null, tenure, performance: 55 } : null,
+    job: placed ? { job: placed.id, city: s.city, gross, hours: 8, monthsLeft: null, tenure, performance: 55, startedAt: s.age - Math.floor(tenure / 12) } : null,
     applications: {}, prepared: false, worked: false,
     serviceCredits: insuredMonths * SERVICE_PER_MONTH, recentGross: months.slice(-24), incomeTotal,
     insuredMonths, benefit: null, separation: null, pension, healthDebt: 0, registrations: [],
@@ -148,10 +159,8 @@ function registered(s: GameState, work: EmploymentState, field: RegulatedField) 
   return work.registrations.some(item => item.field === field && cities[item.city].district === district);
 }
 
-export function workView(s: GameState, work: EmploymentState) {
+export function currentJobActions(s: GameState, work: EmploymentState): PathAction<EmploymentState>[] {
   const actions: PathAction<EmploymentState>[] = [];
-  const vacancies = s.age < MIN_YOUTH_AGE ? [] : pathCities[s.city].jobs.filter(job => s.age >= 18 || job.youth);
-  if (s.age < MIN_YOUTH_AGE) return { actions, vacancies };
   const current = work.job;
   const job = current && findJob(current.city, current.job);
   if (current && job) {
@@ -169,7 +178,8 @@ export function workView(s: GameState, work: EmploymentState) {
         : current.gross >= salaryLimit ? t("Достигна горната граница за тази позиция.", "You reached the upper pay band for this role.")
         : current.performance < 70 ? t("Нужно е по-добро представяне на работа.", "You need a stronger performance record.") : undefined,
       run: () => {
-        const accepted = current.performance >= 88 || pathRoll(s, "raise." + current.job) < .78;
+        const bossBond = current.workplace?.bonds.boss ?? 55;
+        const accepted = current.performance >= 88 || pathRoll(s, "raise." + current.job) < limit(.78 + (bossBond - 55) * .004, .6, .95);
         return { state: { ...work, job: { ...current, gross: accepted ? Math.round(Math.min(current.gross * 1.08, salaryLimit)) : current.gross,
           performance: accepted ? current.performance - 10 : current.performance } },
           note: accepted ? t("Договори увеличение на брутната заплата.", "You negotiated a gross pay raise.")
@@ -184,6 +194,14 @@ export function workView(s: GameState, work: EmploymentState) {
     });
   }
 
+  return actions;
+}
+
+export function workView(s: GameState, work: EmploymentState) {
+  const actions = currentJobActions(s, work);
+  const vacancies = s.age < MIN_YOUTH_AGE ? [] : pathCities[s.city].jobs.filter(job => s.age >= 18 || job.youth);
+  if (s.age < MIN_YOUTH_AGE) return { actions, vacancies };
+  const current = work.job;
   if (!work.prepared) actions.push({
     id: "work.prepare", label: t("Подготви CV и интервю", "Prepare your CV and interview"),
     run: () => ({ state: { ...work, prepared: true },
@@ -236,7 +254,7 @@ export function workView(s: GameState, work: EmploymentState) {
       blocked: current ? t("Първо приключи настоящия си договор.", "End your current contract first.") : undefined,
       run: () => ({
         state: { ...work, job: { job: job.id, city: s.city, gross: jobGross(s, job), hours: job.hours,
-          monthsLeft: job.termMonths ?? null, tenure: 0, performance: 56 },
+          monthsLeft: job.termMonths ?? null, tenure: 0, performance: 56, startedAt: s.age },
           applications: { ...work.applications, [job.id]: "accepted" }, worked: false, benefit: null, separation: null },
         note: s.age < 18
           ? t(job.title.bg + " · 4 часа. Работодателят уреди разрешението от Инспекцията по труда и прегледа.",
