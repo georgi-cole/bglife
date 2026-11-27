@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+mkdir -p mobile/smoke-results
+capture_failure() {
+  local status=$?
+  if [ "$status" -ne 0 ]; then
+    adb logcat -d -t 500 > "$GITHUB_WORKSPACE/mobile/smoke-results/android-logcat.txt" || true
+  fi
+}
+trap capture_failure EXIT
+
 adb install -r mobile/android/app/build/outputs/apk/release/app-release.apk
 adb shell cmd connectivity airplane-mode enable
 adb shell svc wifi disable

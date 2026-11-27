@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: bglife-native-${{ github.event.pull_request.number }}
+  group: bglife-native-pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 env:
@@ -43,10 +43,14 @@ jobs:
     needs: native-check
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -56,13 +60,38 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - run: npm ci
-        working-directory: mobile
-      - run: npx expo prebuild --platform android --no-install
-        working-directory: mobile
+      - uses: actions/cache/restore@v4
+        id: android-package
+        with:
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          key: bglife-android-apk-v1-${{ hashFiles('mobile/app.json', 'mobile/index.ts', 'mobile/metro.config.js', 'mobile/package.json', 'mobile/package-lock.json', 'mobile/src/**', 'src/**', 'public/art/**') }}
+      - name: Match the first APK to this app source
+        id: previous-build
+        if: steps.android-package.outputs.cache-hit != 'true'
+        run: |
+          if git diff --quiet ca96fa42941ec5ef635598de8dac5aa26391859a HEAD -- mobile/app.json mobile/index.ts mobile/metro.config.js mobile/package.json mobile/package-lock.json mobile/src src public/art; then
+            echo 'same-app=true' >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.previous-build.outputs.same-app == 'true'
+        uses: actions/download-artifact@v5
+        with:
+          name: BgLife-Android-Playtest
+          run-id: 45982865153
+          github-token: ${{ github.token }}
+          path: mobile/android/app/build/outputs/apk/release
       - name: Build a standalone, debug-signed APK
-        run: bash gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64
-        working-directory: mobile/android
+        if: steps.android-package.outputs.cache-hit != 'true' && steps.previous-build.outputs.same-app != 'true'
+        working-directory: mobile
+        run: |
+          npm ci
+          npx expo prebuild --platform android --no-install
+          cd android
+          bash gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64
+      - if: steps.android-package.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          key: ${{ steps.android-package.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v4
         with:
           name: BgLife-Android-Playtest
@@ -70,6 +99,10 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - run: bash mobile/e2e/install-maestro.sh
+      - name: Update the Android command-line tools
+        run: |
+          sdkmanager --install 'cmdline-tools;latest'
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
       - name: Enable hardware acceleration for the emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -80,7 +113,7 @@ jobs:
           api-level: 35
           target: google_apis
           arch: x86_64
-          profile: pixel_7
+          emulator-options: -no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: bash mobile/e2e/run-android.sh
       - if: always()
@@ -104,13 +137,26 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: mobile/package-lock.json
-      - run: npm ci
+      - uses: actions/cache/restore@v4
+        id: ios-package
+        with:
+          path: ${{ runner.temp }}/BgLife-iOS-Simulator.zip
+          key: bglife-ios-simulator-v1-${{ hashFiles('mobile/app.json', 'mobile/index.ts', 'mobile/metro.config.js', 'mobile/package.json', 'mobile/package-lock.json', 'mobile/src/**', 'src/**', 'public/art/**') }}
+      - if: steps.ios-package.outputs.cache-hit == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/bglife-ios/Build/Products/Release-iphonesimulator"
+          ditto -x -k "$RUNNER_TEMP/BgLife-iOS-Simulator.zip" "$RUNNER_TEMP/bglife-ios/Build/Products/Release-iphonesimulator"
+      - if: steps.ios-package.outputs.cache-hit != 'true'
+        run: npm ci
         working-directory: mobile
-      - run: npx expo prebuild --platform ios --no-install
+      - if: steps.ios-package.outputs.cache-hit != 'true'
+        run: npx expo prebuild --platform ios --no-install
         working-directory: mobile
-      - run: pod install --project-directory=ios
+      - if: steps.ios-package.outputs.cache-hit != 'true'
+        run: pod install --project-directory=ios
         working-directory: mobile
       - name: Build a standalone simulator app
+        if: steps.ios-package.outputs.cache-hit != 'true'
         working-directory: mobile
         run: |
           workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
@@ -122,6 +168,11 @@ jobs:
           app="$(find "$RUNNER_TEMP/bglife-ios/Build/Products/Release-iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)"
           test -n "$app"
           ditto -c -k --sequesterRsrc --keepParent "$app" "$RUNNER_TEMP/BgLife-iOS-Simulator.zip"
+      - if: steps.ios-package.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/BgLife-iOS-Simulator.zip
+          key: ${{ steps.ios-package.outputs.cache-primary-key }}
       - uses: actions/upload-artifact@v4
         with:
           name: BgLife-iOS-Simulator
