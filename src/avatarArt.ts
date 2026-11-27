@@ -1,7 +1,28 @@
 import type { AvatarLook, AvatarStage, AvatarTraits } from "./avatar.ts";
 
-type Painter = CanvasRenderingContext2D;
-type Paint = string | CanvasGradient;
+export type AvatarPaint = string | {
+  kind: "linear";
+  x1: number; y1: number; x2: number; y2: number;
+  colors: string[];
+} | {
+  kind: "radial";
+  x: number; y: number; radius: number;
+  colors: string[];
+};
+
+export type AvatarPainter = {
+  save(): void;
+  restore(): void;
+  translate(x: number, y: number): void;
+  scale(x: number, y: number): void;
+  setOpacity(opacity: number): void;
+  clip(shape: string): void;
+  fillPath(shape: string, paint: AvatarPaint): void;
+  strokePath(shape: string, paint: AvatarPaint, width: number): void;
+  fillEllipse(x: number, y: number, rx: number, ry: number, paint: AvatarPaint): void;
+  fillRect(x: number, y: number, width: number, height: number, paint: AvatarPaint): void;
+};
+
 export type PortraitRegion = "portrait" | "badge" | "face" | "hair" | "eyes" | "brows" | "lips";
 
 export const portraitPixels: Record<PortraitRegion, readonly [number, number]> = {
@@ -132,93 +153,75 @@ function mix(from: string, to: string, strength: number): string {
   return "#" + channels.join("");
 }
 
-function gradient(ctx: Painter, x1: number, y1: number, x2: number, y2: number, ...colors: string[]) {
-  const paint = ctx.createLinearGradient(x1, y1, x2, y2);
-  colors.forEach((color, index) => paint.addColorStop(index / (colors.length - 1), color));
-  return paint;
+function gradient(x1: number, y1: number, x2: number, y2: number, ...colors: string[]): AvatarPaint {
+  return { kind: "linear", x1, y1, x2, y2, colors };
 }
 
-function fill(ctx: Painter, shape: string | Path2D, color: Paint) {
-  ctx.fillStyle = color;
-  ctx.fill(typeof shape === "string" ? new Path2D(shape) : shape);
+function line(ctx: AvatarPainter, shape: string, paint: AvatarPaint, width = 1) {
+  ctx.strokePath(shape, paint, width);
 }
 
-function line(ctx: Painter, shape: string, color: Paint, width = 1) {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.stroke(new Path2D(shape));
+function glow(ctx: AvatarPainter, x: number, y: number, radius: number, color: string, opacity: number) {
+  const colors = [color + Math.round(opacity * 255).toString(16).padStart(2, "0"), color + "00"];
+  ctx.fillEllipse(x, y, radius, radius, { kind: "radial", x, y, radius, colors });
 }
 
-function ellipse(ctx: Painter, x: number, y: number, rx: number, ry: number, color: Paint) {
-  const shape = new Path2D();
-  shape.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
-  fill(ctx, shape, color);
-}
-
-function glow(ctx: Painter, x: number, y: number, radius: number, color: string, opacity: number) {
-  const paint = ctx.createRadialGradient(x, y, 0, x, y, radius);
-  paint.addColorStop(0, color + Math.round(opacity * 255).toString(16).padStart(2, "0"));
-  paint.addColorStop(1, color + "00");
-  ellipse(ctx, x, y, radius, radius, paint);
-}
-
-function drawBackdrop(ctx: Painter) {
-  ctx.fillStyle = gradient(ctx, 0, 0, 180, 204, "#49635e", "#2c4648", "#263241");
-  ctx.fillRect(-8, -8, 196, 220);
+function drawBackdrop(ctx: AvatarPainter) {
+  ctx.fillRect(-8, -8, 196, 220, gradient(0, 0, 180, 204, "#49635e", "#2c4648", "#263241"));
   glow(ctx, 92, 86, 100, "#b2ad83", .34);
-  ellipse(ctx, 90, 93, 59, 68, "#e5be8c17");
+  ctx.fillEllipse(90, 93, 59, 68, "#e5be8c17");
   line(ctx, "M31 93a59 68 0 1 1 118 0 59 68 0 1 1-118 0Z", "#d9bd9546", .7);
   line(ctx, "M13 112Q15 57 47 34M167 161Q153 178 130 183M19 123v20m-5-10h10m136-72v20m-5-10h10", "#ebcfa757", .75);
 }
 
-function drawClothing(ctx: Painter, look: AvatarLook, pose: Pose, chin: number) {
+function drawClothing(ctx: AvatarPainter, look: AvatarLook, pose: Pose, chin: number) {
   const male = look.traits.presentation === "male";
   const cloth = male ? mix(pose.clothing, "#436184", .52) : pose.clothing;
   const seam = mix(cloth, "#d9c9ac", .48);
   const shadow = mix(look.skin, "#4a272e", .4);
   if (look.stage.id === "baby") {
-    fill(ctx, "M32 210Q29 160 59 143Q90 133 119 143Q151 154 153 210Z",
-      gradient(ctx, 54, 143, 121, 213, seam, cloth, "#38565d"));
+    ctx.fillPath("M32 210Q29 160 59 143Q90 133 119 143Q151 154 153 210Z",
+      gradient(54, 143, 121, 213, seam, cloth, "#38565d"));
     line(ctx, "M48 153Q71 183 125 207M131 151Q96 179 68 204", seam, 1.6);
     line(ctx, "M44 157Q60 179 101 196M132 158Q111 175 96 185", "#1e424746", .8);
     return;
   }
 
   const shoulder = look.stage.tier < 3 ? 33 : male ? 12 : 19;
-  fill(ctx, "M71 " + (chin - 14) + "Q76 " + (chin + 3) + " 68 172Q90 190 112 172Q104 "
-    + (chin + 3) + " 109 " + (chin - 14) + "Z", gradient(ctx, 84, chin - 13, 86, 181, shadow, look.skin));
-  fill(ctx, "M" + shoulder + " 208Q" + (shoulder + 3)
+  ctx.fillPath("M71 " + (chin - 14) + "Q76 " + (chin + 3) + " 68 172Q90 190 112 172Q104 "
+    + (chin + 3) + " 109 " + (chin - 14) + "Z", gradient(84, chin - 13, 86, 181, shadow, look.skin));
+  ctx.fillPath("M" + shoulder + " 208Q" + (shoulder + 3)
     + " 180 49 175L70 166Q90 188 110 166L131 175Q" + (177 - shoulder) + " 180 "
-    + (180 - shoulder) + " 208Z", gradient(ctx, 25, 169, 144, 216, seam, cloth, mix(cloth, "#202933", .53)));
+    + (180 - shoulder) + " 208Z", gradient(25, 169, 144, 216, seam, cloth, mix(cloth, "#202933", .53)));
   line(ctx, "M69 167Q89 191 111 167", seam, 2.5);
   line(ctx, "M43 181Q45 192 43 207M137 181Q135 192 137 207", mix(cloth, "#263340", .5));
   if (look.stage.tier < 3) {
-    fill(ctx, "M69 167Q80 177 90 184Q80 195 69 186L60 172ZM111 167Q100 177 90 184Q100 195 111 186L120 172Z",
+    ctx.fillPath("M69 167Q80 177 90 184Q80 195 69 186L60 172ZM111 167Q100 177 90 184Q100 195 111 186L120 172Z",
       mix(seam, "#fff0d6", .65));
   } else {
     line(ctx, "M90 190v15", seam, .8);
-    ellipse(ctx, 90, 197, 1.3, 1.3, seam);
+    ctx.fillEllipse(90, 197, 1.3, 1.3, seam);
   }
 }
 
-function drawEye(ctx: Painter, look: AvatarLook) {
+function drawEye(ctx: AvatarPainter, look: AvatarLook) {
   const eye = eyes[look.traits.eyes];
-  const aperture = new Path2D(eye.lid + eye.bottom);
-  fill(ctx, aperture, gradient(ctx, 0, -5, 0, 6, "#e0c9b9", "#fff1da"));
+  const aperture = eye.lid + eye.bottom;
+  ctx.fillPath(aperture, gradient(0, -5, 0, 6, "#e0c9b9", "#fff1da"));
   ctx.save();
   ctx.clip(aperture);
-  ellipse(ctx, -.8, -.2, 5.4, 5.4, mix(look.iris, "#292229", .46));
-  ellipse(ctx, -.8, -.2, 4.4, 4.4, look.iris);
-  ellipse(ctx, -.8, -.5, 2.4, 2.55, "#27202a");
-  ellipse(ctx, -2.35, -2.5, 1.3, 1.3, "#fff7e2");
-  ellipse(ctx, 1.3, 1.1, .65, .65, "#e2d9c6");
+  ctx.fillEllipse(-.8, -.2, 5.4, 5.4, mix(look.iris, "#292229", .46));
+  ctx.fillEllipse(-.8, -.2, 4.4, 4.4, look.iris);
+  ctx.fillEllipse(-.8, -.5, 2.4, 2.55, "#27202a");
+  ctx.fillEllipse(-2.35, -2.5, 1.3, 1.3, "#fff7e2");
+  ctx.fillEllipse(1.3, 1.1, .65, .65, "#e2d9c6");
   ctx.restore();
   line(ctx, eye.lid, mix(look.skin, "#30222a", .83), look.makeup ? 1.95 : 1.4);
   line(ctx, eye.lid + eye.bottom, mix(look.skin, "#43252e", .66), .65);
   if (look.traits.eyes === "hooded") line(ctx, "M-8-3Q0-8 8-4", mix(look.skin, "#613336", .42), .7);
 }
 
-function drawFace(ctx: Painter, look: AvatarLook, pose: Pose) {
+function drawFace(ctx: AvatarPainter, look: AvatarLook, pose: Pose) {
   const { cheeks, jaw: baseJaw, chin: baseChin, length } = faces[look.traits.face];
   const male = look.traits.presentation === "male";
   const jaw = baseJaw + (male && look.stage.tier >= 3 ? 3 : 0);
@@ -227,15 +230,15 @@ function drawFace(ctx: Painter, look: AvatarLook, pose: Pose) {
   const cheek = cheeks - mature * 2.2;
   const shadow = mix(look.skin, "#663b3b", .37);
   const contour = mix(look.skin, "#41282d", .5);
-  const face = new Path2D("M0-3C-26-5-45 10-44 38L-43 60Q-" + cheek + " 82-" + jaw + " 96Q-"
+  const face = "M0-3C-26-5-45 10-44 38L-43 60Q-" + cheek + " 82-" + jaw + " 96Q-"
     + chin + " " + length + " 0 " + length + "Q" + chin + " " + length + " " + jaw + " 96Q"
-    + cheek + " 82 43 60L44 38C45 10 26-5 0-3Z");
+    + cheek + " 82 43 60L44 38C45 10 26-5 0-3Z";
 
   for (const side of [-1, 1]) {
-    ellipse(ctx, side * 43, pose.eyes + 12, 8.1, 12.8, shadow);
-    ellipse(ctx, side * 44, pose.eyes + 12.5, 5.3, 8.7, mix(shadow, "#ac6263", .35));
+    ctx.fillEllipse(side * 43, pose.eyes + 12, 8.1, 12.8, shadow);
+    ctx.fillEllipse(side * 44, pose.eyes + 12.5, 5.3, 8.7, mix(shadow, "#ac6263", .35));
   }
-  fill(ctx, face, gradient(ctx, -36, 18, 47, 108, mix(look.skin, "#fff1ce", .28), look.skin, shadow));
+  ctx.fillPath(face, gradient(-36, 18, 47, 108, mix(look.skin, "#fff1ce", .28), look.skin, shadow));
   ctx.save();
   ctx.clip(face);
   glow(ctx, -12, 44, 37, "#fff3ce", look.radiance ? .28 : .16);
@@ -253,15 +256,15 @@ function drawFace(ctx: Painter, look: AvatarLook, pose: Pose) {
     ctx.scale(side * pose.eyeSize, pose.eyeSize);
     drawEye(ctx, look);
     ctx.translate(0, look.stage.id === "baby" ? -10 : -13);
-    ctx.globalAlpha = look.stage.id === "baby" ? .48 : .96;
+    ctx.setOpacity(look.stage.id === "baby" ? .48 : .96);
     line(ctx, brow.line, browColor, look.stage.tier < 2 ? brow.weight * .62 : brow.weight);
     ctx.restore();
   }
 
   ctx.save();
   ctx.translate(0, pose.eyes + (pose.mouth - pose.eyes) * .59);
-  fill(ctx, "M-2-8Q-2-2-5 1Q-7 5-2 6L3 6Q7 4 5 1Q2-2 2-8Z",
-    gradient(ctx, -5, 0, 6, 6, mix(look.skin, "#fff2d1", .19), look.skin, shadow));
+  ctx.fillPath("M-2-8Q-2-2-5 1Q-7 5-2 6L3 6Q7 4 5 1Q2-2 2-8Z",
+    gradient(-5, 0, 6, 6, mix(look.skin, "#fff2d1", .19), look.skin, shadow));
   line(ctx, "M-4.2 3.8q1.1-1.3 2.6-.1m3.6.1q1.5-1.4 2.6-.2", contour, .65);
   ctx.restore();
 
@@ -270,28 +273,26 @@ function drawFace(ctx: Painter, look: AvatarLook, pose: Pose) {
   ctx.translate(0, pose.mouth);
   ctx.scale(look.stage.id === "baby" ? .82 : 1, look.lipVolume);
   const lip = mix(look.skin, look.makeup ? "#b65366" : "#be6971", look.makeup ? .71 : male ? .27 : .43);
-  fill(ctx, mouth.outline, gradient(ctx, 0, -6, 0, 8, mix(lip, "#63383e", .22), lip, mix(lip, "#f2b0a0", .43)));
+  ctx.fillPath(mouth.outline, gradient(0, -6, 0, 8, mix(lip, "#63383e", .22), lip, mix(lip, "#f2b0a0", .43)));
   line(ctx, mouth.seam, mix(lip, "#442834", .57), .92);
   ctx.restore();
 
   if (look.upperLines > 0) {
-    ctx.globalAlpha = look.upperLines * .58;
+    ctx.setOpacity(look.upperLines * .58);
     const y = pose.eyes;
     line(ctx, "M-17 29q16-4 33-1m-25-4q9-2 18-1M30 " + (y + 1)
       + "q5 1 8 4m-9 0 6 4M-30 " + (y + 1) + "q-5 1-8 4m9 0-6 4", contour, .9);
   }
   if (look.lowerLines > 0) {
-    ctx.globalAlpha = look.lowerLines * .5;
+    ctx.setOpacity(look.lowerLines * .5);
     line(ctx, "M-27 61q6 3 14 1m26 0q8 2 14-1M-10 77q-7 6-7 12m27-12q7 6 7 12M-9 99q9 4 18 0",
       contour, 1.05);
   }
   ctx.restore();
-  ctx.strokeStyle = contour;
-  ctx.lineWidth = 1.1;
-  ctx.stroke(face);
+  ctx.strokePath(face, contour, 1.1);
 }
 
-function drawPortrait(ctx: Painter, look: AvatarLook) {
+function drawPortrait(ctx: AvatarPainter, look: AvatarLook) {
   const pose = poses[look.stage.id];
   const chin = pose.top + faces[look.traits.face].length * pose.y;
   const hair = mix(look.hair, "#c6bbb6", look.gray * .78);
@@ -305,7 +306,7 @@ function drawPortrait(ctx: Painter, look: AvatarLook) {
   ctx.save();
   ctx.translate(90, pose.top);
   ctx.scale(pose.x, pose.y);
-  if (style.back) fill(ctx, style.back, gradient(ctx, -38, 2, 39, 124, hair, shadedHair));
+  if (style.back) ctx.fillPath(style.back, gradient(-38, 2, 39, 124, hair, shadedHair));
   ctx.restore();
 
   drawClothing(ctx, look, pose, chin);
@@ -313,7 +314,7 @@ function drawPortrait(ctx: Painter, look: AvatarLook) {
   ctx.translate(90, pose.top);
   ctx.scale(pose.x, pose.y);
   drawFace(ctx, look, pose);
-  fill(ctx, style.front, gradient(ctx, -45, -17, 49, 98, litHair, hair, shadedHair));
+  ctx.fillPath(style.front, gradient(-45, -17, 49, 98, litHair, hair, shadedHair));
   line(ctx, style.front, mix(hair, "#2b2128", .68), 1.2);
   for (const strand of style.strands) {
     line(ctx, strand, mix(litHair, "#e3d8cc", look.gray * .68), look.gloss ? 1.4 : 1.05);
@@ -321,9 +322,7 @@ function drawPortrait(ctx: Painter, look: AvatarLook) {
   ctx.restore();
 }
 
-export function paintAvatar(canvas: HTMLCanvasElement, look: AvatarLook, region: PortraitRegion) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+export function drawAvatar(ctx: AvatarPainter, look: AvatarLook, region: PortraitRegion, outputWidth: number) {
   const pose = poses[look.stage.id];
   const eye = pose.top + pose.eyes * pose.y;
   const mouth = pose.top + pose.mouth * pose.y;
@@ -337,11 +336,10 @@ export function paintAvatar(canvas: HTMLCanvasElement, look: AvatarLook, region:
     lips: [56, mouth - 16, 68],
   };
   const [left, top, width] = crops[region];
-  const scale = canvas.width / width;
-  ctx.resetTransform();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.setTransform(scale, 0, 0, scale, -left * scale, -top * scale);
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
+  const scale = outputWidth / width;
+  ctx.save();
+  ctx.scale(scale, scale);
+  ctx.translate(-left, -top);
   drawPortrait(ctx, look);
+  ctx.restore();
 }
