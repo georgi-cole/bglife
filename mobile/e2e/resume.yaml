@@ -1,0 +1,22 @@
+appId: com.georgicole.bglife.playtest
+---
+- scrollUntilVisible:
+    element:
+      id: continue-life
+    direction: DOWN
+    centerElement: true
+- assertVisible:
+    id: saved-life-summary
+    text: '${SAVED_AGE} г\. · .*'
+- tapOn:
+    id: continue-life
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: current-age
+      text: '${SAVED_AGE} г\.'
+    timeout: 20000
+- assertVisible:
+    id: current-name
+    text: ${SAVED_NAME}
+- takeScreenshot: smoke-results/${SCREENSHOT}

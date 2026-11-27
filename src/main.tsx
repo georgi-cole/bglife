@@ -1,6 +1,6 @@
 import React,{useCallback,useEffect,useLayoutEffect,useRef,useState} from "react";
 import {createRoot} from "react-dom/client";
-import {choose,defaultPlayChoice,doAction,doLifeActivity,encodeSave,getPersonActivities,giveUp,nameNewborns,hasStartedLife,newProfileLife,playYear,doPathAction,startCareerLife,type City,type GameState,type LifeActivityCategory,type LifeActivityOption} from "./engine.ts";
+import {choose,defaultPlayChoice,doAction,doLifeActivity,getPersonActivities,giveUp,nameNewborns,hasStartedLife,newProfileLife,playYear,doPathAction,startCareerLife,type City,type GameState,type LifeActivityCategory,type LifeActivityOption} from "./engine.ts";
 import {Album,Places} from "./Views.tsx";
 import {Career} from "./Career.tsx";
 import {isSchoolAge} from "./lifePath.ts";
@@ -12,7 +12,7 @@ import {personRelationship,type PeopleId} from "./peopleIdentity.ts";
 import {Journal,Wallet} from "./Journal.tsx";
 import {More,StatsBars} from "./More.tsx";
 import {Icon,MenuTitle,NavigationButton,PlaySymbol,copy,lifeName,lifeOccupation,money,tabLabels,type Tab} from "./ui.tsx";
-import {deserialize,initialLanguage,initialTrialVip,LANGUAGE_KEY,loadSession,persist,SAVE_KEY,serialize,VIP_TRIAL_KEY,type Session} from "./session.ts";
+import {deserialize,initialLanguage,initialTrialVip,LANGUAGE_KEY,loadSession,persist,restoreSession,SAVE_KEY,serialize,VIP_TRIAL_KEY,type Session} from "./session.ts";
 import "./style.css";
 import {HomeHub,StartGuide} from "./HomeHub.tsx";
 import {AvatarCreator} from "./AvatarCreator.tsx";
@@ -289,17 +289,10 @@ function App(){
   }
   function importBackup(){
     if(!importRef.current)return;
-    const current=live.current,restored=importRef.current;
-    const histories=new Map<string,GameState>();
-    const restoredLife = startCareerLife(restored.life);
-    const activeKey = encodeSave(restoredLife);
-    for(const life of [...current.album,...restored.album,...(hasStartedLife(current.life)?[current.life]:[])]){
-      const key = encodeSave(life);
-      if(key !== activeKey) histories.set(key,life);
-    }
-    commit({life:restoredLife,album:[...histories.values()]});
+    const restored=restoreSession(live.current,importRef.current);
+    commit(restored);
     close();
-    openJournal(restoredLife);
+    openJournal(restored.life);
   }
   const fallback = defaultPlayChoice(s);
   const playLabel = s.finished ? t("Нов живот","New life") : t("Следваща година","Next year");

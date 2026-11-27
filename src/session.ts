@@ -1,27 +1,11 @@
-import { continueLife, decodeSave, encodeSave, newLife, startCareerLife, type GameState } from "./engine.ts";
+import { newLife, startCareerLife } from "./engine.ts";
+import { deserialize, serialize, type Language, type Session } from "./sessionCodec.ts";
 
-import { startFamilyEvents } from "./reproduction.ts";
+export { deserialize, restoreSession, serialize, type Language, type Session } from "./sessionCodec.ts";
 
 export const SAVE_KEY = "bglife.journal.v1";
 export const LANGUAGE_KEY = "bglife.language";
 export const VIP_TRIAL_KEY = "bglife.preview.vip";
-export type Session = { life: GameState; album: GameState[] };
-export type Language = "bg" | "en";
-
-export function serialize(session: Session): string {
-  return JSON.stringify({ version: 1, life: encodeSave(session.life), album: session.album.map(encodeSave) });
-}
-
-export function deserialize(raw: string | null): Session | null {
-  if (!raw) return null;
-  try {
-    const value = JSON.parse(raw);
-    if (value?.version !== 1 || typeof value.life !== "string" || !Array.isArray(value.album)) return null;
-    const life = decodeSave(value.life);
-    const album = value.album.map((entry: unknown) => typeof entry === "string" ? decodeSave(entry) : null);
-    return life && album.every((entry: GameState | null) => entry !== null) ? {life: startFamilyEvents(continueLife(life)), album} : null;
-  } catch { return null; }
-}
 
 export function loadSession(): { session: Session; notice: "recovered" | "damaged" | "temporary" | null } {
   try {

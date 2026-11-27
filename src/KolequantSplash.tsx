@@ -167,7 +167,7 @@ export function KolequantSplash({ artwork, flag, onFinish }: Props) {
   }, [artwork, flag, onFinish]);
 
   const maskImage = 'url("' + mark + '")';
-  return <div ref={splash} className="kolequant-splash" role="status" aria-label="KoleQuant">
+  return <div ref={splash} className="kolequant-splash" role="img" aria-label="KoleQuant">
     <div className="kolequant-splash-backdrop" />
     <div className="kolequant-splash-brand" aria-hidden="true">
       <span ref={symbol} className="kolequant-splash-symbol" style={{ maskImage, WebkitMaskImage: maskImage }} />

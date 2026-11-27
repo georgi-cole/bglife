@@ -1,0 +1,27 @@
+appId: com.georgicole.bglife.playtest
+---
+- scrollUntilVisible:
+    element:
+      id: open-settings
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: open-settings
+    retryTapIfNoChange: true
+- tapOn:
+    id: choose-backup
+- runFlow:
+    when:
+      notVisible: BgLife-Web-Backup.json
+    commands:
+      - tapOn: Show roots
+      - tapOn: Downloads
+- tapOn: BgLife-Web-Backup.json
+- tapOn:
+    id: restore-backup
+- assertVisible:
+    id: current-name
+    text: Nikolay Iliev
+- assertVisible:
+    id: current-age
+    text: '3 г\.'
