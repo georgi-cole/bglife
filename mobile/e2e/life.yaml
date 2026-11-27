@@ -1,7 +1,5 @@
 appId: com.georgicole.bglife.playtest
 ---
-- launchApp:
-    clearState: true
 - tapOn:
     id: new-life
 - tapOn:
@@ -49,26 +47,3 @@ appId: com.georgicole.bglife.playtest
 - assertVisible:
     id: current-age
     text: '1 г\.'
-- launchApp:
-    stopApp: true
-    clearState: false
-- scrollUntilVisible:
-    element:
-      id: continue-life
-    direction: DOWN
-    centerElement: true
-- assertVisible:
-    id: saved-life-summary
-    text: '1 г\. · .*'
-- tapOn:
-    id: continue-life
-    retryTapIfNoChange: true
-- extendedWaitUntil:
-    visible:
-      id: current-age
-      text: '1 г\.'
-    timeout: 20000
-- assertVisible:
-    id: current-name
-    text: Mila Vasileva
-- takeScreenshot: smoke-results/journal

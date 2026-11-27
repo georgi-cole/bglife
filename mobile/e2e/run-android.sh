@@ -6,6 +6,7 @@ capture_failure() {
   local status=$?
   if [ "$status" -ne 0 ]; then
     adb logcat -d -t 500 > "$GITHUB_WORKSPACE/mobile/smoke-results/android-logcat.txt" || true
+    adb logcat -b crash -d -t 60 || true
   fi
 }
 trap capture_failure EXIT
@@ -20,6 +21,12 @@ adb push "$RUNNER_TEMP/BgLife-Web-Backup.json" /sdcard/Download/
 adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Download/BgLife-Web-Backup.json
 
 cd mobile
-mkdir -p smoke-results
-"${RUNNER_TEMP}/maestro/bin/maestro" test --debug-output smoke-results e2e/life.yaml
-"${RUNNER_TEMP}/maestro/bin/maestro" test --debug-output smoke-results e2e/import-android.yaml
+app_id=com.georgicole.bglife.playtest
+maestro="$RUNNER_TEMP/maestro/bin/maestro"
+
+adb shell am start -W -n "$app_id/.MainActivity"
+"$maestro" test --debug-output smoke-results e2e/life.yaml
+adb shell am start -S -W -n "$app_id/.MainActivity"
+"$maestro" test --debug-output smoke-results e2e/resume.yaml
+adb shell am start -S -W -n "$app_id/.MainActivity"
+"$maestro" test --debug-output smoke-results e2e/import-android.yaml

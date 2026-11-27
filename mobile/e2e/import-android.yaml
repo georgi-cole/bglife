@@ -1,8 +1,13 @@
 appId: com.georgicole.bglife.playtest
 ---
-- back
+- scrollUntilVisible:
+    element:
+      id: open-settings
+    direction: DOWN
+    centerElement: true
 - tapOn:
     id: open-settings
+    retryTapIfNoChange: true
 - tapOn:
     id: choose-backup
 - runFlow:

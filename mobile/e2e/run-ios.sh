@@ -17,6 +17,30 @@ test -n "$app"
 echo "Installing $app"
 xcrun simctl install "$simulator" "$app"
 
+app_id=com.georgicole.bglife.playtest
+maestro="$RUNNER_TEMP/maestro/bin/maestro"
+
+capture_failure() {
+  local status=$?
+  if [ "$status" -eq 0 ]; then return; fi
+  local data database
+  data="$(xcrun simctl get_app_container "$simulator" "$app_id" data)" || return
+  database="$(find "$data" -name bglife.db -type f -print -quit)"
+  if [ -n "$database" ]; then
+    sqlite3 -readonly -line "$database" "
+      SELECT length(current_save) AS current_bytes, length(previous_save) AS previous_bytes,
+             json_array_length(json_extract(current_save, '\$.life'), '\$.commands') AS current_commands
+      FROM game WHERE id = 1;
+    " || true
+  else
+    echo "No BgLife SQLite database in the simulator data container."
+  fi
+}
+trap capture_failure EXIT
+
 cd mobile
 mkdir -p smoke-results
-"$RUNNER_TEMP/maestro/bin/maestro" --device "$simulator" test --debug-output smoke-results e2e/life.yaml
+xcrun simctl launch "$simulator" "$app_id"
+"$maestro" --device "$simulator" test --debug-output smoke-results e2e/life.yaml
+xcrun simctl launch --terminate-running-process "$simulator" "$app_id"
+"$maestro" --device "$simulator" test --debug-output smoke-results e2e/resume.yaml

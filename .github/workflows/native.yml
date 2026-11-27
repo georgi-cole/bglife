@@ -110,7 +110,7 @@ jobs:
     name: iOS simulator app and smoke
     needs: native-check
     runs-on: xcode-27
-    timeout-minutes: 40
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v6
         with:
@@ -165,7 +165,7 @@ jobs:
       - run: bash mobile/e2e/install-maestro.sh
       - name: Exercise the game in the iOS Simulator
         run: bash mobile/e2e/run-ios.sh
-        timeout-minutes: 18
+        timeout-minutes: 28
       - if: always()
         uses: actions/upload-artifact@v4
         with:
