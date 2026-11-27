@@ -1,0 +1,34 @@
+name: BgLife native playtest
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['mobile/**', '.github/workflows/native.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-lock:
+    name: Resolve mobile dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - run: npm install --package-lock-only --ignore-scripts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bglife-mobile-dependency-lock
+          path: mobile/package-lock.json
+          if-no-files-found: error
+          retention-days: 3
+      - name: Report compressed lockfile
+        run: node -e 'const fs = require("node:fs"); const zlib = require("node:zlib"); console.log(zlib.gzipSync(fs.readFileSync("package-lock.json")).toString("base64").match(/.{1,960}/g).map((chunk, index) => "LOCK " + index + " " + chunk).join("\n"));'
