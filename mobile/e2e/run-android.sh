@@ -27,6 +27,10 @@ maestro="$RUNNER_TEMP/maestro/bin/maestro"
 adb shell am start -W -n "$app_id/.MainActivity"
 "$maestro" test --debug-output smoke-results e2e/life.yaml
 adb shell am start -S -W -n "$app_id/.MainActivity"
-"$maestro" test --debug-output smoke-results e2e/resume.yaml
+"$maestro" test --debug-output smoke-results \
+  -e SAVED_NAME="Mila Vasileva" -e SAVED_AGE=1 -e SCREENSHOT=journal e2e/resume.yaml
 adb shell am start -S -W -n "$app_id/.MainActivity"
 "$maestro" test --debug-output smoke-results e2e/import-android.yaml
+adb shell am start -S -W -n "$app_id/.MainActivity"
+"$maestro" test --debug-output smoke-results \
+  -e SAVED_NAME="Nikolay Iliev" -e SAVED_AGE=3 -e SCREENSHOT=imported-journal e2e/resume.yaml

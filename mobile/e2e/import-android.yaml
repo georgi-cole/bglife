@@ -25,11 +25,3 @@ appId: com.georgicole.bglife.playtest
 - assertVisible:
     id: current-age
     text: '3 г\.'
-- stopApp
-- launchApp
-- tapOn:
-    id: continue-life
-- assertVisible:
-    id: current-name
-    text: Nikolay Iliev
-- takeScreenshot: smoke-results/imported-journal

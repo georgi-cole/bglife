@@ -43,4 +43,5 @@ mkdir -p smoke-results
 xcrun simctl launch "$simulator" "$app_id"
 "$maestro" --device "$simulator" test --debug-output smoke-results e2e/life.yaml
 xcrun simctl launch --terminate-running-process "$simulator" "$app_id"
-"$maestro" --device "$simulator" test --debug-output smoke-results e2e/resume.yaml
+"$maestro" --device "$simulator" test --debug-output smoke-results \
+  -e SAVED_NAME="Mila Vasileva" -e SAVED_AGE=1 -e SCREENSHOT=journal e2e/resume.yaml
