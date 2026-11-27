@@ -2,7 +2,6 @@
 @supports (background-clip: text) {
   .game-brand > span { background: linear-gradient(112deg, #fff 16%, #a5dbb0 48%, #eda099 86%); background-clip: text; color: transparent; }
 }
-.life-tools { align-items: center; gap: .3rem; }
 .person-action-dialog { padding: 0; width: min(25rem, calc(100% - 1.25rem)); border-color: #60738a; background: #202a39; }
 .person-action-dialog::backdrop { background: #08111cc4; backdrop-filter: blur(6px); }
 .person-dialog-top { display: grid; grid-template-columns: 2.75rem minmax(0,1fr) 2.75rem; align-items: center; position: sticky; top: 0; z-index: 1; background: linear-gradient(110deg, #263f40, #27354a); border-bottom: 1px solid #526271; }

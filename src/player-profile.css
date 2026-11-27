@@ -1,0 +1,130 @@
+.journal-masthead { background: #151925; border-color: #424758; }
+.journal-banner {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
+  gap: .48rem; min-height: 3rem; max-width: var(--measure); margin-inline: auto;
+  border-bottom: 1px solid #303748;
+}
+.journal-banner .icon-button, .journal-banner .lang-button {
+  min-width: 2.15rem; min-height: 2.15rem; border-radius: .49rem; padding: 0;
+  background: #202636; border-color: #363f54;
+}
+.journal-banner .masthead-actions { gap: .26rem; }
+.banner-identity { display: flex; align-items: center; gap: .52rem; min-width: 0; }
+.banner-identity .game-brand { font-size: 1.19rem; flex: none; }
+.city-token { display: inline-flex; align-items: center; gap: .3rem; min-width: 0; color: #d5dbc9; font-size: .71rem; }
+.city-insignia {
+  display: inline-flex; align-items: center; gap: .22rem; flex: none; padding: .19rem .32rem;
+  border: 1px solid #536553; border-radius: .35rem; background: #26392f; color: #c8e1bd;
+  font-size: .53rem; font-weight: 800; letter-spacing: .045em;
+}
+.city-token[data-terrain="coast"] .city-insignia, .city-token[data-terrain="danube"] .city-insignia {
+  color: #b8e0ec; background: #223746; border-color: #4d687d;
+}
+.city-token[data-terrain="capital"] .city-insignia { color: #f4cca6; background: #42332d; border-color: #7a5a49; }
+.city-token[data-terrain="inland"] .city-insignia { color: #e8d4a2; background: #39352b; border-color: #756748; }
+.city-token-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 355px) {
+  .banner-identity { gap: .39rem; }
+  .banner-identity .game-brand { font-size: 1.08rem; }
+  .city-insignia { gap: .14rem; padding-inline: .21rem; }
+  .city-token { font-size: .67rem; }
+}
+
+.character-header {
+  max-width: var(--measure); margin-inline: auto; min-height: 3.5rem;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(5rem, max-content); align-items: center;
+  gap: .5rem;
+}
+.character-summary {
+  display: flex; align-items: center; gap: .49rem; min-width: 0; min-height: 3.08rem;
+  padding: .19rem .22rem .19rem 0; border: 0; border-radius: .52rem; text-align: start; background: transparent;
+}
+.character-summary > svg { color: var(--secondary); margin-inline-start: auto; }
+.character-avatar, .profile-portrait {
+  display: grid; place-items: center; flex: none; width: 2.32rem; aspect-ratio: 1;
+  border: 1px solid #5d746a; border-radius: .65rem; background: #263b3a; font-size: 1.52rem; line-height: 1;
+}
+.character-identity { display: grid; gap: .16rem; min-width: 0; }
+.character-name {
+  display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-size: clamp(.81rem, 3.5vw, 1.05rem); line-height: 1.16;
+}
+.character-occupation { display: flex; align-items: baseline; gap: .29rem; min-width: 0; color: #c1c9d5; font-size: .69rem; line-height: 1.19; }
+.character-status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.character-age { color: #e6bb9e; white-space: nowrap; flex: none; }
+.character-age::before { content: "·"; margin-inline-end: .26rem; }
+.character-money {
+  display: grid; align-content: center; gap: .14rem; min-height: 3.08rem; max-width: 40vw;
+  padding: .18rem .12rem .18rem .46rem; border: 0; border-radius: .48rem; background: transparent; text-align: end;
+  line-height: 1.14;
+}
+.character-money strong { color: var(--mint); font-size: clamp(.8rem, 3.5vw, 1.06rem); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.character-money span { color: var(--secondary); font-size: .69rem; }
+button.character-summary:hover, button.character-money:hover { background: #ffffff09; }
+.character-summary:focus-visible, .character-money:focus-visible { outline-offset: 0; }
+.journal-layout { padding-top: .58rem; }
+.journal-layout .main-column { gap: .51rem; }
+.journal-layout .journal-health-alert { padding: .32rem .48rem; gap: .36rem; }
+.journal-layout .journal-health-alert strong { font-size: .81rem; }
+.journal-layout .journal-health-alert small { font-size: .72rem; }
+.journal-layout .journal-health-alert .secondary-button { min-height: 2.12rem; padding: .25rem .42rem; }
+.journal-finances { margin-block: .65rem; }
+.journal-finances > summary {
+  display: flex; align-items: center; gap: .4rem; min-height: 2.5rem; border-block: 1px solid var(--rule); list-style: none;
+}
+.journal-finances > summary svg:last-child { margin-inline-start: auto; }
+.journal-finances[open] > summary svg:last-child { rotate: 180deg; }
+.journal-finances > .life-year-budget { margin-block: .34rem; }
+
+.player-profile-dialog.modal-card { width: min(29rem, calc(100% - 1.3rem)); max-height: calc(100dvh - 1.4rem); padding: .78rem; }
+.player-profile-dialog .dialog-head { margin-bottom: .43rem; }
+.player-profile-dialog .dialog-head h2 { font-size: 1.13rem; }
+.profile-heading { display: flex; align-items: center; gap: .68rem; padding: .6rem; border-radius: .64rem; background: linear-gradient(110deg, #334641, #252a39 80%); }
+.profile-portrait { width: 2.72rem; height: 2.72rem; overflow: hidden; }
+.profile-portrait canvas { display: block; width: 100%; height: 100%; }
+.profile-heading > div { display: grid; gap: .16rem; min-width: 0; overflow-wrap: anywhere; }
+.profile-heading > div strong { line-height: 1.18; }
+.profile-heading > div span { color: var(--secondary); font-size: .73rem; }
+.profile-tree-toggle.secondary-button { width: 100%; min-height: 2.5rem; margin-block: .55rem .25rem; color: #f0d0b2; }
+.profile-facts { margin: .1rem 0 0; }
+.profile-facts > div {
+  display: grid; grid-template-columns: minmax(5.5rem, .8fr) minmax(0, 1.2fr); gap: .5rem; align-items: baseline;
+  padding: .43rem .15rem; border-bottom: 1px solid var(--rule); font-size: .8rem; line-height: 1.33;
+}
+.profile-facts dt { color: var(--secondary); }
+.profile-facts dd { margin: 0; color: var(--ink); font-weight: 650; overflow-wrap: anywhere; }
+.profile-children { list-style: none; padding: 0; margin: 0; }
+.profile-children li + li { margin-top: .24rem; }
+.profile-children small { display: block; color: var(--secondary); font-weight: 500; font-size: .7rem; }
+.profile-aesthetics.secondary-button { min-height: 2.25rem; margin-top: .55rem; font-size: .77rem; }
+.family-tree { --tree-line: #677a79; padding-top: .5rem; }
+.tree-ancestors, .tree-centre, .tree-children, .tree-other {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(7.5rem, 100%), 1fr)); gap: .36rem;
+}
+.tree-ancestors:not(:empty) { position: relative; margin-bottom: .8rem; align-items: end; }
+.tree-ancestors:not(:empty)::after {
+  content: ""; position: absolute; bottom: -.8rem; left: 50%; height: .8rem; border-left: 1px solid var(--tree-line);
+}
+.tree-branch, .tree-grandparents { display: grid; gap: .3rem; min-width: 0; }
+.tree-lineage { margin: 0; color: #c2cbbd; font-size: .66rem; font-weight: 650; }
+.tree-ancestors:has(> :nth-child(2))::before {
+  content: ""; position: absolute; inset-inline: 25%; bottom: -.36rem; border-bottom: 1px solid var(--tree-line);
+}
+.tree-ancestors:has(> :nth-child(2))::after { height: .44rem; }
+.tree-ancestors:has(+ .tree-centre > :nth-child(2))::after { left: 25%; }
+.tree-ancestors:has(> :nth-child(2)) > .tree-branch { position: relative; }
+.tree-ancestors:has(> :nth-child(2)) > .tree-branch::after {
+  content: ""; position: absolute; bottom: -.36rem; left: 50%; height: .36rem; border-left: 1px solid var(--tree-line);
+}
+.tree-grandparents + .tree-member { position: relative; margin-top: .27rem; }
+.tree-grandparents + .tree-member::before { content: ""; position: absolute; left: 50%; top: -.58rem; height: .58rem; border-left: 1px solid var(--tree-line); }
+.tree-member {
+  display: grid; align-content: center; gap: .14rem; min-width: 0; padding: .38rem .43rem;
+  border: 1px solid #434f64; border-radius: .45rem; background: #222937; font-size: .74rem; line-height: 1.25; overflow-wrap: anywhere;
+}
+.tree-member > span { color: var(--secondary); font-size: .66rem; }
+.tree-self { background: #2b403b; border-color: #5b7d70; }
+.tree-children { position: relative; margin-top: .76rem; }
+.tree-children::before { content: ""; position: absolute; top: -.76rem; left: 50%; height: .76rem; border-left: 1px solid var(--tree-line); }
+.tree-centre:has(> :nth-child(2)) + .tree-children::before { left: 25%; }
+.tree-other:not(:empty) { margin-top: .62rem; padding-top: .55rem; border-top: 1px solid var(--rule); }

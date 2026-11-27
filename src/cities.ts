@@ -55,5 +55,10 @@ export function inCityBg(id: City): string {
   return (/^[ВФ]/.test(name) ? "във " : "в ") + name;
 }
 
+// A leading masculine article on a catalog place takes the short form after a preposition.
+export function placeAfterPreposition(place: string): string {
+  return place.replace(/^(\p{L}+?)(ът|ят)(?=\s|$)/u, (_, stem: string, article: string) => stem + (article === "ът" ? "а" : "я"));
+}
+
 export const cityArt = (id: City): "tryavna" | "sofia" | undefined =>
   id === "tryavna" || id === "sofia" ? id : undefined;

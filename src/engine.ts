@@ -8,6 +8,7 @@ import { kinActivities, kinActivityById } from "./kinActivities.ts";
 import { automaticAppearance, dispositions, HEIR_CASH, parseLifeProfile, talentBonus, type LifeProfile, type NewLifeDraft } from "./lifeProfile.ts";
 import { personName, storyPeople, type PeopleId } from "./peopleIdentity.ts";
 import { birthEntry, retirementEligible, yearlyMoment } from "./lifeEvents.ts";
+import { everydayEvents } from "./everydayEvents.ts";
 import { mortalityCondition, treatHealth } from "./lifeHealth.ts";
 import { settlePeople } from "./lifeLoss.ts";
 import { deathCauses, MAX_AGE, rollDeath, type Death } from "./mortality.ts";
@@ -631,6 +632,14 @@ export function advance(s: GameState, expectedAge = s.age): GameState {
   }
 
   const next: GameState = { ...closed, age: finished ? s.age : s.age + 1, sceneId: "", choiceId: null, usedActions: [] };
+  const openingStart = next.history.length;
+  if (lifeSystems.family.children > s.lifeSystems.family.children) {
+    next.history.push({
+      age: next.age, city: next.city, kind: "event", id: "child-birth", witnesses: [], cashDelta: 0,
+      title: pathText("Раждане на дете", "Birth of a child"),
+      text: pathText("Посрещнахме бебе в семейството.", "We welcomed a baby into the family."),
+    });
+  }
   if (!finished) {
     next.sceneId = sceneForYear(next);
     if (!next.path && next.profile && next.age === 7) next.enrollment = { city: next.city, index: 0, graduationAge: 14 };
@@ -643,7 +652,13 @@ export function advance(s: GameState, expectedAge = s.age): GameState {
       if (moment) next.history.push(moment);
     }
   }
-  return finished ? next : settleReproductionYear(next);
+  if (finished) return next;
+  const withFamily = settleReproductionYear(next);
+  if (!full) return withFamily;
+  const opening = withFamily.history.slice(openingStart);
+  // Optional family conversations must not change the everyday memories when an older transcript is replayed.
+  const everyday = everydayEvents(withFamily, opening.filter(event => event.id !== "family-questions"));
+  return everyday.length ? { ...withFamily, history: [...withFamily.history.slice(0, openingStart), ...everyday, ...opening] } : withFamily;
 }
 
 /** Store the portrait's starting traits and replay the commands that shaped the life. */
