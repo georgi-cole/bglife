@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import type { AssetPage } from "../../src/assetMenu.ts";
 import type { Language, Session } from "../../src/sessionCodec.ts";
 import type { SaveNotice } from "./saveStore";
 
@@ -6,6 +7,7 @@ export type Screens = {
   Home: undefined;
   NewLife: undefined;
   Journal: { archive: number } | undefined;
+  Assets: { page: AssetPage } | undefined;
   Album: undefined;
   Settings: undefined;
 };

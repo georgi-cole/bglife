@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { assetTitle } from "../../src/assetMenu.ts";
 import { FlatList, StyleSheet, Text, TextInput, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -195,8 +196,10 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
       {!archived && (
         <View style={styles.dock}>
           {life.finished
-            ? <Button label={text.newLife} onPress={() => navigation.replace("NewLife")} />
-            : <Button label={text.ageUp} testID="advance-year" disabled={saving || blocked} onPress={() => { void advance(); }} />}
+            ? <Button style={styles.play} label={text.newLife} onPress={() => navigation.replace("NewLife")} />
+            : <Button style={styles.play} label={text.ageUp} testID="advance-year" disabled={saving || blocked}
+                onPress={() => { void advance(); }} />}
+          <Button label={assetTitle[language]} testID="assets" secondary onPress={() => navigation.navigate("Assets")} />
         </View>
       )}
     </SafeAreaView>
@@ -223,5 +226,7 @@ const styles = StyleSheet.create({
   dock: {
     width: "100%", maxWidth: 580, alignSelf: "center", paddingHorizontal: 20, paddingVertical: 10,
     backgroundColor: color.paper, borderTopWidth: StyleSheet.hairlineWidth, borderColor: color.line,
+    flexDirection: "row", gap: 10,
   },
+  play: { flex: 1 },
 });

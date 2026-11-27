@@ -232,7 +232,6 @@ summary::-webkit-details-marker { display: none; }
 .dialog-head h2 { font-size: clamp(1.32rem,4vw,1.8rem); margin: 0; }
 .dialog-head button { flex: none; }
 .modal-card p { line-height: 1.48; }
-.balance-total { font-size: 2.45rem; line-height: 1.1; font-weight: 800; margin: .8rem 0 0; color: var(--gold); }
 .stat-row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .52rem; padding: .55rem 0; border-top: 1px solid var(--rule); }
 .settings-list { margin-top: .7rem; }
 .settings-list > button, .import-label { display: flex; align-items: center; justify-content: space-between; gap: .65rem; padding: .56rem 0; border: 0; border-top: 1px solid var(--rule); background: transparent; text-align: left; min-height: 3rem; width: 100%; font-weight: 650; }

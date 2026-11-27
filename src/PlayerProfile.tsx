@@ -51,7 +51,7 @@ export function CharacterHeader({ life, l, onProfile, onWallet }: {
     {onProfile ? <button type="button" className="character-summary" aria-haspopup="dialog" aria-label={copy(l, "Профил на ", "Profile of ") + lifeName(l, life)} onClick={onProfile}>
       {identity}<Icon name="next" size={13}/>
     </button> : <div className="character-summary">{identity}</div>}
-    {onWallet ? <button type="button" className="character-money" aria-haspopup="dialog" onClick={onWallet}>{balance}</button>
+    {onWallet ? <button type="button" className="character-money" onClick={onWallet}>{balance}</button>
       : <div className="character-money">{balance}</div>}
   </div>;
 }

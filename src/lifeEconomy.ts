@@ -2,10 +2,11 @@ import { cities, inCityBg } from "./cities.ts";
 import { hasSteadyIncome } from "./lifePath.ts";
 import type { GameState, Text } from "./engine.ts";
 import { hasLivingChildren } from "./peopleIdentity.ts";
+import { assetValues } from "./lifeAssets.ts";
 import type { Heir, LifeActivityDefinition, LifeSystems } from "./lifeActivities.ts";
 
 const txt = (bg: string, en: string): Text => ({ bg, en });
-const HOME_VALUE = 3_000_000;
+export const HOME_VALUE = 3_000_000;
 const HOME_DOWN_PAYMENT = 300_000;
 const LOAN_PRINCIPAL = 60_000;
 const LOAN_INSTALLMENT = 23_000;
@@ -100,6 +101,24 @@ export const lifeBank: LifeActivityDefinition[] = [
     walletDelta: s => -Math.min(50_000, s.lifeSystems.bank.mortgage),
     update: s => setBank(s, { mortgage: s.lifeSystems.bank.mortgage - Math.min(50_000, s.lifeSystems.bank.mortgage) }),
   },
+  {
+    id: "asset.home.buy", category: "assets", minAge: 18, cost: HOME_VALUE,
+    label: txt("Купи в брой", "Buy with cash"),
+    historyTitle: txt("Покупка на жилище", "Bought a home"),
+    description: txt("Плащаш цялата цена от портфейла си.", "Pay the full price from your wallet."),
+    result: txt("Купи жилище в града, в който живееш.", "You bought a home in the city where you live."),
+    requires: s => s.lifeSystems.bank.ownsHome ? txt("Вече имаш жилище.", "You already own a home.") : null,
+    update: s => setBank(s, { ownsHome: true, homeCity: s.city }),
+  },
+  {
+    id: "asset.home.sell", category: "assets", minAge: 18,
+    label: txt("Продай жилището", "Sell the home"),
+    description: txt("При продажбата се погасява остатъкът по ипотеката.", "The remaining mortgage is settled on sale."),
+    result: txt("Продаде жилището и уреди плащането.", "You sold the home and settled the payment."),
+    requires: s => s.lifeSystems.bank.ownsHome ? null : txt("Нямаш собствено жилище.", "You don’t own a home."),
+    walletDelta: s => HOME_VALUE - s.lifeSystems.bank.mortgage,
+    update: s => setBank(s, { ownsHome: false, mortgage: 0, homeCity: undefined }),
+  },
 ];
 
 const formatBG = new Intl.NumberFormat("bg-BG", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
@@ -144,11 +163,12 @@ export function settleFinances(s: GameState, baseNet: number) {
 
 export function getEstate(s: GameState) {
   const { bank, legacy, family } = s.lifeSystems;
+  const { investments, belongings } = assetValues(s);
   const homeValue = bank.ownsHome ? HOME_VALUE : 0;
   const homeEquity = homeValue - bank.mortgage;
   const debt = bank.loan + bank.mortgage;
   const rentalDeposit = s.deposit;
-  const net = s.cash + bank.balance + homeValue + rentalDeposit - debt;
+  const net = s.cash + bank.balance + homeValue + rentalDeposit + investments + belongings - debt;
   const heirs = legacy.prepared ? legacy.heirs.filter(heir => (
     heir !== "partner" || family.partner !== null
   ) && (heir !== "children" || hasLivingChildren(s))
@@ -157,7 +177,7 @@ export function getEstate(s: GameState) {
   const share = heirs.length === 0 ? 0 : Math.floor(distributable / heirs.length);
   const remaining = distributable - share * heirs.length;
   return {
-    cash: s.cash, bankBalance: bank.balance, homeValue, homeEquity, rentalDeposit, debt, net,
+    cash: s.cash, bankBalance: bank.balance, homeValue, homeEquity, rentalDeposit, investments, belongings, debt, net,
     shares: heirs.map((heir: Heir, i: number) => ({ heir, amount: share + Number(i < remaining) })),
   };
 }

@@ -27,7 +27,7 @@ const hasStatChanges = (delta: Memory["statsDelta"]) => Object.values(delta ?? {
 
 function LifeEvent({ event, l, life, children }: { event: Memory; l: Language; life: GameState; children?: ReactNode }) {
   const personEvent = event.kind === "action" && event.id.startsWith("people.");
-  const focusable = personEvent || (event.kind === "action" && event.id.startsWith("city-life."));
+  const focusable = personEvent || (event.kind === "action" && /^(city-life|asset|bank)\./.test(event.id));
   const eventDate = event.cityEvent && cityWeatherDate(event.cityEvent, l);
   const line = journalLine(event, l, life.birthFamily);
   const original = event.text[l];

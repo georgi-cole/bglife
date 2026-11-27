@@ -21,6 +21,7 @@ import {
   startingStats, statsChange, type LifeActivityOption, type LifeStats, type LifeSystems, type StatDelta,
 } from "./lifeActivities.ts";
 import { billText, settleFinances } from "./lifeEconomy.ts";
+import { revalueInvestments } from "./lifeAssets.ts";
 import { settleWellbeing, storyStats } from "./lifeWellbeing.ts";
 import { closePathYear, pathBudget, relocatePath, resolvePathAction, startPath, type LifePath } from "./lifePath.ts";
 import { pathText } from "./pathCatalog.ts";
@@ -519,10 +520,10 @@ function applyLifeActivity(s: GameState, id: string, expectedAge: number, replay
   if (activity.blocked) return s;
 
   const resolution=definition.resolve?.(s);
-  const label=definition.branch ? {
+  const label=definition.historyTitle ?? (definition.branch ? {
     bg: definition.branch.label.bg+" · "+definition.label.bg,
     en: definition.branch.label.en+" · "+definition.label.en,
-  } : definition.label;
+  } : definition.label);
   const narrative=resolution?.result ?? definition.result;
   const contact=definition.contact ? personName(s,definition.contact) : null;
   const option: Option = {
@@ -634,7 +635,7 @@ function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRol
   };
   const yearCommand: Extract<Command, { kind: "year" }> = { age: s.age, kind: "year" };
   let closed: GameState = {
-    ...s, cash: s.cash + budget.net, stats, lifeSystems, death, finished,
+    ...s, cash: s.cash + budget.net, stats, lifeSystems: { ...lifeSystems, assets: revalueInvestments(s) }, death, finished,
     serviceYears: pathYear ? Math.floor(serviceMonths(pathYear.path.work) / 12)
       : s.serviceYears + Number(s.age >= 19 && s.career !== "student" && s.retirement === null),
     path: pathYear?.path ?? null,

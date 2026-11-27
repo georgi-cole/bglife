@@ -12,6 +12,11 @@ const paths = {
   journal:"M4 4h13a2 2 0 0 1 2 2v14H6a3 3 0 0 1-3-3V6a2 2 0 0 1 1-2Zm0 12h15M7 8h8m-8 3h6",
   people:"M15 20v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m14-6a4 4 0 0 1 3 4v2M13 7a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Zm3-3a3.5 3.5 0 0 1 0 7",
   places:"m3 5 6-2 6 2 6-2v15l-6 3-6-3-6 2V5Zm6-2v15m6-13v16",
+  assets:"M4 7h16v13H4zM7 4h10v3m-13 5h16m-10 0v3h4v-3",
+  trend:"M4 4v16h16M7 15l4-4 3 2 5-6m-4 0h4v4",
+  bank:"m3 8 9-5 9 5v2H3zm3 2v8m6-8v8m6-8v8M3 18h18v3H3z",
+  car:"M5 16v3m14-3v3M3 12l3-6h12l3 6v5H3zm0 0h18M6 15h1m10 0h1",
+  laptop:"M5 5h14v11H5zM5 16l-2 3h18l-2-3m-8 3h2",
   album:"M5 3h14v18H5zM8 6h8v7H8zM8 17h7",
   pin:"M19 10c0 5-7 10-7 10S5 15 5 10a7 7 0 1 1 14 0Zm-5 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z",
   right:"M4 12h15m-6-6 6 6-6 6", next:"m9 5 7 7-7 7", back:"m15 5-7 7 7 7", close:"m6 6 12 12M18 6 6 18",
@@ -81,10 +86,11 @@ export function lifeOccupation(s: GameState, l: Language): string {
   return occupation(s.career, l, s.avatar);
 }
 export const homeName=(s:GameState,l:Language)=>({home:copy(l,"Семейният дом","Family home"),rumi:copy(l,"При леля Руми","Aunt Rumi’s flat"),shared:copy(l,"Споделена квартира","Shared flat")})[s.housing];
-export type Tab = "journal"|"career"|"people"|"places"|"more"|"album";
+export type Tab = "journal"|"career"|"people"|"assets"|"places"|"more"|"album";
 export const tabLabels=(l:Language,age:number):Record<Tab,string>=>({
   journal:copy(l,"Дневник","Journal"), career:isSchoolAge(age)?copy(l,"Даскало","Education"):copy(l,"Кариера","Career"),
-  people:copy(l,"Хора","People"), places:copy(l,"Места","Places"), more:copy(l,"Още","More"), album:copy(l,"Албум","Album"),
+  people:copy(l,"Хора","People"), assets:copy(l,"Състояние","Assets"), places:copy(l,"Места","Places"),
+  more:copy(l,"Още","More"), album:copy(l,"Албум","Album"),
 });
 export const lifeStatLabels=(l:Language):Record<keyof GameState["stats"],string>=>({
   health:copy(l,"Здраве","Health"),
