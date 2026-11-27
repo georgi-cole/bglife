@@ -1,0 +1,170 @@
+name: BgLife iOS TestFlight
+
+on:
+  push:
+    branches: [release/ios-testflight]
+    paths:
+      - '.github/workflows/ios-testflight.yml'
+      - 'mobile/**'
+      - 'src/**'
+      - 'public/art/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bglife-ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    name: Archive BgLife for iPhone and upload to TestFlight
+    runs-on: xcode-27
+    timeout-minutes: 55
+    environment: testflight
+    env:
+      EXPO_NO_TELEMETRY: '1'
+      IOS_BUNDLE_ID: com.georgicole.bglife
+      IOS_TEAM_ID: C97T2A5255
+      IOS_BUILD_NUMBER: ${{ github.run_number }}.${{ github.run_attempt }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Configure the iPhone archive
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+
+          const file = 'app.json';
+          const config = JSON.parse(readFileSync(file, 'utf8'));
+          config.expo.name = 'BgLife';
+          Object.assign(config.expo.ios, {
+            bundleIdentifier: process.env.IOS_BUNDLE_ID,
+            buildNumber: process.env.IOS_BUILD_NUMBER,
+            icon: './assets/ios-icon.png',
+            supportsTablet: false
+          });
+          writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+          NODE
+          npx expo prebuild --platform ios --no-install
+          pod install --project-directory=ios
+      - name: Archive the native app
+        run: |
+          workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)"
+          test -n "$workspace"
+          scheme="$(basename "$workspace" .xcworkspace)"
+          archive="$RUNNER_TEMP/BgLife.xcarchive"
+          xcodebuild archive -workspace "$workspace" -scheme "$scheme" \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$archive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO -quiet
+          app="$(find "$archive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$app"
+          plist="$app/Info.plist"
+          plistbuddy=/usr/libexec/PlistBuddy
+          test "$("$plistbuddy" -c 'Print :CFBundleIdentifier' "$plist")" = "$IOS_BUNDLE_ID"
+          test "$("$plistbuddy" -c 'Print :CFBundleVersion' "$plist")" = "$IOS_BUILD_NUMBER"
+          test "$("$plistbuddy" -c 'Print :UIDeviceFamily:0' "$plist")" = 1
+          if "$plistbuddy" -c 'Print :UIDeviceFamily:1' "$plist" >/dev/null 2>&1; then
+            echo '::error::Expected an iPhone-only archive.'
+            exit 1
+          fi
+          "$plistbuddy" -c 'Print :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName' "$plist"
+          printf '## BgLife iPhone archive validated\n\nBuild %s from %s.\n' \
+            "$IOS_BUILD_NUMBER" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - name: Sign and upload for TestFlight internal testing
+        env:
+          IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
+          IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+        shell: bash
+        run: |
+          missing=()
+          for name in IOS_DISTRIBUTION_P12_BASE64 IOS_DISTRIBUTION_P12_PASSWORD \
+            IOS_PROVISIONING_PROFILE_BASE64 ASC_API_ISSUER_ID ASC_API_KEY_ID ASC_API_KEY_P8_BASE64; do
+            if [[ -z "${!name}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if (( ${#missing[@]} )); then
+            echo "::error::Missing testflight environment secrets: ${missing[*]}"
+            exit 1
+          fi
+
+          umask 077
+          signing="$(mktemp -d "$RUNNER_TEMP/bglife-signing.XXXXXX")"
+          keychain="$signing/bglife.keychain-db"
+          profile_target=""
+          cleanup() {
+            security delete-keychain "$keychain" >/dev/null 2>&1 || true
+            if [[ -n "$profile_target" ]]; then
+              rm -f "$profile_target"
+            fi
+            rm -rf "$signing"
+          }
+          trap cleanup EXIT
+          api_key="$signing/AuthKey_${ASC_API_KEY_ID}.p8"
+          printf '%s' "$IOS_DISTRIBUTION_P12_BASE64" | base64 -D > "$signing/distribution.p12"
+          printf '%s' "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -D > "$signing/bglife.mobileprovision"
+          printf '%s' "$ASC_API_KEY_P8_BASE64" | base64 -D > "$api_key"
+          security cms -D -i "$signing/bglife.mobileprovision" > "$signing/profile.plist"
+
+          plistbuddy=/usr/libexec/PlistBuddy
+          profile_uuid="$("$plistbuddy" -c 'Print :UUID' "$signing/profile.plist")"
+          profile_app="$("$plistbuddy" -c 'Print :Entitlements:application-identifier' "$signing/profile.plist")"
+          if [[ "$profile_app" != "$IOS_TEAM_ID.$IOS_BUNDLE_ID" ]]; then
+            echo "::error::The provisioning profile must target $IOS_BUNDLE_ID on the BgLife team."
+            exit 1
+          fi
+
+          keychain_password="$(openssl rand -hex 24)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$signing/distribution.p12" -f pkcs12 \
+            -P "$IOS_DISTRIBUTION_P12_PASSWORD" -T /usr/bin/codesign -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain"
+          security default-keychain -s "$keychain"
+
+          profiles="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          mkdir -p "$profiles"
+          profile_target="$profiles/$profile_uuid.mobileprovision"
+          cp "$signing/bglife.mobileprovision" "$profile_target"
+
+          cat > "$signing/export.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>teamID</key><string>$IOS_TEAM_ID</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict><key>$IOS_BUNDLE_ID</key><string>$profile_uuid</string></dict>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>testFlightInternalTestingOnly</key><true/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/BgLife.xcarchive" \
+            -exportPath "$RUNNER_TEMP/BgLifeTestFlight" -exportOptionsPlist "$signing/export.plist" \
+            -authenticationKeyPath "$api_key" -authenticationKeyID "$ASC_API_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_API_ISSUER_ID"
+          printf '\nApple accepted the upload. TestFlight processing is pending.\n' >> "$GITHUB_STEP_SUMMARY"
