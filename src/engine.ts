@@ -25,6 +25,7 @@ import {
   startingStats, statsChange, type LifeActivityOption, type LifeStats, type LifeSystems, type StatDelta,
 } from "./lifeActivities.ts";
 import { billText, settleFinances } from "./lifeEconomy.ts";
+import { settleAssets } from "./lifeAssets.ts";
 import { settleWellbeing, storyStats } from "./lifeWellbeing.ts";
 import { closePathYear, pathBudget, relocatePath, resolvePathAction, startPath, type LifePath } from "./lifePath.ts";
 import { pathText } from "./pathCatalog.ts";
@@ -543,10 +544,10 @@ function applyLifeActivity(s: GameState, id: string, expectedAge: number, replay
   if (activity.blocked) return s;
 
   const resolution=definition.resolve?.(s);
-  const label=definition.branch ? {
+  const label=definition.historyTitle ?? (definition.branch ? {
     bg: definition.branch.label.bg+" · "+definition.label.bg,
     en: definition.branch.label.en+" · "+definition.label.en,
-  } : definition.label;
+  } : definition.label);
   const narrative=resolution?.result ?? definition.result;
   const contact=definition.contact ? personName(s,definition.contact) : null;
   const option: Option = {
@@ -650,6 +651,7 @@ function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRol
   const pathYear = s.path && pathFinances ? closePathYear(s, s.path, pathFinances, finished) : null;
   const wellbeing = settleWellbeing(s, bank, unpaidCare, unpaidDebt, finished);
   const { lifeSystems, notes, healthNote } = wellbeing;
+  const assetsYear = settleAssets(s, lifeSystems, finished);
   const stats = pathFinances?.shortfall ? applyStats(wellbeing.stats, { joy: -3 }) : wellbeing.stats;
   if (budget.obligations > 0) notes.unshift(billText(budget.obligations));
   const summary: Text = s.age < 19 && (!pathFinances || pathFinances.pay === pathFinances.pocket)
@@ -682,7 +684,7 @@ function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRol
   };
   const yearCommand: Extract<Command, { kind: "year" }> = { age: s.age, kind: "year" };
   let closed: GameState = {
-    ...s, cash: s.cash + budget.net, stats, lifeSystems, death, finished,
+    ...s, cash: s.cash + budget.net, stats, lifeSystems: assetsYear.lifeSystems, death, finished,
     serviceYears: pathYear ? Math.floor(serviceMonths(pathYear.path.work) / 12)
       : s.serviceYears + Number(s.age >= 19 && s.career !== "student" && s.retirement === null),
     path: pathYear?.path ?? null,
@@ -702,6 +704,7 @@ function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRol
 
   const next: GameState = { ...closed, age: finished ? s.age : s.age + 1, sceneId: "", choiceId: null, usedActions: [] };
   const openingStart = next.history.length;
+  next.history.push(...assetsYear.events);
   if (lifeSystems.family.children > s.lifeSystems.family.children) {
     next.history.push({
       age: next.age, city: next.city, kind: "event", id: "child-birth", witnesses: [], cashDelta: 0,

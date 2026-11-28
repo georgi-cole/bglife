@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { assetPageData } from "../src/assetMenu.ts";
 import {
   choose, continueLife, decodeSave, doLifeActivity, doMaternityReturn, doPathAction, doPregnancyAction,
   encodeSave, getChoices, getScene, nameNewborns, newChapterLife, playYear, startCareerLife,
@@ -80,6 +81,8 @@ test("birth interrupts the pending work scene, replaces two years of wages and k
   assert.equal(firstYear.wage, 0);
   assert.equal(firstYear.maternity, netMonthly(job.gross) * 12);
   assert.equal(firstYear.pay, firstYear.maternity);
+  const funds = assetPageData(life, { kind: "funds" }).groups.flatMap(group => group.fields);
+  assert.equal(funds.find(field => field.label.en === "Maternity benefit")?.value, firstYear.maternity);
   assert.strictEqual(doMaternityReturn(life), life);
   assert.strictEqual(doPathAction(life, "work.practice"), life);
   assert.strictEqual(doPathAction(life, "work.leave"), life);

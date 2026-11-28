@@ -83,3 +83,14 @@
 .people-action-cost, .people-action-cost span { display: flex; align-items: center; gap: .3rem; }
 .people-action-cost { gap: .65rem; color: #ceb6b8; font-size: .68rem; }
 .people-action-copy .people-action-blocked { color: #e8c39b; }
+.people-transfers ul { list-style: none; margin: 0; padding: 0; }
+.people-transfers li {
+  display: flex;
+  justify-content: space-between;
+  gap: .6rem;
+  padding: .56rem var(--gutter);
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+  font-size: .86rem;
+}
+.people-transfers li small { flex: none; color: var(--secondary); }

@@ -61,6 +61,7 @@ type MoreProps = {
   animateEntry?: boolean;
   onJournal?: () => void;
   onAlbum?: () => void;
+  onPlaces?: () => void;
   onCategoryBack?: () => void;
   categoryBackLabel: string;
 };
@@ -254,7 +255,7 @@ function ActivityDetails({ option, onChoose, l }: { option: LifeActivityOption; 
   </div>;
 }
 
-export function More({ life, l, onActivity, onGiveUp, initialCategory = null, animateEntry = false, onJournal, onAlbum, onClose, closeLabel, onCategoryBack, categoryBackLabel }: MoreProps) {
+export function More({ life, l, onActivity, onGiveUp, initialCategory = null, animateEntry = false, onJournal, onAlbum, onPlaces, onClose, closeLabel, onCategoryBack, categoryBackLabel }: MoreProps) {
   const [selected, setSelected] = useState(initialCategory);
   const [platform, setPlatform] = useState<string | null>(null);
   const [activityId, setActivityId] = useState<string | null>(null);
@@ -330,6 +331,7 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
       </button>)}
     </div>
     <div className="more-secondary">
+      {onPlaces && <button type="button" onClick={onPlaces}><Icon name="places" size={17}/>{t("Места", "Places")}<Icon name="next" size={15}/></button>}
       {onAlbum && <button type="button" onClick={onAlbum}><Icon name="album" size={17} />{t("Албум", "Album")}<Icon name="next" size={15}/></button>}
       {!life.finished && <button type="button" className="more-give-up" onClick={onGiveUp}>
         <Icon name="close" size={17} />{t("Откажи се", "Give up")}<Icon name="next" size={15}/>
@@ -338,7 +340,7 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
   </section>;
 
   const groups = new Map<string, LifeActivityOption[]>();
-  const optionsForCategory = getLifeActivities(life).filter(option => option.category === category.id);
+  const optionsForCategory = getLifeActivities(life).filter(option => option.category === category.id && option.id !== "bank.mortgage");
   for (const option of optionsForCategory) {
     const key = option.group?.[l] ?? "";
     const list = groups.get(key);

@@ -1,0 +1,121 @@
+.assets-screen {
+  display: grid;
+  align-content: start;
+  gap: .62rem;
+  min-width: 0;
+  padding: 0 var(--gutter) .9rem;
+}
+.assets-heading {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  margin-inline: calc(-1 * var(--gutter));
+  padding: .25rem var(--gutter);
+  border-bottom: 1px solid #6a514c;
+  background: #31272a;
+}
+.assets-heading h1 {
+  font: 750 clamp(1.22rem, 4.6vw, 1.65rem)/1.1 var(--serif);
+  overflow-wrap: anywhere;
+}
+.assets-heading h1:focus-visible { outline-offset: 3px; }
+.asset-amount, .asset-condition {
+  margin: 0;
+  padding: .5rem .62rem;
+  border: 1px solid var(--rule);
+  border-radius: .58rem;
+  background: #2d2628;
+}
+.asset-amount, .asset-condition > div:first-child { display: flex; justify-content: space-between; align-items: baseline; gap: .6rem; }
+.asset-amount dt, .asset-condition span { color: var(--secondary); font-size: .81rem; }
+.asset-amount dd { margin: 0; color: var(--gold); text-align: end; font-weight: 800; font-variant-numeric: tabular-nums; }
+.asset-condition { display: grid; gap: .32rem; }
+.asset-condition strong { font-size: .81rem; font-variant-numeric: tabular-nums; }
+.asset-condition [role="meter"] { height: .28rem; border-radius: 1rem; background: #44383a; overflow: hidden; }
+.asset-condition [role="meter"] span { display: block; height: 100%; background: #acc495; border-radius: inherit; }
+.asset-status { margin: .05rem .14rem; color: #f2c982; font-size: .83rem; font-weight: 750; }
+.asset-list { display: grid; gap: .36rem; min-width: 0; }
+.asset-row {
+  display: flex;
+  align-items: center;
+  gap: .58rem;
+  width: 100%;
+  min-height: 3.12rem;
+  min-width: 0;
+  padding: .34rem .56rem;
+  text-align: start;
+  border: 1px solid #57474b;
+  border-radius: .65rem;
+  background: #2e2629;
+}
+.asset-row:hover, .asset-row[aria-expanded="true"] { background: #3a2e33; }
+.asset-row > svg { flex: none; color: var(--secondary); }
+.asset-row-text { flex: 1; min-width: 0; display: grid; gap: .16rem; }
+.asset-row-text strong { font-size: .91rem; line-height: 1.18; overflow-wrap: anywhere; }
+.asset-row-text small { color: var(--secondary); font-size: .73rem; line-height: 1.25; }
+.asset-row-value {
+  max-width: 42%;
+  color: #ead2a5;
+  text-align: end;
+  font-size: .77rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.asset-icon {
+  width: 2.05rem;
+  height: 2.05rem;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #ffffff20;
+  border-radius: .5rem;
+  color: #ddd0a7;
+  background: #221d20;
+}
+.asset-icon[data-icon="wallet"], .asset-icon[data-icon="trend"] { color: #b8d3ac; }
+.asset-icon[data-icon="car"], .asset-icon[data-icon="laptop"] { color: #accddc; }
+.asset-icon[data-icon="photo"] { color: #eab2bc; }
+.asset-spend {
+  min-height: 3.25rem;
+  margin-top: .22rem;
+  border-color: #896b49;
+  background: linear-gradient(100deg, #4c3329, #352925);
+  color: #ffdcad;
+}
+.asset-spend .asset-row-text strong { font-size: .98rem; }
+.asset-spend .asset-icon { color: #ffdcad; background: #2b2321; }
+.asset-spend:hover { background: #523a2f; }
+.asset-note { margin: 0; padding: .25rem .15rem; color: var(--secondary); font-size: .85rem; line-height: 1.45; }
+.asset-figures { padding: .16rem .5rem; }
+.asset-figures h2 { margin: .14rem 0 .35rem; font-size: .9rem; }
+.asset-figures dl { margin: 0; }
+.asset-figures dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: .55rem;
+  padding: .36rem 0;
+  font-size: .8rem;
+  border-bottom: 1px solid #524448;
+}
+.asset-figures dt { min-width: 0; color: var(--secondary); }
+.asset-figures dd { margin: 0; text-align: end; font-weight: 750; font-variant-numeric: tabular-nums; }
+.asset-transaction-body, .asset-receipt {
+  display: grid;
+  gap: .6rem;
+  padding: .7rem;
+  font-size: .84rem;
+  line-height: 1.4;
+  border: 1px solid var(--rule);
+  border-radius: .62rem;
+  background: var(--card);
+}
+.asset-transaction-body { margin-top: .3rem; }
+.asset-transaction-body p, .asset-receipt p { margin: 0; color: var(--secondary); }
+.asset-receipt { border-color: #626b4f; background: #2c342b; }
+.asset-receipt p { margin-top: .18rem; }
+.asset-receipt button { justify-self: start; }
+.asset-transaction .asset-blocked { margin: .1rem 0 .38rem; color: #ffc5a8; font-size: .8rem; }
+.primary-button.asset-confirm { width: 100%; justify-content: space-between; }
+.asset-confirm:disabled { opacity: .65; cursor: default; }

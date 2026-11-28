@@ -3,6 +3,7 @@ import { cities, inCityBg, placeAfterPreposition } from "./cities.ts";
 import { cityCulture, voices } from "./cityCulture.ts";
 import { cityPaths, jobTypes, type JobId } from "./cityPaths.ts";
 import type { Memory, Text } from "./engine.ts";
+import { fundIds, funds, goodIds, goods } from "./lifeAssets.ts";
 import type { Language } from "./session.ts";
 
 const t = (bg: string, en: string): Text => ({ bg, en });
@@ -45,6 +46,7 @@ const diaryLines: Readonly<Partial<Record<string, Text>>> = {
   "bank.loan": t("Взех заем от 600 €.", "I took out a €600 loan."),
   "bank.pay-loan": t("Внесох допълнителна сума по заема си.", "I made an extra payment on my loan."),
   "bank.pay-mortgage": t("Направих допълнителна вноска по ипотеката.", "I made an extra mortgage payment."),
+  "asset.home.sell": t("Продадох жилището си.", "I sold my home."),
   "legacy.prepare": t("Уредих наследството си.", "I made plans for my estate."),
   "hospital.gp": t("Говорих с личния си лекар и си записах час за преглед.", "I spoke to my GP and booked a checkup."),
   "hospital.grandma": t("Обадих се на баба. Попита кога ще ѝ гостувам.", "I called Grandma. She asked when I would come to visit."),
@@ -93,7 +95,7 @@ const milestoneIds = new Set([
   "birth", "first-grade", "after-seventh", "adulthood", "local-graduation", "centenary", "131st-birthday",
   "life.work", "life.retire", "family.commit", "family.engage", "family.marry", "family.break-up", "family.baby",
   "child-birth", "family.adopt", "adoption.accept", "adoption-offer", "pets.adopt", "hospital.emergency",
-  "bank.mortgage", "insurance.pension",
+  "bank.mortgage", "asset.home.buy", "asset.home.sell", "insurance.pension",
 ]);
 const milestonePrefixes = [
   "loss-", "caregiver-", "health-", "pregnancy-", "life.study.", "life.work.", "bank.mortgage.",
@@ -263,6 +265,38 @@ export function journalLine(event: Memory, l: Language, family?: BirthFamily | n
     const [purchase] = original.split(l === "bg" ? ". То влиза" : ". It becomes");
     return sentence(l === "bg" ? purchase.replace(/^Подписа покупката на жилище/, "Купих жилище с ипотека")
       : purchase.replace(/^You bought a home/, "I bought a home with a mortgage"));
+  }
+  if (event.id === "asset.home.buy") {
+    return l === "bg" ? "Купих жилище " + inCityBg(event.city) + "." : "I bought a home in " + town + ".";
+  }
+  if (event.id.startsWith("asset.realty.")) {
+    const financing = event.id.startsWith("asset.realty.mortgage.");
+    return l === "bg" ? "Купих " + lowerInitial(event.title.bg) + (financing ? " с ипотека " : " ") + inCityBg(event.city) + "."
+      : "I bought a " + lowerInitial(event.title.en) + (financing ? " with a mortgage in " : " in ") + town + ".";
+  }
+  if (event.id.startsWith("asset.transfer.")) {
+    return l === "bg" ? original.replace(/^Прехвърли /u, "Прехвърлих ") : original.replace(/^You transferred /u, "I transferred ");
+  }
+  if (event.id.startsWith("asset.")) {
+    const [, action, id] = event.id.split(".");
+    const good = goodIds.find(key => key === id);
+    if (good || id === "home") {
+      const label = good ? (goods[good].branded ? goods[good].title[l] : lowerInitial(goods[good].title[l]))
+        : l === "bg" ? "жилището си" : "my home";
+      if (action === "buy") return (l === "bg" ? "Купих " : "I bought a ") + label + ".";
+      if (action === "sell") return (l === "bg" ? "Продадох " : "I sold my ") + label + ".";
+      if (action === "pawn") return (l === "bg" ? "Заложих " : "I pledged ") + label + ".";
+      if (action === "release") return (l === "bg" ? "Откупих " : "I redeemed ") + label + ".";
+      if (action === "repair") return (l === "bg" ? "Поддържах " : "I serviced ") + label + ".";
+      if (action === "upgrade") return (l === "bg" ? "Обнових " : "I upgraded ") + label + ".";
+      if (action === "forfeit") return (l === "bg" ? "Изпуснах срока и загубих " : "The pledge expired and I lost ") + label + ".";
+    }
+    const fund = fundIds.find(key => key === id);
+    if (fund) {
+      const label = lowerInitial(funds[fund].title[l]);
+      if (action === "invest") return (l === "bg" ? "Вложих средства в " : "I invested in the ") + label + ".";
+      if (action === "redeem") return (l === "bg" ? "Продадох дяловете си от " : "I sold my holdings in the ") + label + ".";
+    }
   }
   if (event.id === "local-walk") {
     const landmark = cities[event.city].landmark[l];

@@ -2,8 +2,9 @@ import { expect, test as base } from "@playwright/test";
 import { once } from "node:events";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
+import { defaultAvatar } from "../src/avatar.ts";
 import { builtGameServer, sitePath } from "./serve-built-game.mjs";
-import { choose, doLifeActivity, doPathAction, getChoices, newChapterLife, newLife, playYear, startCareerLife } from "../src/engine.ts";
+import { choose, doLifeActivity, doPathAction, getChoices, newChapterLife, newLife, newProfileLife, playYear, startCareerLife } from "../src/engine.ts";
 import { familyRoll } from "../src/fertilityModel.ts";
 import { startPregnancyPlay } from "../src/pregnancyTimeline.ts";
 import { getWorkDecision } from "../src/workplace.ts";
@@ -179,6 +180,74 @@ test("intimacy can repeat and a confirmed pregnancy changes Play until the birth
   await page.getByTestId("open-workplace").tap();
   await expect(page.getByTestId("workplace").locator("[data-work-contact]")).toHaveCount(3);
   await expect(age).toHaveText(/^22(?!\d)/);
+});
+
+test("the shopping directory is separate from possessions and a purchase survives reload", async ({ page }) => {
+  let life = startCareerLife(newProfileLife({ seed: 108, city: "plovdiv", presentation: "female", avatar: defaultAvatar,
+    profile: { name: "Лора Иванова", talent: "none", vip: true, wealthy: true, disposition: null } }));
+  for (let year = 0; year < 18; year++) life = playYear(life);
+  expect(life.age).toBe(18);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.addInitScript(backup => {
+    if (!localStorage.getItem("bglife.journal.v1")) localStorage.setItem("bglife.journal.v1", backup);
+  }, serialize({ life, album: [] }));
+
+  await page.goto("./");
+  await page.getByRole("button", { name: /^Продължи/ }).tap();
+  const assets = page.getByRole("navigation").getByRole("button", { name: "Състояние", exact: true });
+  await expect(assets).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole("navigation").getByRole("button", { name: "Места", exact: true })).toHaveCount(0);
+  await page.getByRole("navigation").getByRole("button", { name: "Още", exact: true }).tap();
+  await page.getByRole("button", { name: "Места", exact: true }).tap();
+  await expect(page.getByRole("heading", { name: "Места", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Назад към Още", exact: true }).tap();
+  await page.getByRole("button", { name: "Към дневника", exact: true }).tap();
+
+  const menu = page.getByRole("region", { name: "Състояние", exact: true });
+  await assets.tap();
+  await expect(menu.getByText("Нетно състояние")).toHaveCount(0);
+  await expect(menu.getByText("В портфейла")).toHaveCount(0);
+  await menu.getByRole("button", { name: /^Имоти/ }).tap();
+  await expect(page.getByText("Още нямаш жилище или автомобил.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Агенция за имоти/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "Назад", exact: true }).tap();
+  await menu.getByRole("button", { name: /^Други/ }).tap();
+  await expect(page.getByText("Още нямаш вещи.")).toBeVisible();
+  await page.getByRole("button", { name: "Назад", exact: true }).tap();
+  await menu.getByRole("button", { name: "Харчи кинти", exact: true }).tap();
+  for (const store of [/^Агенция за имоти/, /^Автокъща/, /^Бижутерски магазин/, /^Музикален магазин/, /^Луксозни стоки/]) {
+    await expect(page.getByRole("button", { name: store })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Магазин за техника", exact: true }).tap();
+  await page.getByRole("button", { name: /^Лаптоп/ }).tap();
+  await page.locator('[data-asset-confirm="asset.buy.laptop"]').tap();
+  await expect(page.getByRole("status")).toContainText("Лаптоп");
+  await page.getByRole("button", { name: "Към дневника", exact: true }).tap();
+  await expect(page.locator('[data-event-id="asset.buy.laptop"]')).toBeFocused();
+  await expect(page.locator('[data-event-id="asset.buy.laptop"]')).toContainText("Купих лаптоп.");
+  await page.getByTestId("advance").tap();
+
+  await page.reload();
+  await page.getByRole("button", { name: /^Продължи/ }).tap();
+  await assets.tap();
+  await menu.getByRole("button", { name: /^Други/ }).tap();
+  await page.getByRole("button", { name: "Техника", exact: true }).tap();
+  await page.getByRole("button", { name: /^Лаптоп/ }).tap();
+  await expect(page.getByRole("meter", { name: "Състояние на притежанието" })).toHaveAttribute("aria-valuenow", "93");
+  await page.getByRole("button", { name: /^Заложи/ }).tap();
+  await page.locator('[data-asset-confirm="asset.pawn.laptop"]').tap();
+  await expect(page.getByText("Залог · Откупи преди 21 г.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Продай/ })).toHaveCount(0);
+  await page.getByRole("button", { name: /^Откупи/ }).tap();
+  await page.locator('[data-asset-confirm="asset.release.laptop"]').tap();
+  await expect(page.getByRole("button", { name: /^Продай/ })).toBeVisible();
+  for (let level = 0; level < 3; level++) await page.getByRole("button", { name: "Назад", exact: true }).tap();
+  await menu.getByRole("button", { name: /^Финанси/ }).tap();
+  await expect(page.getByRole("button", { name: /^Средства/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Инвестиции/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "Придобивки", exact: true }).tap();
+  await page.getByRole("button", { name: /^Лаптоп/ }).tap();
+  await expect(page.locator('[data-event-id="asset.buy.laptop"]')).toBeFocused();
 });
 
 function beforeWorkDecision() {

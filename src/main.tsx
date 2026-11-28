@@ -1,7 +1,8 @@
 import React,{useCallback,useEffect,useLayoutEffect,useRef,useState} from "react";
 import {createRoot} from "react-dom/client";
-import {choose,defaultPlayChoice,doAction,doLifeActivity,doMaternityReturn,doPregnancyAction,getPersonActivities,giveUp,nameNewborns,hasStartedLife,newProfileLife,playYear,doPathAction,startCareerLife,type City,type GameState,type LifeActivityCategory,type LifeActivityOption,type PregnancyAction} from "./engine.ts";
+import {choose,defaultPlayChoice,doAction,doLifeActivity,doMaternityReturn,doPregnancyAction,getPersonActivities,giveUp,nameNewborns,hasStartedLife,newProfileLife,playYear,doPathAction,startCareerLife,type City,type GameState,type LifeActivityCategory,type LifeActivityOption,type Memory,type PregnancyAction} from "./engine.ts";
 import {Album,Places} from "./Views.tsx";
+import {Assets} from "./Assets.tsx";
 import {Career} from "./Career.tsx";
 import {Workplace} from "./Workplace.tsx";
 import {WorkDecisionDialog} from "./WorkDecisionDialog.tsx";
@@ -14,7 +15,7 @@ import type {SurnameSource} from "./reproduction.ts";
 import {People} from "./People.tsx";
 import {BgLifeMark,PersonActionDialog,type PersonActionFlow} from "./PersonActionDialog.tsx";
 import {personRelationship,type PeopleId} from "./peopleIdentity.ts";
-import {Journal,Wallet} from "./Journal.tsx";
+import {Journal} from "./Journal.tsx";
 import {More,StatsBars} from "./More.tsx";
 import {Icon,MenuTitle,NavigationButton,PlaySymbol,copy,lifeName,tabLabels,type Tab} from "./ui.tsx";
 import {deserialize,initialLanguage,initialTrialVip,LANGUAGE_KEY,loadSession,persist,restoreSession,SAVE_KEY,serialize,VIP_TRIAL_KEY,type Session} from "./session.ts";
@@ -24,9 +25,9 @@ import {AvatarCreator} from "./AvatarCreator.tsx";
 import {CharacterHeader,CityBadge,PlayerProfile} from "./PlayerProfile.tsx";
 import type {NewLifeDraft} from "./lifeProfile.ts";
 
-type Dialog="profile"|"wallet"|"settings"|"replay"|"guide"|"give-up"|"pregnancy-end"|null;
+type Dialog="profile"|"settings"|"replay"|"guide"|"give-up"|"pregnancy-end"|null;
 type Screen = "home" | "game" | "album" | "avatar";
-type MoreParent = "journal" | "people" | "places" | "wallet";
+type MoreParent = "journal" | "people" | "places";
 type LogPosition = {age: number; focus?: boolean; activityId?: string};
 
 function lastLogPosition(life: GameState): LogPosition | null {
@@ -48,6 +49,7 @@ function App(){
   const finishHomeIntro=useCallback(()=>setHomeIntro(false),[]);
   const [vip,setVip]=useState(initialTrialVip);
   const [moreMenu,setMoreMenu]=useState<{category:LifeActivityCategory|null;parent:MoreParent;version:number}>({category:null,parent:"journal",version:0});
+  const [assetStart,setAssetStart]=useState<"overview"|"funds">("overview");
   const [albumFromMore,setAlbumFromMore]=useState(false);
   const [slideMenu,setSlideMenu]=useState(false);
   const [personAction,setPersonAction]=useState<PersonActionFlow|null>(null);
@@ -63,11 +65,11 @@ function App(){
   const labels=tabLabels(l,s.age);
   const pregnancyNotice=s.lifeSystems.reproduction.notice;
   const pregnancyTurn=pregnancyTurnLabel(s);
-  const menuDialog=dialog==="wallet"||dialog==="settings"||dialog==="guide";
+  const menuDialog=dialog==="settings"||dialog==="guide";
   const showJournal=screen==="game"&&tab==="journal";
   const showNav=screen==="game"&&(tab==="journal"||tab==="career"||tab==="workplace");
   const workDecision=showJournal&&!dialog&&!personAction?getWorkDecision(s):null;
-  const dialogTitle=dialog==="profile"?t("Профил","Profile"):dialog==="wallet"?t("Портфейл","Wallet"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):dialog==="give-up"?t("Приключване на живота","End this life"):dialog==="pregnancy-end"?t("Прекъсване на бременността","End the pregnancy"):t("Нов живот","New life");
+  const dialogTitle=dialog==="profile"?t("Профил","Profile"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):dialog==="give-up"?t("Приключване на живота","End this life"):dialog==="pregnancy-end"?t("Прекъсване на бременността","End the pregnancy"):t("Нов живот","New life");
   function commit(next:Session){
     live.current=next;setSession(next);
     if(!persist(next))setNotice("temporary");
@@ -95,7 +97,7 @@ function App(){
       focusScreen.current=false;
       const viewport=viewportRef.current;
       if(viewport)viewport.scrollTop=0;
-      if(!position?.focus)mainRef.current?.focus({preventScroll:true});
+      if(!position?.focus&&tab!=="assets")mainRef.current?.focus({preventScroll:true});
     }
     if(screen==="game"&&tab==="journal"&&position){
       nextLogPosition.current=null;
@@ -117,9 +119,10 @@ function App(){
     focusScreen.current=true;
     setScreen(which);
   }
-  function openJournal(life:GameState,currentYear=false,activityId?:string){
-    const position = !life.commands.length ? null : currentYear ? {age:life.age} : lastLogPosition(life);
-    nextLogPosition.current=position && {...position,focus:true,activityId};
+  function openJournal(life:GameState,currentYear=false,entry?:Memory){
+    const position = entry ? {age:entry.age,activityId:entry.id}
+      : !life.commands.length ? null : currentYear ? {age:life.age} : lastLogPosition(life);
+    nextLogPosition.current=position && {...position,focus:true};
     focusScreen.current=true;
     setTab("journal");
     setScreen("game");
@@ -149,7 +152,7 @@ function App(){
       if(position)scrollToLog(position);
       return;
     }
-    setSlideMenu(tab==="journal"&&(which==="people"||which==="places"||which==="more"));
+    setSlideMenu(tab==="journal"&&(which==="people"||which==="assets"||which==="more"));
     nextLogPosition.current=position;
     focusScreen.current=true;
     setTab(which);
@@ -158,16 +161,16 @@ function App(){
     setMoreMenu(menu=>({category,parent,version:menu.version+1}));
     route("more");
   }
-  function openGameMenu(which:"wallet"|"settings"){
+  function openAssets(from:"overview"|"funds"){
+    setAssetStart(from);
+    route("assets");
+  }
+  function openSettings(){
     setSlideMenu(showJournal);
-    setDialog(which);
+    setDialog("settings");
   }
   function backFromCategory(){
-    const parent=moreMenu.parent;
-    if(parent==="wallet"){
-      route("journal");
-      setDialog("wallet");
-    }else route(parent);
+    route(moreMenu.parent);
   }
   function openAlbum(fromMore=false){
     setAlbumFromMore(fromMore);
@@ -205,7 +208,7 @@ function App(){
     setPersonAction(updated.lifeSystems.reproduction.notice ? null
       : {...personAction,outcome:{entry,relationDelta:before!==null&&after!==null?after-before:null}});
     commit({...current,life:updated});
-    openJournal(updated,true,entry.id);
+    openJournal(updated,true,entry);
   }
   function closePersonAction(){
     const entry=personAction?.outcome?.entry;
@@ -223,6 +226,7 @@ function App(){
         nextLogPosition.current={age:entry.age,activityId:entry.id,focus:true};
       }
       commit({...current,life:updated});
+      return entry;
     }
   }
   function nextYear(){
@@ -246,7 +250,7 @@ function App(){
     const updated=doPregnancyAction(s,kind,s.age);
     if(updated===s)return;
     commit({...current,life:updated});
-    if(updated.history.length!==s.history.length)openJournal(updated,true,updated.history.at(-1)?.id);
+    if(updated.history.length!==s.history.length)openJournal(updated,true,updated.history.at(-1));
   }
   function requestPregnancyEnd(){
     if(!canEndPregnancy(s))return;
@@ -309,7 +313,8 @@ function App(){
   const playLabel = pregnancyTurn?.[l] ?? (s.finished ? t("Нов живот","New life") : t("Следваща година","Next year"));
   function navItem(k:Exclude<Tab,"workplace">) {
     const icon = k==="career" ? isSchoolAge(s.age) ? "school" : "bag" : k;
-    return <button data-tab={k} className="nav-item" aria-current={tab===k||(k==="career"&&tab==="workplace")?"page":undefined} onClick={()=>k==="more"?openMore():route(k)}><Icon name={icon}/><span>{labels[k]}</span></button>;
+    const active=tab===k||(k==="career"&&tab==="workplace");
+    return <button data-tab={k} className="nav-item" aria-current={active?"page":undefined} onClick={()=>k==="more"?openMore():k==="assets"?openAssets("overview"):route(k)}><Icon name={icon}/><span>{labels[k]}</span></button>;
   }
   const closeLabel=screen==="album"?t("Към менюто","Back to main menu"):t("Към дневника","Back to journal");
   const closeMenu=()=>screen==="album"?openMenuScreen("home"):openJournal(live.current.life);
@@ -320,12 +325,11 @@ function App(){
   const categoryBackLabel={
     people:t("Назад към Хора","Back to People"),
     places:t("Назад към Места","Back to Places"),
-    wallet:t("Назад към портфейла","Back to Wallet"),
     journal:t("Назад към дневника","Back to journal"),
   }[moreMenu.parent];
   const toolbar = <div className="masthead-actions">
     <button className="lang-button" data-testid="language" onClick={setLocale} aria-label={t("Switch to English","Премини на български")}>{l==="bg"?"EN":"БГ"}</button>
-    <button className="icon-button" data-testid="settings" onClick={()=>openGameMenu("settings")} aria-label={t("Настройки","Settings")}><Icon name="settings"/></button>
+    <button className="icon-button" data-testid="settings" onClick={openSettings} aria-label={t("Настройки","Settings")}><Icon name="settings"/></button>
   </div>;
   return <div className={screen==="home"?"app-shell app-shell--home":"app-shell"}>
     {(screen==="game"||screen==="album")&&<header className={"masthead"+(showNav?" journal-masthead":"")}>
@@ -335,11 +339,11 @@ function App(){
         {toolbar}
       </div>}
       <CharacterHeader life={s} l={l} onProfile={showNav?()=>setDialog("profile"):undefined}
-        onWallet={showNav?()=>openGameMenu("wallet"):undefined}/>
+        onWallet={showNav?()=>openAssets("funds"):undefined}/>
     </header>}
     {notice&&<div className="save-notice" role="status"><span>{notice==="temporary"?t("Браузърът не запази играта. Можеш да изтеглиш копие от Настройки.","This browser couldn’t save your game. Download a backup in Settings."):notice==="recovered"?t("Дневникът е възстановен от предишния запис.","Your journal was restored from its previous save."):t("Предишният запис е повреден. Започваш нова глава.","The previous save was damaged. A new chapter has begun.")}</span><NavigationButton label={t("Затвори","Dismiss")} onClick={()=>setNotice(null)}/></div>}
-    <div className={screen==="avatar"?"game-layout avatar-layout":screen==="game"?(tab==="journal"?"game-layout journal-layout":tab==="more"||tab==="people"?"game-layout more-layout":"game-layout"):"game-layout start-layout"} ref={viewportRef}>
-      <main className={screen==="home"?"main-column start-column":(showJournal===false&&(tab==="people"||tab==="places")&&screen==="game"&&slideMenu)?"main-column menu-enter":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
+    <div className={screen==="avatar"?"game-layout avatar-layout":screen==="game"?(tab==="journal"?"game-layout journal-layout":tab==="more"||tab==="people"||tab==="assets"?"game-layout more-layout":"game-layout"):"game-layout start-layout"} ref={viewportRef}>
+      <main className={screen==="home"?"main-column start-column":((tab==="people"||tab==="assets")&&screen==="game"&&slideMenu)?"main-column menu-enter":"main-column"} id="main" ref={mainRef} tabIndex={-1}>
       {screen==="home"?<HomeHub life={s} l={l} intro={homeIntro} onIntroEnd={finishHomeIntro} onContinue={()=>openJournal(live.current.life)} onNewLife={startLife}
         onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</HomeHub>:
        screen==="avatar"?<AvatarCreator l={l} vip={vip} onVip={toggleTrialVip} onClose={cancelAvatarCreator} onStart={startWithAvatar}/>:
@@ -347,9 +351,13 @@ function App(){
        tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore} onEndPregnancy={requestPregnancyEnd} onCareer={()=>route("career")}/>:
        tab==="career"?<Career s={s} l={l} onClose={closeMenu} onMaternityReturn={()=>act(v=>doMaternityReturn(v,s.age))} onWorkplace={()=>route("workplace")} onAction={id=>act(v=>doPathAction(v,id,s.age))}/>:
        tab==="workplace"?<Workplace s={s} l={l} onClose={closeMenu} onCareer={()=>route("career")} onAction={id=>act(v=>doPathAction(v,id,s.age))}/>:
-       tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family","people")} onActivity={openPersonAction}/>:tab==="places"?<Places {...menuProps} s={s} l={l} onHolidays={()=>openMore("holidays","places")} onMove={relocate}/>:
+       tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family","people")} onActivity={openPersonAction}/>:
+       tab==="assets"?<Assets life={s} l={l} initialPage={assetStart} onClose={closeMenu}
+        onAction={id=>act(v=>doLifeActivity(v,id,s.age))} onJournal={entry=>openJournal(live.current.life,true,entry)}/>:
+       tab==="places"?<Places back onClose={()=>openMore()} closeLabel={t("Назад към Още","Back to More")}
+        s={s} l={l} onHolidays={()=>openMore("holidays","places")} onMove={relocate}/>:
        tab==="more"?<More {...menuProps} key={moreMenu.version} life={s} l={l} initialCategory={moreMenu.category} animateEntry={slideMenu&&moreMenu.category===null}
-        onActivity={id=>act(v=>doLifeActivity(v,id,s.age))} onGiveUp={requestGiveUp} onJournal={()=>openJournal(live.current.life,true)} onAlbum={()=>openAlbum(true)}
+        onActivity={id=>act(v=>doLifeActivity(v,id,s.age))} onGiveUp={requestGiveUp} onJournal={()=>openJournal(live.current.life,true)} onAlbum={()=>openAlbum(true)} onPlaces={()=>route("places")}
         onCategoryBack={moreMenu.category?backFromCategory:undefined} categoryBackLabel={categoryBackLabel}/>:
        <Album {...albumMenu} s={s} archive={session.album} l={l}/>}
     </main></div>
@@ -362,7 +370,7 @@ function App(){
           aria-describedby={fallback && tab==="journal" ? "play-default" : undefined}>
           <span className="play-face" aria-hidden="true"><PlaySymbol/></span><span>{s.finished || pregnancyTurn ? playLabel : "+1 " + t("година","year")}</span>
         </button>
-        {navItem("places")}{navItem("more")}
+        {navItem("assets")}{navItem("more")}
       </div>
     </nav><StatsBars life={s} l={l}/></footer>}
     {screen==="game"&&!dialog&&!personAction&&pregnancyNotice&&
@@ -377,7 +385,7 @@ function App(){
       {menuDialog&&screen!=="home"&&<div className="game-menu-profile"><CharacterHeader life={s} l={l}/></div>}
       <div className={menuDialog?(slideMenu&&showJournal?"game-menu-content menu-enter":"game-menu-content"):undefined}>
       {menuDialog?<MenuTitle onClose={close} back={screen==="home"} closeLabel={screen==="home"?t("Назад към менюто","Back to main menu"):t("Затвори","Close")}><h2 id="dialog-heading">{dialogTitle}</h2></MenuTitle>:<div className="dialog-head"><h2 id="dialog-heading">{dialogTitle}</h2><NavigationButton label={t("Затвори","Close")} onClick={close}/></div>}
-      {dialog==="profile"?<PlayerProfile life={s} l={l} onAesthetics={()=>{close();openMore("aesthetics");}}/>:dialog==="wallet"?<Wallet s={s} l={l} onBank={()=>{close();openMore("bank","wallet");}}/>:
+      {dialog==="profile"?<PlayerProfile life={s} l={l} onAesthetics={()=>{close();openMore("aesthetics");}}/>:
       dialog==="guide"?<StartGuide l={l}/>:dialog==="pregnancy-end"?<>
         <p>{t("Потвърди, че избираш да прекъснеш бременността. След това Play се връща към годишния цикъл.",
           "Confirm your decision to end the pregnancy. Play returns to the yearly cycle afterwards.")}</p>

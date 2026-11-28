@@ -31,7 +31,8 @@ function LifeEvent({ event, l, life, latestWithId, children }: {
   const personEvent = event.kind === "action" && event.id.startsWith("people.");
   const pregnancyEvent = event.kind === "event" && (event.id.startsWith("pregnancy-") || (event.id === "birth" && event.age > 0));
   const familyEvent = pregnancyEvent || event.id === "relationship-anniversary" || event.id === "wedding-anniversary" || event.id.startsWith("maternity-");
-  const focusable = latestWithId && (event.decision || personEvent || familyEvent || (event.kind === "action" && event.id.startsWith("city-life.")));
+  const focusable = latestWithId && (event.decision || personEvent || familyEvent
+    || (event.kind === "action" && /^(city-life|asset|bank)\./.test(event.id)));
   const eventDate = event.cityEvent && cityWeatherDate(event.cityEvent, l);
   const line = journalLine(event, l, life.birthFamily);
   const original = event.text[l];

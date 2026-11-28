@@ -7,6 +7,7 @@ import type { AvatarPresentation } from "./avatar.ts";
 import { getPeopleActivityDefinitions } from "./peopleActivities.ts";
 import { isContactId, type PeopleId } from "./peopleIdentity.ts";
 import { lifeBank } from "./lifeEconomy.ts";
+import { assetActivities, assetTransferDefinition, type LifeAssets } from "./lifeAssets.ts";
 import { lifeFamily } from "./lifeFamily.ts";
 import { lifeReproduction } from "./lifeReproduction.ts";
 import { familyPlayEnabled, startingReproduction, type Reproduction } from "./reproduction.ts";
@@ -19,7 +20,7 @@ import { applyStats, statsChange, type StatDelta } from "./lifeStats.ts";
 export { applyStats, boundStat, lifeStatKeys, startingStats, statsChange } from "./lifeStats.ts";
 export type { LifeStat, LifeStats, StatDelta } from "./lifeStats.ts";
 
-export type LifeActivityCategory = "hospital" | "fertility" | "adoption" | "gym" | "pets" | "holidays" | "family" | "bank" | "aesthetics" | "fun" | "social" | "legacy";
+export type LifeActivityCategory = "hospital" | "fertility" | "adoption" | "gym" | "pets" | "holidays" | "family" | "bank" | "aesthetics" | "fun" | "social" | "legacy" | "assets";
 export type Platform = "instagram" | "facebook" | "tiktok" | "youtube" | "vbox7" | "onlyfans";
 export type Heir = "partner" | "children" | "rumi" | "friend";
 
@@ -47,6 +48,7 @@ export type LifeSystems = {
   };
   reproduction: Reproduction;
   bank: { accountOpen: boolean; balance: number; loan: number; mortgage: number; ownsHome: boolean; homeCity?: City };
+  assets: LifeAssets;
   social: Partial<Record<Platform, { followers: number; posts: number }>>;
   legacy: { heirs: Heir[]; prepared: boolean };
 };
@@ -60,6 +62,7 @@ export type LifeActivityDefinition = {
   label: Text;
   description: Text;
   result: Text;
+  historyTitle?: Text;
   cost?: number;
   walletDelta?: (s: GameState) => number;
   stats?: StatDelta;
@@ -95,6 +98,7 @@ export function startingLifeSystems(): LifeSystems {
     family: { partner: null, formerPartners: [], childProfiles: [], stage: "single", bond: 0, relationship: null, children: 0, expecting: false },
     reproduction: startingReproduction(),
     bank: { accountOpen: false, balance: 0, loan: 0, mortgage: 0, ownsHome: false },
+    assets: { goods: {}, funds: {} },
     social: {},
     legacy: { heirs: [], prepared: false },
   };
@@ -105,7 +109,7 @@ const platformNames = {
   youtube: "YouTube", vbox7: "Vbox7", onlyfans: "OnlyFans",
 };
 export const activityDefinitions: LifeActivityDefinition[] = [
-  ...lifeLeisure, ...lifeFamily, ...lifeBank, ...lifeSocial, ...lifeReproduction,
+  ...lifeLeisure, ...lifeFamily, ...lifeBank, ...lifeSocial, ...lifeReproduction, ...assetActivities,
 ];
 
 const byId = new Map(activityDefinitions.map(definition => [definition.id, definition]));
@@ -115,6 +119,7 @@ const categoryAge: Partial<Record<LifeActivityCategory, number>> = {
 export function getLifeActivityDefinition(id: string): LifeActivityDefinition | undefined {
   const standard = byId.get(id);
   if (standard) return standard;
+  if (id.startsWith("asset.transfer.")) return assetTransferDefinition(id);
   const [scope, contact] = id.split(".");
   return scope === "people" && isContactId(contact) ? getPeopleActivityDefinitions(contact).find(option => option.id === id) : undefined;
 }

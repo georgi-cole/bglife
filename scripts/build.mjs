@@ -1,7 +1,7 @@
 import { build, context } from 'esbuild';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -9,6 +9,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const require = createRequire(import.meta.url);
 const dist = path.join(root, 'dist');
 const release = path.join(root, 'release');
+const iconName = 'bglife-icon.png';
 const serve = process.argv.includes('--serve');
 const template = await readFile(path.join(root, 'index.html'), 'utf8');
 const [artCredits, ...licenseTexts] = await Promise.all([
@@ -37,9 +38,10 @@ const config = {
   logLevel: 'warning'
 };
 
-function page(style, script) {
+function page(style, script, icon = '') {
   const safeNotices = JSON.stringify(notices).replaceAll('<', '\\u003c');
   return template
+    .replace('<!-- bglife:icon -->', () => icon)
     .replace('<!-- bglife:style -->', () => style)
     .replace('<!-- bglife:credits -->', () => '<script id="game-credits" type="application/json">' + safeNotices + '</script>')
     .replace('<!-- bglife:script -->', () => script);
@@ -54,10 +56,12 @@ async function writeWebEntry() {
   await writeFile(path.join(dist, 'index.html'), page(
     '<link rel="stylesheet" href="./' + assets[0] + version + '">',
     '<script src="./' + assets[1] + version + '"></script>',
+    '<link rel="icon" type="image/png" href="./' + iconName + '">',
   ));
 }
 
 await mkdir(dist, { recursive: true });
+await copyFile(path.join(root, 'public', iconName), path.join(dist, iconName));
 await writeFile(path.join(dist, 'CREDITS.txt'), notices);
 if (serve) {
   await writeWebEntry();
