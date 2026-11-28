@@ -1,12 +1,12 @@
 import type { GameState, Memory } from "./engine.ts";
-import { currentCaregiver, getRelative, isKin } from "./birthFamily.ts";
+import { currentCaregiver, getRelative, isKin, relativesOf } from "./birthFamily.ts";
 import { applyStats, statsChange } from "./lifeActivities.ts";
 import { isChild, isKnownPerson, personAge, personCity, personGender, personName, personSeed, storyPeople, type PeopleId } from "./peopleIdentity.ts";
 import { deathCauses, rollDeath } from "./mortality.ts";
 
 export function settlePeople(s: GameState): GameState {
   const family = s.lifeSystems.family;
-  const people = new Set<PeopleId>(s.birthFamily?.relatives.map(relative => relative.id));
+  const people = new Set<PeopleId>(relativesOf(s).map(relative => relative.id));
   for (const person of storyPeople) {
     // Recurring characters in the authored Tryavna plot must be present for their scenes.
     if ((!s.storyRoute || s.age >= 26) && isKnownPerson(s, person)) people.add(person);

@@ -1,4 +1,5 @@
 import React, { type ReactNode } from "react";
+import { weddingInvitation } from "./contactLives.ts";
 import { getCityOpportunity, type GameState, type Memory } from "./engine.ts";
 import { cityWeatherDate } from "./cityLife.ts";
 import { familyActivityLine, isJournalMilestone, journalLine } from "./journalCopy.ts";
@@ -125,8 +126,11 @@ export function JournalFinances({ s, l }: { s: GameState; l: Language }) {
   </details>;
 }
 
-export function LifeTimeline({ s, l, children, onCityDecision }: { s: GameState; l: Language; children: ReactNode; onCityDecision: () => void }) {
+export function LifeTimeline({ s, l, children, onCityDecision, onWeddingDecision }: {
+  s: GameState; l: Language; children: ReactNode; onCityDecision: () => void; onWeddingDecision: () => void;
+}) {
   const opportunity = getCityOpportunity(s);
+  const wedding = weddingInvitation(s);
   return <section className="life-timeline" aria-labelledby="timeline-heading">
     <h1 id="timeline-heading" className="timeline-heading"><Icon name="journal" size={16}/>{copy(l, "Дневник", "Journal")}</h1>
     {groupLifeYears(s).map(({ age, events }) => {
@@ -141,6 +145,10 @@ export function LifeTimeline({ s, l, children, onCityDecision }: { s: GameState;
             {latest && opportunity?.id === event.id && <button type="button" className="decision-trigger city-decision-trigger"
               data-city-opportunity aria-haspopup="dialog" onClick={onCityDecision}>
               <Icon name="pin" size={15}/><span>{copy(l, "Виж вариантите", "See options")}</span><Icon name="next" size={14}/>
+            </button>}
+            {latest && wedding?.id === event.id && <button type="button" className="decision-trigger"
+              data-wedding-invitation aria-haspopup="dialog" onClick={onWeddingDecision}>
+              <Icon name="heart" size={15}/><span>{copy(l, "Покана за сватба", "Wedding invitation")}</span><Icon name="next" size={14}/>
             </button>}
           </LifeEvent>)}
         </ul> : <p className="life-quiet">{quietYear(s.seed, age)[l]}</p>}

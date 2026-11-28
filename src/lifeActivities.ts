@@ -1,10 +1,11 @@
-import { cities, inCityBg } from "./cities.ts";
+import { cities, inCityBg, isCity } from "./cities.ts";
 import type { City, GameState, PersonId, Text } from "./engine.ts";
+import type { ContactWorld } from "./contactLives.ts";
 import type { HealthCondition } from "./lifeHealth.ts";
 import { isKin, type KinId } from "./birthFamily.ts";
 import { talentBonus } from "./lifeProfile.ts";
 import type { AvatarPresentation } from "./avatar.ts";
-import { getPeopleActivityDefinitions } from "./peopleActivities.ts";
+import { getPeopleActivityDefinitions, personVisitDefinition } from "./peopleActivities.ts";
 import { isContactId, type PeopleId } from "./peopleIdentity.ts";
 import { lifeBank } from "./lifeEconomy.ts";
 import { assetActivities, assetTransferDefinition, type LifeAssets } from "./lifeAssets.ts";
@@ -35,6 +36,7 @@ export type LifeSystems = {
   medicalIssue: "routine" | "urgent" | null;
   healthCondition?: HealthCondition | null;
   kinBonds?: Partial<Record<KinId, number>>;
+  contacts?: ContactWorld;
   pets: { adopted: boolean; rescued: boolean; bond: number };
   family: {
     partner: PartnerId | null;
@@ -75,6 +77,7 @@ export type LifeActivityDefinition = {
   update?: (s: GameState) => LifeSystems;
   resolvesMedicalIssue?: boolean;
   contact?: PeopleId;
+  sameCity?: "always" | "new-actions";
   visible?: (s: GameState) => boolean;
   branch?: ActivityBranch;
   exclusive?: string;
@@ -120,8 +123,10 @@ export function getLifeActivityDefinition(id: string): LifeActivityDefinition | 
   const standard = byId.get(id);
   if (standard) return standard;
   if (id.startsWith("asset.transfer.")) return assetTransferDefinition(id);
-  const [scope, contact] = id.split(".");
-  return scope === "people" && isContactId(contact) ? getPeopleActivityDefinitions(contact).find(option => option.id === id) : undefined;
+  const [scope, contact, action, destination, extra] = id.split(".");
+  if (scope !== "people" || !contact || (!isContactId(contact) && !isKin(contact))) return undefined;
+  if (action === "visit" && extra === undefined && isCity(destination)) return personVisitDefinition(contact, destination);
+  return getPeopleActivityDefinitions(contact).find(option => option.id === id);
 }
 
 function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: number): Text | null {

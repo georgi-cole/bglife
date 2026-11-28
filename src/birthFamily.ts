@@ -1,11 +1,13 @@
 import type { AvatarPresentation } from "./avatar.ts";
 import { cities, type City } from "./cities.ts";
 import type { GameState, Text } from "./engine.ts";
+import type { PeopleId } from "./peopleIdentity.ts";
 import { bilingualName, genderedSurname, localNames } from "./lifeProfile.ts";
 import { districtHazardFactor, lifeDraw, nationalMortality } from "./mortality.ts";
 import type { District } from "./mortalityData.ts";
 
-export type KinRole = "mother" | "father" | "grandmother" | "grandfather" | "aunt" | "uncle" | "maternal-uncle" | "sibling";
+export type KinRole = "mother" | "father" | "grandmother" | "grandfather" | "aunt" | "uncle" | "maternal-uncle" | "sibling"
+  | "cousin" | "niece-nephew" | "grandchild" | "contact-partner" | "contact-child";
 export type KinId = `kin-${string}`;
 export type Relative = {
   id: KinId;
@@ -15,6 +17,9 @@ export type Relative = {
   ageAtBirth: number;
   household: boolean;
   bond: number;
+  homeWith?: PeopleId;
+  parentIds?: readonly PeopleId[];
+  halfSibling?: true;
 };
 type Upbringing = "two-parents" | "mother" | "father" | "grandparents" | "relatives" | "foster";
 export type BirthFamily = { upbringing: Upbringing; orphan: boolean; relatives: Relative[] };
@@ -29,14 +34,22 @@ const firstBirthAge: Record<District, number> = {
 const t = (bg: string, en: string): Text => ({ bg, en });
 const groupProbability = [0.790, 0.968, 0.992, 0.9965, 0.9992] as const;
 const arrangements: readonly Upbringing[] = ["two-parents", "mother", "father", "grandparents", "relatives", "foster"];
-const roleLabels: Record<Exclude<KinRole,"sibling">, Text> = {
+const roleLabels: Record<Exclude<KinRole,"sibling" | "cousin" | "niece-nephew" | "grandchild">, Text> = {
   mother: t("Майка", "Mother"), father: t("Баща", "Father"),
   grandmother: t("Баба", "Grandmother"), grandfather: t("Дядо", "Grandfather"),
   aunt: t("Леля", "Aunt"), uncle: t("Чичо", "Uncle"), "maternal-uncle": t("Вуйчо", "Maternal uncle"),
+  "contact-partner": t("Партньор", "Partner"), "contact-child": t("Дете", "Child"),
 };
 
 export function relativeLabel(relative: Relative): Text {
-  if (relative.role === "sibling") return relative.gender === "male" ? t("Брат","Brother") : t("Сестра","Sister");
+  const male = relative.gender === "male";
+  if (relative.role === "sibling") {
+    if (relative.halfSibling) return male ? t("Полубрат", "Half-brother") : t("Полусестра", "Half-sister");
+    return male ? t("Брат","Brother") : t("Сестра","Sister");
+  }
+  if (relative.role === "niece-nephew") return male ? t("Племенник","Nephew") : t("Племенница","Niece");
+  if (relative.role === "cousin") return male ? t("Братовчед","Cousin") : t("Братовчедка","Cousin");
+  if (relative.role === "grandchild") return male ? t("Внук","Grandson") : t("Внучка","Granddaughter");
   return roleLabels[relative.role];
 }
 
@@ -44,8 +57,13 @@ export function isKin(id: string): id is KinId {
   return id.startsWith("kin-");
 }
 
+export function relativesOf(s: GameState): Relative[] {
+  return [...(s.birthFamily?.relatives ?? []), ...(s.lifeSystems.contacts?.relatives ?? [])];
+}
+
 export function getRelative(s: GameState, id: KinId): Relative | undefined {
-  return s.birthFamily?.relatives.find(relative => relative.id === id);
+  return s.birthFamily?.relatives.find(relative => relative.id === id)
+    ?? s.lifeSystems.contacts?.relatives.find(relative => relative.id === id);
 }
 
 const lifeSurvival: Record<AvatarPresentation, number[]> = { female: [1], male: [1] };

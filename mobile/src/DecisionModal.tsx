@@ -28,7 +28,7 @@ export function DecisionModal({ decision, age, language, saving, onClose, onChoo
             <View style={styles.options}>
               {decision.options.map(({ option, blocked }) => {
                 const disabled = blocked || saving;
-                const cash = local ? option.effect?.cash ?? 0 : 0;
+                const cash = decision.kind !== "story" ? option.effect?.cash ?? 0 : 0;
                 return <Pressable key={option.id} accessibilityRole="button" accessibilityState={{ disabled }}
                   testID={"decision-" + option.id} disabled={disabled} onPress={() => onChoose(option.id)}
                   style={({ pressed }) => [styles.option, pressed && styles.pressed, disabled && styles.disabled]}>

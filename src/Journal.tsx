@@ -13,6 +13,7 @@ type Props = {
   s: GameState;
   l: Language;
   onCityDecision: () => void;
+  onWeddingDecision: () => void;
   onAction: (id: string) => void;
   onReplay: () => void;
   onAlbum: () => void;
@@ -20,7 +21,7 @@ type Props = {
   onEndPregnancy: () => void;
   onCareer: () => void;
 };
-export function Journal({s, l, onCityDecision, onAction, onReplay, onAlbum, onMore, onEndPregnancy, onCareer}: Props) {
+export function Journal({s, l, onCityDecision, onWeddingDecision, onAction, onReplay, onAlbum, onMore, onEndPregnancy, onCareer}: Props) {
   const actions = getActions(s);
   const ending = s.endReason === "chapter" ? endingCopy(s) : null;
   const { healthCondition } = s.lifeSystems;
@@ -51,7 +52,7 @@ export function Journal({s, l, onCityDecision, onAction, onReplay, onAlbum, onMo
       <span><strong>{copy(l,"Предложение за осиновяване","Adoption match")}</strong><small>{adoptionOffer[l]}</small></span>
       <button className="secondary-button" onClick={()=>onMore("adoption")}>{copy(l,"Виж","View")}<Icon name="next" size={15}/></button>
     </div>}
-    <LifeTimeline s={s} l={l} onCityDecision={onCityDecision}>
+    <LifeTimeline s={s} l={l} onCityDecision={onCityDecision} onWeddingDecision={onWeddingDecision}>
       {s.finished ? (
         <section className="story-card ending-card">
           <p className="section-kicker"><Icon name="album"/>{copy(l, "Епилог", "Epilogue")}</p>
