@@ -33,7 +33,7 @@ jobs:
   testflight:
     name: Build and upload iOS to TestFlight
     needs: debounce
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 60
     environment: testflight
     steps:
@@ -164,4 +164,4 @@ jobs:
           issuer-id: ${{ vars.APPSTORE_ISSUER_ID }}
           api-key-id: ${{ vars.APPSTORE_API_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
-          wait-for-processing: 'false'
+          wait-for-processing: 'true'
