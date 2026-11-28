@@ -1,0 +1,76 @@
+.play-control[data-play-mode="pregnancy"] {
+  color: #fac7de;
+}
+
+.play-control[data-play-mode="pregnancy"] .play-face,
+.play-control[data-play-mode="pregnancy"]:hover .play-face {
+  color: #22152c;
+  border-color: #f8c6df;
+  background: radial-gradient(circle at 36% 25%, #ffe2ef, #ed9ec6 62%, #cf78a7);
+  box-shadow: 0 0 0 1px #f8c6df, 0 3px 0 #8c5172, 0 0 19px #dd88ba48;
+}
+
+.play-control[data-play-mode="pregnancy"] .play-symbol {
+  color: #3b2142;
+}
+
+.pregnancy-dialog {
+  width: min(27rem, calc(100% - 1.35rem));
+  border-color: #875d7f;
+  background: linear-gradient(150deg, #392840, #242433 85%);
+}
+
+.pregnancy-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: .68rem;
+}
+
+.pregnancy-dialog-header h2 {
+  margin: 0;
+}
+
+.pregnancy-dialog-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: .65rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: #5d3658;
+  color: #ffd5e8;
+}
+
+.pregnancy-dialog-hint {
+  color: #f5c4db;
+  font-size: .84rem;
+}
+
+.pregnancy-dialog-action {
+  justify-content: center;
+  width: 100%;
+  background: #edaccd;
+  color: #2d1835;
+}
+
+.pregnancy-status {
+  flex-wrap: wrap;
+}
+
+.pregnancy-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+}
+
+.pregnancy-status-actions .pregnancy-end {
+  color: #f3c1d3;
+}
+
+.family-event-title {
+  display: block;
+  margin-bottom: .2rem;
+  color: #f1b4ce;
+  font-weight: 750;
+  font-size: .82rem;
+}

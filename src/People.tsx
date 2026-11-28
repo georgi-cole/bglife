@@ -101,7 +101,8 @@ const actionIcons: Record<string,IconName> = {
   park:"leaf", bedtime:"journal", playground:"sun", "board-game":"sparkle", skate:"shoes",
   compliment:"sparkle", conversation:"people", gift:"bag", "give-money":"wallet", "ask-money":"wallet",
   walk:"places", fitness:"bolt", insult:"bolt", argue:"live", persuade:"heart", intimacy:"heart",
-  "family-time":"heart", "family-story":"journal",
+  "family-time":"heart", "family-story":"journal", "hold-hands":"heart", "first-kiss":"heart", kiss:"heart",
+  "inside-joke":"sparkle", "sunday-ritual":"clock", "future-together":"people",
 };
 
 function ActionRow({options,l,onClick}: {options:LifeActivityOption[];l:Language;onClick:()=>void}) {
@@ -134,6 +135,7 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
   const {partner}=s.lifeSystems.family;
   const pregnancy=pregnancyStatus(s);
   const actions=person?getPersonActivities(s,person.id):[];
+  const received=person?s.lifeSystems.assets.transfers?.filter(transfer=>transfer.recipient===person.id)??[]:[];
   const actionRows=new Map<string,LifeActivityOption[]>();
   for(const action of actions){
     const key=action.branch?.id??action.id;
@@ -172,6 +174,12 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
           {person.score&&<RelationshipMeter score={person.score}/>}
         </div>
       </div>
+      {received.length > 0 && <section className="people-transfers" aria-labelledby="people-transfers-title">
+        <h2 id="people-transfers-title" className="people-group-heading">{t("Получени притежания","Received assets")}</h2>
+        <ul>{received.map(({item,age},index)=><li key={index}>
+          <span>{item[l]}</span><small>{ageLabel(age,l)}</small>
+        </li>)}</ul>
+      </section>}
       {!person.death && <section className="people-actions" aria-labelledby="people-actions-title">
         <h2 id="people-actions-title" className="people-group-heading">
           {t("Действия","Activities")}

@@ -5,6 +5,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { doPathAction, type GameState } from "../../src/engine.ts";
 import { applicationLabel, insuranceView, jobGross, requirementName, workView } from "../../src/employment.ts";
 import { pathActionBlock } from "../../src/lifePath.ts";
+import { maternityPay, maternityStatus } from "../../src/maternity.ts";
 import { mark, type PathAction } from "../../src/pathActions.ts";
 import { pathCities, pathMoney, subjects, type Subject } from "../../src/pathCatalog.ts";
 import { netMonthly } from "../../src/pathPolicy.ts";
@@ -184,7 +185,8 @@ export function OccupationScreen({ route, navigation }: NativeStackScreenProps<S
   const life = session.life;
   const t = (bg: string, en: string) => translation(language, bg, en);
   const [panel, setPanel] = useState<"education" | "vacancies" | "insurance">(life.age < 18 || life.path?.university.student ? "education" : "vacancies");
-  const currentWork = route.params.section === "work";
+  const maternity = maternityStatus(life);
+  const currentWork = route.params.section === "work" && !maternity;
   function onAct(id: string) {
     void updateSession(current => {
       if (current.life !== life) return current;
@@ -202,7 +204,7 @@ export function OccupationScreen({ route, navigation }: NativeStackScreenProps<S
     <View style={base.row}>
       <Chip label={life.age < 18 ? t("Даскало", "Education") : t("Кариера", "Career")} selected={!currentWork}
         onPress={() => navigation.setParams({ section: "career" })}/>
-      {(currentWork || work?.job) && <Chip label={t("Работа", "Work")} selected={currentWork}
+      {!maternity && (currentWork || work?.job) && <Chip label={t("Работа", "Work")} selected={currentWork}
         onPress={() => navigation.setParams({ section: "work" })}/>}
     </View>
     {feedback && <Text accessibilityLiveRegion="polite" style={styles.feedback}>{feedback}</Text>}
@@ -212,7 +214,12 @@ export function OccupationScreen({ route, navigation }: NativeStackScreenProps<S
         <Chip label={life.age >= 18 ? t("Обяви", "Vacancies") : t("Летни обяви", "Summer jobs")} selected={panel === "vacancies"} onPress={() => setPanel("vacancies")}/>
         {life.age >= 18 && <Chip label={t("Осигуряване", "Social insurance")} selected={panel === "insurance"} onPress={() => setPanel("insurance")}/>}
       </View>}
-      {panel === "education" ? <Education {...props}/> : panel === "vacancies" ? <Vacancies {...props}/> : <>
+      {panel === "education" ? <Education {...props}/> : panel === "vacancies" ? (
+        maternity ? <View style={base.card}>
+          <Text accessibilityRole="header" style={base.section}>{maternity[language]}</Text>
+          <Text style={base.body}>{t("Обезщетение за годината", "Benefit this year")} · {money(maternityPay(life), language)}</Text>
+        </View> : <Vacancies {...props}/>
+      ) : <>
         {work && <View style={base.card}>
           <Text accessibilityRole="header" style={base.section}>{t("Безработица и пенсия", "Unemployment and pension")}</Text>
           <Text style={base.body}>{t("Осигурителен стаж", "Insurance service")} · {insuranceView(life, work).pension.service} {t("мес.", "mo")}</Text>

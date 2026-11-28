@@ -3,7 +3,9 @@ import { ActivityIndicator, Alert, StatusBar, StyleSheet, Text, View } from "rea
 import { DefaultTheme, NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { initialWindowMetrics, SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { assetTitle } from "../../src/assetMenu.ts";
 import type { Language, Session } from "../../src/sessionCodec.ts";
+import { AssetsScreen } from "./AssetsScreen";
 import { Game, type Screens } from "./game";
 import { JournalScreen } from "./JournalScreen";
 import { NewLifeScreen } from "./NewLifeScreen";
@@ -75,6 +77,7 @@ function GameApp({ storage }: { storage: SaveStore }) {
           <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
           <Stack.Screen name="NewLife" component={NewLifeScreen} options={{ title: wording.newLife }} />
           <Stack.Screen name="Journal" component={JournalScreen} options={{ title: wording.journal }} />
+          <Stack.Screen name="Assets" component={AssetsScreen} options={{ title: assetTitle[language] }} />
           <Stack.Screen name="Occupation" component={OccupationScreen} options={({ route }) => ({
             title: route.params.section === "work" ? translation(language, "Работа", "Work")
               : session.life.age < 18 ? translation(language, "Даскало", "Education") : translation(language, "Кариера", "Career"),

@@ -1,15 +1,18 @@
 import { cities, inCityBg } from "./cities.ts";
+import { HOME_VALUE, houseIds, houseListings, listingPrice, type HouseListing } from "./assetCatalog.ts";
 import { hasSteadyIncome } from "./lifePath.ts";
 import type { GameState, Text } from "./engine.ts";
 import { hasLivingChildren } from "./peopleIdentity.ts";
+import { assetValues } from "./lifeAssets.ts";
 import type { Heir, LifeActivityDefinition, LifeSystems } from "./lifeActivities.ts";
 
 const txt = (bg: string, en: string): Text => ({ bg, en });
-const HOME_VALUE = 3_000_000;
+export { HOME_VALUE } from "./assetCatalog.ts";
 const HOME_DOWN_PAYMENT = 300_000;
 const LOAN_PRINCIPAL = 60_000;
 const LOAN_INSTALLMENT = 23_000;
 const MORTGAGE_INSTALLMENT = 150_000;
+const MORTGAGE_RATE = .027;
 
 type Bank = LifeSystems["bank"];
 function setBank(s: GameState, changes: Partial<Bank>): LifeSystems {
@@ -17,6 +20,61 @@ function setBank(s: GameState, changes: Partial<Bank>): LifeSystems {
 }
 function accountRequired(s: GameState): Text | null {
   return s.lifeSystems.bank.accountOpen ? null : txt("Първо открий сметка.", "Open an account first.");
+}
+
+function homeAvailable(s: GameState): Text | null {
+  return s.lifeSystems.bank.ownsHome ? txt("Вече имаш жилище.", "You already own a home.") : null;
+}
+
+function mortgageRequired(s: GameState): Text | null {
+  return accountRequired(s) ?? homeAvailable(s) ?? (!hasSteadyIncome(s) || s.housing === "shared" || s.lifeSystems.bank.loan > 0
+    ? txt("Нужни са стабилна работа, достатъчен доход след наема и изплатен личен заем.", "You need stable work, sufficient income after rent, and a paid-off personal loan.")
+    : null);
+}
+
+export function mortgageQuote(price: number) {
+  const downPayment = Math.ceil(price * .2);
+  const principal = price - downPayment;
+  const installment = Math.ceil(principal * MORTGAGE_RATE / (1 - (1 + MORTGAGE_RATE) ** -25));
+  return { downPayment, principal, installment };
+}
+
+export function mortgageYear(s: GameState) {
+  const balance = s.lifeSystems.bank.mortgage;
+  const withInterest = balance + Math.ceil(balance * MORTGAGE_RATE);
+  return { withInterest, due: Math.min(s.lifeSystems.assets.home?.mortgagePayment ?? MORTGAGE_INSTALLMENT, withInterest) };
+}
+
+function homeOfferActions(listing: HouseListing): LifeActivityDefinition[] {
+  const offer = houseListings[listing];
+  return [false, true].map(financed => ({
+    id: "asset.realty." + (financed ? "mortgage." : "cash.") + listing,
+    category: "assets",
+    minAge: financed ? 21 : 18,
+    label: financed ? txt("Купи с ипотека", "Buy with a mortgage") : txt("Купи в брой", "Buy with cash"),
+    historyTitle: offer.title,
+    description: financed
+      ? txt("Плащаш 20% самоучастие. Годишната вноска влиза в бюджета ти.", "Pay 20% upfront. The annual payment goes into your budget.")
+      : txt("Плащаш цялата цена от портфейла си.", "Pay the full price from your wallet."),
+    result: txt("Вече имаш собствено жилище.", "You now own a home."),
+    requires: financed ? mortgageRequired : homeAvailable,
+    walletDelta: s => {
+      const price = listingPrice(s.city, listing);
+      return -(financed ? mortgageQuote(price).downPayment : price);
+    },
+    resolve: s => {
+      const price = listingPrice(s.city, listing);
+      const quote = financed ? mortgageQuote(price) : null;
+      const systems = setBank(s, { ownsHome: true, homeCity: s.city, mortgage: quote?.principal ?? 0 });
+      return {
+        result: txt("Купи жилище " + inCityBg(s.city) + ".", "You bought a home in " + cities[s.city].name.en + "."),
+        lifeSystems: {
+          ...systems,
+          assets: { ...systems.assets, home: { purchasedAt: s.age, paid: price, listing, mortgagePayment: quote?.installment } },
+        },
+      };
+    },
+  }));
 }
 
 export const lifeBank: LifeActivityDefinition[] = [
@@ -73,11 +131,7 @@ export const lifeBank: LifeActivityDefinition[] = [
     label: txt("Купи жилище с ипотека", "Buy a home with a mortgage"),
     description: txt("Купуваш малко жилище с 3 000 € самоучастие. Вноските по ипотеката влизат в годишния бюджет.", "Buy a small home with a €3,000 down payment. Mortgage payments count towards your annual budget."),
     result: txt("Подписа покупката на жилище в Трявна. То влиза в имуществото ти, а ипотеката – в годишния бюджет.", "You bought a home in Tryavna. It becomes part of your estate, and the mortgage enters your yearly budget."),
-    requires: s => accountRequired(s) ?? (s.lifeSystems.bank.ownsHome
-      ? txt("Вече имаш жилище.", "You already own a home.")
-      : !hasSteadyIncome(s) || s.housing === "shared" || s.lifeSystems.bank.loan > 0
-        ? txt("Нужни са стабилна работа, достатъчен доход след наема и изплатен личен заем.", "You need stable work, sufficient income after rent, and a paid-off personal loan.")
-        : null),
+    requires: mortgageRequired,
     stats: { influence: 2, joy: 4 },
     resolve: s => {
       const original = s.lifespanStart === null;
@@ -100,6 +154,25 @@ export const lifeBank: LifeActivityDefinition[] = [
     walletDelta: s => -Math.min(50_000, s.lifeSystems.bank.mortgage),
     update: s => setBank(s, { mortgage: s.lifeSystems.bank.mortgage - Math.min(50_000, s.lifeSystems.bank.mortgage) }),
   },
+  {
+    id: "asset.home.buy", category: "assets", minAge: 18, cost: HOME_VALUE,
+    label: txt("Купи в брой", "Buy with cash"),
+    historyTitle: txt("Покупка на жилище", "Bought a home"),
+    description: txt("Плащаш цялата цена от портфейла си.", "Pay the full price from your wallet."),
+    result: txt("Купи жилище в града, в който живееш.", "You bought a home in the city where you live."),
+    requires: homeAvailable,
+    update: s => setBank(s, { ownsHome: true, homeCity: s.city }),
+  },
+  {
+    id: "asset.home.payoff", category: "assets", minAge: 21,
+    label: txt("Изплати ипотеката", "Pay off the mortgage"),
+    description: txt("Погасяваш целия остатък по ипотеката.", "Pay the entire remaining mortgage balance."),
+    result: txt("Жилището вече е без ипотека.", "The home no longer has a mortgage."),
+    requires: s => s.lifeSystems.bank.mortgage > 0 ? null : txt("Нямаш активна ипотека.", "You don’t have an active mortgage."),
+    walletDelta: s => -s.lifeSystems.bank.mortgage,
+    update: s => setBank(s, { mortgage: 0 }),
+  },
+  ...houseIds.flatMap(homeOfferActions),
 ];
 
 const formatBG = new Intl.NumberFormat("bg-BG", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
@@ -118,9 +191,8 @@ export function settleFinances(s: GameState, baseNet: number) {
     !s.deceased[`child-${index}`] && child.ageAtJoin + s.age - child.joinedAt < 18).length;
   const careDue = (Number(adopted) + Number(rescued)) * 24_000 + dependants * 84_000;
   const loan = bank.loan + Math.ceil(bank.loan * 0.05);
-  const mortgage = bank.mortgage + Math.ceil(bank.mortgage * 0.027);
+  const { withInterest: mortgage, due: mortgageDue } = mortgageYear(s);
   const loanDue = Math.min(LOAN_INSTALLMENT, loan);
-  const mortgageDue = Math.min(MORTGAGE_INSTALLMENT, mortgage);
 
   // Pay the actual amounts while keeping at least the free story route available.
   // Unpaid debt stays on the relevant balance and unmet care changes next year's well-being.
@@ -144,11 +216,12 @@ export function settleFinances(s: GameState, baseNet: number) {
 
 export function getEstate(s: GameState) {
   const { bank, legacy, family } = s.lifeSystems;
-  const homeValue = bank.ownsHome ? HOME_VALUE : 0;
-  const homeEquity = homeValue - bank.mortgage;
-  const debt = bank.loan + bank.mortgage;
+  const { investments, belongings, homeValue, pledgedDebt } = assetValues(s);
+  const homePledge = s.lifeSystems.assets.home?.pledge?.redeemFor ?? 0;
+  const homeEquity = homeValue - bank.mortgage - homePledge;
+  const debt = bank.loan + bank.mortgage + pledgedDebt;
   const rentalDeposit = s.deposit;
-  const net = s.cash + bank.balance + homeValue + rentalDeposit - debt;
+  const net = s.cash + bank.balance + homeValue + rentalDeposit + investments + belongings - debt;
   const heirs = legacy.prepared ? legacy.heirs.filter(heir => (
     heir !== "partner" || family.partner !== null
   ) && (heir !== "children" || hasLivingChildren(s))
@@ -157,7 +230,7 @@ export function getEstate(s: GameState) {
   const share = heirs.length === 0 ? 0 : Math.floor(distributable / heirs.length);
   const remaining = distributable - share * heirs.length;
   return {
-    cash: s.cash, bankBalance: bank.balance, homeValue, homeEquity, rentalDeposit, debt, net,
+    cash: s.cash, bankBalance: bank.balance, homeValue, homeEquity, rentalDeposit, investments, belongings, debt, net,
     shares: heirs.map((heir: Heir, i: number) => ({ heir, amount: share + Number(i < remaining) })),
   };
 }

@@ -134,9 +134,24 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - name: Select modern Android SDK command-line tools
+        run: |
+          tools_dir="$ANDROID_HOME/cmdline-tools"
+          "$tools_dir/latest/bin/sdkmanager" --install 'cmdline-tools;22.0'
+          # The emulator action prepends the SDK's latest/bin directory to PATH.
+          test -x "$tools_dir/22.0/bin/avdmanager"
+          mv "$tools_dir/latest" "$RUNNER_TEMP/bglife-preinstalled-cmdline-tools"
+          ln -s "$tools_dir/22.0" "$tools_dir/latest"
+          "$tools_dir/latest/bin/sdkmanager" --version
+      - name: Enable hardware acceleration for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
       - uses: ReactiveCircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a
         with:
           api-level: 35
+          profile: pixel_7
           target: google_apis
           arch: x86_64
           emulator-options: -no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim

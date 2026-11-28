@@ -1,9 +1,11 @@
 import { hasSteadyIncome } from "./lifePath.ts";
 import { getAvatarName, type AvatarPresentation } from "./avatar.ts";
+import type { Contraception } from "./contraception.ts";
 import { bulgarianChildName, familySurname, suggestedFirstName } from "./babyNames.ts";
 import type { GameState, Text } from "./engine.ts";
 import { birthCount, familyRoll, miscarriageChance, type ConceptionMethod } from "./fertilityModel.ts";
 import { birthMoment, childFreeMoment, lossSupport, pregnancyMoment } from "./familyMoments.ts";
+import { recordMaternityBirth, type Maternity } from "./maternity.ts";
 import type { ChildProfile, LifeSystems, PartnerId } from "./lifeActivities.ts";
 import { applyStats, statsChange, type StatDelta } from "./lifeStats.ts";
 import { bilingualName } from "./lifeProfile.ts";
@@ -18,7 +20,17 @@ export type Parent = {
   age: number;
 };
 export type Parents = { mother: Parent; father: Parent | null };
-export type Pregnancy = Parents & { method: ConceptionMethod; dueAge: number };
+export type Trimester = 1 | 2 | 3;
+export type Gestation = {
+  key: string; trimester: 0 | Trimester;
+  babies: AvatarPresentation[];
+  knownSexes: (AvatarPresentation | null)[];
+};
+export type Pregnancy = Parents & { method: ConceptionMethod; dueAge: number; gestation?: Gestation };
+export type PregnancyNotice =
+  | { kind: "test"; mother: Parent; candidate: Pregnancy | null; clinical: boolean }
+  | { kind: "confirmed" | "negative" | "loss" | "termination"; title: Text; text: Text };
+export type Recovery = { age: number; retried: boolean };
 export type SurnameSource = "mother" | "father";
 export type BirthNaming = Parents & {
   newborns: { index: number; firstName: string }[];
@@ -29,14 +41,21 @@ export type Adoption =
   | { stage: "offer"; spouse: PartnerId | null; age: number; gender: AvatarPresentation; firstName: string };
 export type Reproduction = {
   familyEventsFrom: number | null;
+  familyPlayFrom: number | null;
   pregnancy: Pregnancy | null;
+  notice: PregnancyNotice | null;
+  contraception: Contraception | null;
+  recoveries: Record<string, Recovery>;
+  deliveredAt: number | null;
+  maternity: Maternity | null;
   naming: BirthNaming | null;
   evaluationAt: number | null;
   treatmentUntil: number;
   adoption: Adoption | null;
 };
 export const startingReproduction = (): Reproduction => ({
-  familyEventsFrom: 0, pregnancy: null, naming: null, evaluationAt: null, treatmentUntil: 0, adoption: null,
+  familyEventsFrom: 0, familyPlayFrom: null, pregnancy: null, notice: null, contraception: null,
+  recoveries: {}, deliveredAt: null, maternity: null, naming: null, evaluationAt: null, treatmentUntil: 0, adoption: null,
 });
 
 export function updateReproduction(s: GameState, patch: Partial<Reproduction>): LifeSystems {
@@ -73,13 +92,25 @@ export function naturalParents(a: Parent, b: Parent): Parents | null {
   return a.gender === "female" ? { mother: a, father: b } : { mother: b, father: a };
 }
 
+export function familyPlayEnabled(s: GameState): boolean {
+  return s.lifeSystems.reproduction.familyPlayFrom !== null;
+}
+
 export function isExpecting(s: GameState): boolean {
-  return s.lifeSystems.family.expecting || s.lifeSystems.reproduction.pregnancy !== null;
+  const { pregnancy, notice } = s.lifeSystems.reproduction;
+  return s.lifeSystems.family.expecting || pregnancy !== null || notice?.kind === "test";
 }
 
 export function pregnancyStatus(s: GameState): Text | null {
   if (s.finished) return null;
-  const { pregnancy } = s.lifeSystems.reproduction;
+  const { pregnancy, notice } = s.lifeSystems.reproduction;
+  if (notice?.kind === "test") return t("Предстои тест за бременност", "Pregnancy test pending");
+  if (pregnancy?.gestation) {
+    const stage = pregnancy.gestation.trimester;
+    const subject = pregnancy.mother.id === "player" ? t("Бременност", "Pregnancy") : pregnancy.mother.name;
+    return stage === 0 ? t(subject.bg + " · Потвърдена", subject.en + " · Confirmed")
+      : t(subject.bg + " · Триместър " + stage, subject.en + " · Trimester " + stage);
+  }
   if (pregnancy) return pregnancy.mother.id === "player"
     ? t("Детето се очаква догодина", "Baby due next year")
     : t(pregnancy.mother.name.bg + " очаква дете догодина", pregnancy.mother.name.en + " is due next year");
@@ -98,7 +129,7 @@ export function conception(s: GameState, parents: Parents, method: ConceptionMet
   };
 }
 
-function familyEvent(s: GameState, id: string, title: Text, text: Text, delta: StatDelta = {}): GameState {
+export function familyEvent(s: GameState, id: string, title: Text, text: Text, delta: StatDelta = {}): GameState {
   const stats = applyStats(s.stats, delta);
   return { ...s, stats, history: [...s.history, {
     age: s.age, city: s.city, kind: "event", id, title, text, witnesses: [], cashDelta: 0,
@@ -157,27 +188,35 @@ function settlePregnancy(s: GameState, pregnancy: Pregnancy): GameState {
   }
 
   const count = birthCount(mother.age, method, familyRoll(s.seed, s.age, rollKey + ".birth-count"));
+  const babies = Array.from({ length: count }, (_, i) =>
+    familyRoll(s.seed, s.age, rollKey + ".baby-sex." + i) < 0.488 ? "female" as const : "male" as const);
+  return deliverPregnancy(s, pregnancy, babies, rollKey);
+}
+
+export function deliverPregnancy(s: GameState, pregnancy: Pregnancy, babies: AvatarPresentation[], rollKey: string): GameState {
+  const { mother, gestation } = pregnancy;
   const family = s.lifeSystems.family;
   const childProfiles = [...family.childProfiles];
   const newborns: BirthNaming["newborns"] = [];
   const naming: BirthNaming = { mother, father: pregnancy.father, newborns,
     surnames: marriedParents(s, pregnancy) ? ["father"] : pregnancy.father ? ["mother", "father"] : ["mother"] };
-  for (let i = 0; i < count; i++) {
-    const gender = familyRoll(s.seed, s.age, rollKey + ".baby-sex." + i) < 0.488 ? "female" : "male";
+  for (const [i, gender] of babies.entries()) {
     const firstName = suggestedFirstName(gender, familyRoll(s.seed, s.age, rollKey + ".baby-name." + i), newborns.map(child => child.firstName));
     const name = newbornName(naming, firstName, naming.surnames[0], gender);
     newborns.push({ index: childProfiles.length, firstName });
     childProfiles.push({ joinedAt: s.age, ageAtJoin: 0, bond: 60, gender, name, origin: "birth" });
   }
 
-  const lifeSystems = updateReproduction(s, { pregnancy: null, naming });
+  const lifeSystems = updateReproduction(s, { pregnancy: null, naming, ...(gestation && { deliveredAt: s.age }) });
+  const count = babies.length;
   const status = count === 3 ? t("Родиха се тризнаци!", "Triplets were born!")
     : count === 2 ? t("Родиха се близнаци!", "Twins were born!") : t("Роди се бебе!", "A baby was born!");
-  const reaction = birthMoment(s, mother.age + 1);
-  return familyEvent({ ...s, lifeSystems: { ...lifeSystems,
+  const reaction = birthMoment(s, mother.age + Number(!gestation));
+  const delivered = familyEvent({ ...s, lifeSystems: { ...lifeSystems,
     family: { ...family, children: childProfiles.length, childProfiles } } },
     "birth", t("Раждане", "Birth"), reaction ? t(status.bg + " " + reaction.bg, status.en + " " + reaction.en) : status,
     { joy: 8, ...(mother.id === "player" ? { health: -2 } : {}) });
+  return mother.id === "player" ? recordMaternityBirth(delivered) : delivered;
 }
 
 export function adoptionSpouse(s: GameState): PartnerId | null {
@@ -253,7 +292,7 @@ export function acceptAdoption(s: GameState, adoption: Extract<Adoption, { stage
 
 export function settleReproductionYear(s: GameState): GameState {
   const { pregnancy, adoption, familyEventsFrom } = s.lifeSystems.reproduction;
-  let next = pregnancy && s.age >= pregnancy.dueAge ? settlePregnancy(s, pregnancy) : s;
+  let next = pregnancy && !pregnancy.gestation && s.age >= pregnancy.dueAge ? settlePregnancy(s, pregnancy) : s;
   if (adoption) next = settleAdoption(next, adoption);
   if (familyEventsFrom !== null && s.commands.length > familyEventsFrom && next === s && !pregnancy && !adoption) {
     const moment = childFreeMoment(s);

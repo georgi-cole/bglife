@@ -7,9 +7,11 @@ import type { AvatarPresentation } from "./avatar.ts";
 import { getPeopleActivityDefinitions } from "./peopleActivities.ts";
 import { isContactId, type PeopleId } from "./peopleIdentity.ts";
 import { lifeBank } from "./lifeEconomy.ts";
+import { assetActivities, assetTransferDefinition, type LifeAssets } from "./lifeAssets.ts";
 import { lifeFamily } from "./lifeFamily.ts";
 import { lifeReproduction } from "./lifeReproduction.ts";
-import { startingReproduction, type Reproduction } from "./reproduction.ts";
+import { familyPlayEnabled, startingReproduction, type Reproduction } from "./reproduction.ts";
+import type { RelationshipProgress } from "./relationships.ts";
 import { lifeLeisure } from "./lifeLeisure.ts";
 import { lifeSocial } from "./lifeSocial.ts";
 import { personProfiles } from "./story.ts";
@@ -18,7 +20,7 @@ import { applyStats, statsChange, type StatDelta } from "./lifeStats.ts";
 export { applyStats, boundStat, lifeStatKeys, startingStats, statsChange } from "./lifeStats.ts";
 export type { LifeStat, LifeStats, StatDelta } from "./lifeStats.ts";
 
-export type LifeActivityCategory = "hospital" | "fertility" | "adoption" | "gym" | "pets" | "holidays" | "family" | "bank" | "aesthetics" | "fun" | "social" | "legacy";
+export type LifeActivityCategory = "hospital" | "fertility" | "adoption" | "gym" | "pets" | "holidays" | "family" | "bank" | "aesthetics" | "fun" | "social" | "legacy" | "assets";
 export type Platform = "instagram" | "facebook" | "tiktok" | "youtube" | "vbox7" | "onlyfans";
 export type Heir = "partner" | "children" | "rumi" | "friend";
 
@@ -40,11 +42,13 @@ export type LifeSystems = {
     childProfiles: ChildProfile[];
     stage: "single" | "dating" | "committed" | "engaged" | "married";
     bond: number;
+    relationship: RelationshipProgress | null;
     children: number;
     expecting: boolean;
   };
   reproduction: Reproduction;
   bank: { accountOpen: boolean; balance: number; loan: number; mortgage: number; ownsHome: boolean; homeCity?: City };
+  assets: LifeAssets;
   social: Partial<Record<Platform, { followers: number; posts: number }>>;
   legacy: { heirs: Heir[]; prepared: boolean };
 };
@@ -58,6 +62,7 @@ export type LifeActivityDefinition = {
   label: Text;
   description: Text;
   result: Text;
+  historyTitle?: Text;
   cost?: number;
   walletDelta?: (s: GameState) => number;
   stats?: StatDelta;
@@ -73,12 +78,14 @@ export type LifeActivityDefinition = {
   visible?: (s: GameState) => boolean;
   branch?: ActivityBranch;
   exclusive?: string;
+  repeatable?: boolean;
   replayOnly?: true;
   resolve?: (s: GameState) => ActivityResolution;
 };
 
 export type LifeActivityOption = Pick<LifeActivityDefinition, "id" | "category" | "label" | "description" | "minAge" | "branch"> & {
   group?: Text;
+  repeatable?: boolean;
   cashDelta: number;
   statDelta: StatDelta;
   blocked: Text | null;
@@ -88,9 +95,10 @@ export function startingLifeSystems(): LifeSystems {
   return {
     medicalIssue: null,
     pets: { adopted: false, rescued: false, bond: 0 },
-    family: { partner: null, formerPartners: [], childProfiles: [], stage: "single", bond: 0, children: 0, expecting: false },
+    family: { partner: null, formerPartners: [], childProfiles: [], stage: "single", bond: 0, relationship: null, children: 0, expecting: false },
     reproduction: startingReproduction(),
     bank: { accountOpen: false, balance: 0, loan: 0, mortgage: 0, ownsHome: false },
+    assets: { goods: {}, funds: {} },
     social: {},
     legacy: { heirs: [], prepared: false },
   };
@@ -101,7 +109,7 @@ const platformNames = {
   youtube: "YouTube", vbox7: "Vbox7", onlyfans: "OnlyFans",
 };
 export const activityDefinitions: LifeActivityDefinition[] = [
-  ...lifeLeisure, ...lifeFamily, ...lifeBank, ...lifeSocial, ...lifeReproduction,
+  ...lifeLeisure, ...lifeFamily, ...lifeBank, ...lifeSocial, ...lifeReproduction, ...assetActivities,
 ];
 
 const byId = new Map(activityDefinitions.map(definition => [definition.id, definition]));
@@ -111,6 +119,7 @@ const categoryAge: Partial<Record<LifeActivityCategory, number>> = {
 export function getLifeActivityDefinition(id: string): LifeActivityDefinition | undefined {
   const standard = byId.get(id);
   if (standard) return standard;
+  if (id.startsWith("asset.transfer.")) return assetTransferDefinition(id);
   const [scope, contact] = id.split(".");
   return scope === "people" && isContactId(contact) ? getPeopleActivityDefinitions(contact).find(option => option.id === id) : undefined;
 }
@@ -119,6 +128,7 @@ function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: nu
   if ((definition.contact && s.deceased[definition.contact]) || (definition.visible && !definition.visible(s))) return { bg: "Това действие не е достъпно за този човек.", en: "This action is not available for this person." };
   if (s.finished) return { bg: "Тази история е приключила.", en: "This story has ended." };
   if (s.lifeSystems.reproduction.naming) return { bg: "Първо запиши името на бебето.", en: "Name the new baby first." };
+  if (s.lifeSystems.reproduction.notice) return { bg: "Първо виж съобщението за бременността.", en: "Read the pregnancy update first." };
   const earlyActivity = definition.id === "gym.walk" || definition.id === "fun.child-play";
   const care = definition.id === "hospital.clinic" || definition.id === "hospital.emergency";
   const specificAge = earlyActivity || (definition.contact && isKin(definition.contact)) ? 4
@@ -141,7 +151,7 @@ function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: nu
     const used = getLifeActivityDefinition(id);
     return used?.contact === definition.contact && (used?.branch?.id ?? used?.exclusive) === exclusive;
   }));
-  if (alreadyUsed) return {
+  if (alreadyUsed && !(definition.repeatable && familyPlayEnabled(s))) return {
     bg: "Вече е направено тази година.", en: "Already done this year.",
   };
   if (s.cash + cashDelta < 0) return { bg: "Няма достатъчно пари в портфейла.", en: "There isn’t enough in the wallet." };
@@ -153,7 +163,7 @@ export function lifeActivityOption(s: GameState, definition: LifeActivityDefinit
   const platform = definition.category === "social" ? platformNames[definition.id.split(".")[1] as Platform] : undefined;
   return {
     id: definition.id, category: definition.category, label: definition.label, description: definition.description,
-    minAge: definition.minAge, branch: definition.branch,
+    minAge: definition.minAge, branch: definition.branch, repeatable: definition.repeatable && familyPlayEnabled(s),
     group: platform ? { bg: platform, en: platform } : undefined,
     cashDelta,
     statDelta: statsChange(s.stats, applyStats(applyStats(s.stats, definition.stats ?? {}), talentBonus(s.profile?.talent, definition.id))),
