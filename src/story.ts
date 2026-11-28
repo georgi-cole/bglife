@@ -1,4 +1,8 @@
-import type { Action, City, Condition, Effect, Option, PersonId, Scene, Text } from './engine';
+import type { Action, City, Condition, Effect, GameState, Option, PersonId, Scene, Text } from './engine';
+
+export function hasPendingStoryDecision(s: GameState): boolean {
+  return Boolean(s.sceneId) && s.choiceId === null && !s.skippedDecisions.includes(s.sceneId);
+}
 
 function t(bg: string, en: string): Text { return { bg, en }; }
 
@@ -226,6 +230,8 @@ export function endingCopy(state: EndingState): {title: Text; body: Text} {
     return { title:t('Стая назаем','A room of your own, borrowed'), body:t(friday.bg+' Ключът от Младост вече има своя история.',friday.en+' The Mladost key has a story now.') };
   }
   if (state.housing === 'shared') return {title:t('Свое място','A place of your own'),body:t('Първите 400 € останаха в депозита. Петъчните вечери останаха твои. След седем години самостоятелен живот отново си на гарата в Трявна, а Ели те чака.','The first €400 went into a deposit. Friday nights stayed yours. Seven years into your independent life, Eli is still waiting for you at Tryavna station.')};
+  if (!state.flags.includes('frameSigned') && !state.flags.includes('stallFriend'))
+    return {title:t('Следващата страница','The next page'),body:t('Пазарът пак отваря в събота. Дневникът пази пътя дотук.','The market opens again on Saturday. Your journal keeps the road that led here.')};
   return state.flags.includes('frameSigned')
     ? {title:t('Първият подпис','Your first signature'),body:t('На шестнайсет остана в работилницата. Десет години по-късно името ти още стои на гърба на рамката. Стефан вече те пита как би я довършила ти.','At sixteen you stayed in the workshop. Ten years later your name is still on the frame. These days Stefan asks how you would finish it.') }
     : {title:t('Хората от пазара','The people at the market'),body:t('Една събота отиде при Ели, както беше обещала. Десет години по-късно още знаете как да вдигнете сергията заедно. Вече има на кого да покажете.','One Saturday you showed up for Eli as promised. Ten years later you still know how to put the stall up together. Now there is someone to teach.') };

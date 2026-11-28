@@ -1,18 +1,18 @@
 import React from "react";
 import {conditionLabel} from "./lifeHealth.ts";
-import {defaultPlayChoice, getActions, getChoices, getEstate, getScene, lifeHeirLabel, type GameState, type LifeActivityCategory} from "./engine.ts";
+import {getActions, getEstate, lifeHeirLabel, type GameState, type LifeActivityCategory} from "./engine.ts";
 import {LifeTimeline} from "./LifeTimeline.tsx";
 import {maternityStatus} from "./maternity.ts";
 import {endingCopy} from "./story.ts";
 import {adoptionStatus, pregnancyStatus} from "./reproduction.ts";
 import {canEndPregnancy} from "./pregnancyTimeline.ts";
 import type {Language} from "./session.ts";
-import {Icon,PlaySymbol,copy,lifeName,money} from "./ui.tsx";
+import {Icon,copy,lifeName,money} from "./ui.tsx";
 
 type Props = {
   s: GameState;
   l: Language;
-  onChoice: (id: string) => void;
+  onCityDecision: () => void;
   onAction: (id: string) => void;
   onReplay: () => void;
   onAlbum: () => void;
@@ -20,11 +20,8 @@ type Props = {
   onEndPregnancy: () => void;
   onCareer: () => void;
 };
-export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onMore, onEndPregnancy, onCareer}: Props) {
-  const scene = getScene(s);
-  const choices = getChoices(s);
+export function Journal({s, l, onCityDecision, onAction, onReplay, onAlbum, onMore, onEndPregnancy, onCareer}: Props) {
   const actions = getActions(s);
-  const fallback = defaultPlayChoice(s);
   const ending = s.endReason === "chapter" ? endingCopy(s) : null;
   const { healthCondition } = s.lifeSystems;
   const estate = s.finished ? getEstate(s) : null;
@@ -54,7 +51,7 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onMore, on
       <span><strong>{copy(l,"Предложение за осиновяване","Adoption match")}</strong><small>{adoptionOffer[l]}</small></span>
       <button className="secondary-button" onClick={()=>onMore("adoption")}>{copy(l,"Виж","View")}<Icon name="next" size={15}/></button>
     </div>}
-    <LifeTimeline s={s} l={l} onAction={onAction}>
+    <LifeTimeline s={s} l={l} onCityDecision={onCityDecision}>
       {s.finished ? (
         <section className="story-card ending-card">
           <p className="section-kicker"><Icon name="album"/>{copy(l, "Епилог", "Epilogue")}</p>
@@ -70,17 +67,6 @@ export function Journal({s, l, onChoice, onAction, onReplay, onAlbum, onMore, on
             <button className="primary-button" onClick={onAlbum}>{copy(l, "Отвори албума", "Open your album")}<Icon name="right"/></button>
             <button className="secondary-button" data-testid="replay" onClick={onReplay}>{copy(l, "Изживей друга история", "Play another life")}</button>
           </div>
-        </section>
-      ) : scene && s.choiceId === null ? (
-        <section className="story-card scene-card" aria-labelledby="scene-heading">
-          <h4 id="scene-heading" tabIndex={-1}>{scene.title[l]}</h4>
-          <p className="story-body">{scene.body[l]}</p>
-          <div className="choices">
-            {choices.map(option => <button className="choice" data-choice={option.id} key={option.id} onClick={() => onChoice(option.id)}>
-              <span className="choice-copy"><strong>{option.label[l]}</strong></span><span className="choice-arrow"><Icon name="right"/></span>
-            </button>)}
-          </div>
-          {fallback && <p className="play-default" id="play-default"><PlaySymbol/>{copy(l, "При продължаване избираш", "On Play, you choose")} <strong>{fallback.label[l]}</strong></p>}
         </section>
       ) : actions.length > 0 && <details className="journal-actions" open={actions.some(action => action.id.startsWith("life.")) || undefined}>
         <summary><Icon name="journal" size={17}/>{copy(l, "Действия", "Activities")}<Icon name="down" size={15}/></summary>

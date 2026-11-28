@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   advance, annualBudget, choose, decodeSave, doAction, encodeSave,
-  getActions, getChoices, getScene, newChapterLife as newLife, playYear, yearRecap,
+  getActions, getChoices, getScene, newChapterLife as newLife, playYear, skipDecision, yearRecap,
 } from "../src/engine.ts";
 import { actions, scenes } from "../src/story.ts";
 
@@ -46,7 +46,7 @@ function move(housing, seed) {
   return choose(initial, choice.id);
 }
 
-test("the resolver cannot skip an open decision, reuse a choice or advance a stale screen", () => {
+test("an open decision holds year advance until the player chooses or explicitly skips", () => {
   const s = newLife(12);
   assert.strictEqual(advance(s), s);
   assert.strictEqual(choose(s, "missing"), s);
@@ -59,6 +59,27 @@ test("the resolver cannot skip an open decision, reuse a choice or advance a sta
   assert.strictEqual(advance(next, 16), next);
   assert.strictEqual(choose(next, getChoices(next)[0].id, 16), next);
   assert.deepEqual(decodeSave(encodeSave(next)), next);
+});
+
+test("skipping story decisions has no choice effects and survives replay", () => {
+  let life = newLife(108);
+  while (!life.finished) {
+    const scene = getScene(life);
+    assert.ok(scene);
+    const [choice] = getChoices(life);
+    const skipped = skipDecision(life, scene.id);
+    assert.deepEqual(skipped, { ...life, skippedDecisions: [scene.id],
+      commands: [...life.commands, { age: life.age, kind: "skip-decision", id: scene.id }] });
+    assert.strictEqual(skipDecision(skipped, scene.id), skipped);
+    assert.strictEqual(choose(skipped, choice.id), skipped);
+    assert.deepEqual(decodeSave(encodeSave(skipped)), skipped);
+    const next = playYear(skipped);
+    assert.equal(next.age, next.finished ? life.age : life.age + 1);
+    assert.deepEqual(next.skippedDecisions, []);
+    assert.equal(next.history.filter(entry => entry.kind === "choice").length, 0);
+    life = next;
+  }
+  assert.deepEqual(decodeSave(encodeSave(life)), life);
 });
 
 test("the move quotes agree with the ledger and preserve the Friday agreement", () => {

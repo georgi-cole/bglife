@@ -1,6 +1,6 @@
 import React,{useCallback,useEffect,useLayoutEffect,useRef,useState} from "react";
 import {createRoot} from "react-dom/client";
-import {choose,defaultPlayChoice,doAction,doLifeActivity,doMaternityReturn,doPregnancyAction,getPersonActivities,giveUp,nameNewborns,hasStartedLife,newProfileLife,playYear,doPathAction,startCareerLife,type City,type GameState,type LifeActivityCategory,type LifeActivityOption,type Memory,type PregnancyAction} from "./engine.ts";
+import {choose,doAction,doLifeActivity,doMaternityReturn,doPregnancyAction,getPersonActivities,giveUp,nameNewborns,hasStartedLife,newProfileLife,hasPendingStoryDecision,playYear,skipDecision,doPathAction,startCareerLife,type City,type GameState,type LifeActivityCategory,type LifeActivityOption,type Memory,type PregnancyAction} from "./engine.ts";
 import {Album,Places} from "./Views.tsx";
 import {Assets} from "./Assets.tsx";
 import {Career} from "./Career.tsx";
@@ -24,6 +24,8 @@ import {HomeHub,StartGuide} from "./HomeHub.tsx";
 import {AvatarCreator} from "./AvatarCreator.tsx";
 import {CharacterHeader,CityBadge,PlayerProfile} from "./PlayerProfile.tsx";
 import type {NewLifeDraft} from "./lifeProfile.ts";
+import {DecisionDialog} from "./DecisionDialog.tsx";
+import {cityDecision,storyDecision} from "./journalDecisions.ts";
 
 type Dialog="profile"|"settings"|"replay"|"guide"|"give-up"|"pregnancy-end"|null;
 type Screen = "home" | "game" | "album" | "avatar";
@@ -53,6 +55,7 @@ function App(){
   const [albumFromMore,setAlbumFromMore]=useState(false);
   const [slideMenu,setSlideMenu]=useState(false);
   const [personAction,setPersonAction]=useState<PersonActionFlow|null>(null);
+  const [cityPrompt,setCityPrompt]=useState<string|null>(null);
   const live=useRef(session),dialogRef=useRef<HTMLDialogElement>(null);
   const viewportRef=useRef<HTMLDivElement>(null);
   const mainRef=useRef<HTMLElement>(null);
@@ -68,7 +71,11 @@ function App(){
   const menuDialog=dialog==="settings"||dialog==="guide";
   const showJournal=screen==="game"&&tab==="journal";
   const showNav=screen==="game"&&(tab==="journal"||tab==="career"||tab==="workplace");
-  const workDecision=showJournal&&!dialog&&!personAction?getWorkDecision(s):null;
+  const showDecision=showJournal&&!dialog&&!personAction&&!pregnancyNotice&&!s.lifeSystems.reproduction.naming;
+  const story=showDecision&&!pregnancyTurn?storyDecision(s):null;
+  const workDecision=showDecision&&!story?getWorkDecision(s):null;
+  const local=showDecision&&!story&&!workDecision&&cityPrompt!==null?cityDecision(s):null;
+  const pendingDecision=story??(local?.key===cityPrompt?local:null);
   const dialogTitle=dialog==="profile"?t("Профил","Profile"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):dialog==="give-up"?t("Приключване на живота","End this life"):dialog==="pregnancy-end"?t("Прекъсване на бременността","End the pregnancy"):t("Нов живот","New life");
   function commit(next:Session){
     live.current=next;setSession(next);
@@ -191,38 +198,33 @@ function App(){
   }
   function openPersonAction(contact:PeopleId,options:LifeActivityOption[]){
     const firstOption=options[0];
-    if(!firstOption)return;
-    setPersonAction({contact,seed:s.seed,age:s.age,ids:options.map(option=>option.id),branch:firstOption.branch,
-      selected:firstOption.branch?null:firstOption.id,outcome:null});
+    if(!firstOption||personAction)return;
+    const flow:PersonActionFlow={contact,seed:s.seed,age:s.age,ids:options.map(option=>option.id),
+      branch:firstOption.branch,outcome:null};
+    if(options.length===1)takePersonAction(flow,firstOption.id);
+    else setPersonAction(flow);
   }
-  function confirmPersonAction(){
+  function takePersonAction(flow:PersonActionFlow,id:string){
     const current=live.current;
-    if(!personAction||personAction.outcome||!personAction.selected||current.life!==s
-      ||s.seed!==personAction.seed||s.age!==personAction.age)return;
-    const option=getPersonActivities(s,personAction.contact).find(choice=>choice.id===personAction.selected);
+    if(flow.outcome||current.life!==s||s.seed!==flow.seed||s.age!==flow.age||!flow.ids.includes(id))return;
+    const option=getPersonActivities(s,flow.contact).find(choice=>choice.id===id);
     if(!option||option.blocked)return;
     const updated=doLifeActivity(s,option.id,s.age);
     const entry=updated.history.at(-1);
-    if(updated===s||!entry)return;
-    const before=personRelationship(s,personAction.contact),after=personRelationship(updated,personAction.contact);
+    if(updated===s||updated.history.length===s.history.length||!entry)return;
+    const before=personRelationship(s,flow.contact),after=personRelationship(updated,flow.contact);
     setPersonAction(updated.lifeSystems.reproduction.notice ? null
-      : {...personAction,outcome:{entry,relationDelta:before!==null&&after!==null?after-before:null}});
+      : {...flow,outcome:{entry,title:option.branch?.label??option.label,
+        relationship:before!==null&&after!==null&&before!==after?{before,after}:null}});
     commit({...current,life:updated});
-    openJournal(updated,true,entry);
-  }
-  function closePersonAction(){
-    const entry=personAction?.outcome?.entry;
-    setPersonAction(null);
-    if(entry)requestAnimationFrame(()=>scrollToLog({age:entry.age,activityId:entry.id,focus:true}));
   }
   function act(fn:(v:GameState)=>GameState){
     const current=live.current;
     if(current.life!==s)return;
     const updated=fn(current.life);
     if(updated!==current.life){
-      const entry=updated.history.at(-1);
-      if(entry?.kind==="choice")nextLogPosition.current={age:entry.age,focus:true};
-      else if(entry?.decision||(entry?.kind==="action"&&entry.id.startsWith("city-life."))){
+      const entry=updated.history.length>s.history.length?updated.history.at(-1):undefined;
+      if(entry?.kind==="choice"||entry?.decision||(entry?.kind==="action"&&entry.id.startsWith("city-life."))){
         nextLogPosition.current={age:entry.age,activityId:entry.id,focus:true};
       }
       commit({...current,life:updated});
@@ -233,10 +235,13 @@ function App(){
     const current=live.current;
     if(current.life!==s)return;
     if(s.finished){setDialog("replay");return;}
+    if(!pregnancyTurn&&hasPendingStoryDecision(s)){
+      route("journal");
+      return;
+    }
     const next=playYear(s);
     if(next===s){
       route("journal");
-      requestAnimationFrame(()=>document.getElementById("scene-heading")?.focus());
       return;
     }
     const latestEvent = next.history.slice(s.history.length).filter(entry => entry.kind === "event" || entry.kind === "end" || entry.kind === "path").at(-1);
@@ -309,7 +314,6 @@ function App(){
     close();
     openJournal(restored.life);
   }
-  const fallback = defaultPlayChoice(s);
   const playLabel = pregnancyTurn?.[l] ?? (s.finished ? t("Нов живот","New life") : t("Следваща година","Next year"));
   function navItem(k:Exclude<Tab,"workplace">) {
     const icon = k==="career" ? isSchoolAge(s.age) ? "school" : "bag" : k;
@@ -348,7 +352,7 @@ function App(){
         onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</HomeHub>:
        screen==="avatar"?<AvatarCreator l={l} vip={vip} onVip={toggleTrialVip} onClose={cancelAvatarCreator} onStart={startWithAvatar}/>:
        screen==="album"?<Album {...menuProps} back s={s} archive={session.album} l={l}/>:
-       tab==="journal"?<Journal s={s} l={l} onChoice={id=>act(v=>choose(v,id,s.age))} onAction={id=>act(v=>doAction(v,id,s.age))} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore} onEndPregnancy={requestPregnancyEnd} onCareer={()=>route("career")}/>:
+       tab==="journal"?<Journal s={s} l={l} onCityDecision={()=>setCityPrompt(cityDecision(s)?.key??null)} onAction={id=>act(v=>doAction(v,id,s.age))} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore} onEndPregnancy={requestPregnancyEnd} onCareer={()=>route("career")}/>:
        tab==="career"?<Career s={s} l={l} onClose={closeMenu} onMaternityReturn={()=>act(v=>doMaternityReturn(v,s.age))} onWorkplace={()=>route("workplace")} onAction={id=>act(v=>doPathAction(v,id,s.age))}/>:
        tab==="workplace"?<Workplace s={s} l={l} onClose={closeMenu} onCareer={()=>route("career")} onAction={id=>act(v=>doPathAction(v,id,s.age))}/>:
        tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family","people")} onActivity={openPersonAction}/>:
@@ -365,9 +369,7 @@ function App(){
       <div className="nav-inner">
         {navItem("career")}{navItem("people")}
         <button className="play-control" data-testid="advance" data-play-mode={pregnancyTurn ? "pregnancy" : "year"} onClick={nextYear}
-          aria-label={fallback && tab!=="journal" ? playLabel + ". " + fallback.label[l] : playLabel}
-          title={fallback ? playLabel + " · " + fallback.label[l] : playLabel}
-          aria-describedby={fallback && tab==="journal" ? "play-default" : undefined}>
+          aria-label={playLabel} title={playLabel}>
           <span className="play-face" aria-hidden="true"><PlaySymbol/></span><span>{s.finished || pregnancyTurn ? playLabel : "+1 " + t("година","year")}</span>
         </button>
         {navItem("assets")}{navItem("more")}
@@ -378,9 +380,12 @@ function App(){
     {screen==="game"&&!dialog&&!personAction&&!pregnancyNotice&&s.lifeSystems.reproduction.naming&&
       <BirthNamingDialog key={s.seed+"-"+s.age} life={s} birth={s.lifeSystems.reproduction.naming} l={l} onSave={saveBabyNames}/>}
     {workDecision&&<WorkDecisionDialog key={workDecision.key} decision={workDecision} l={l} onChoose={id=>act(v=>doPathAction(v,id,s.age))}/>}
-    {personAction&&<PersonActionDialog flow={personAction} life={s} l={l} onClose={closePersonAction}
-      onSelect={selected=>setPersonAction({...personAction,selected})} onConfirm={confirmPersonAction}
-      onRepeat={()=>setPersonAction({...personAction,outcome:null})}/>}
+    {pendingDecision&&<DecisionDialog key={pendingDecision.key} decision={pendingDecision} age={s.age} l={l}
+      onClose={()=>act(v=>skipDecision(v,pendingDecision.id,s.age))}
+      onChoose={id=>act(v=>pendingDecision.kind==="story"?choose(v,id,s.age):doAction(v,id,s.age))}/>}
+    {personAction&&<PersonActionDialog flow={personAction} life={s} l={l} onClose={()=>setPersonAction(null)}
+      onChoose={id=>takePersonAction(personAction,id)}
+      onRepeat={id=>takePersonAction({...personAction,outcome:null},id)}/>}
     {dialog&&<dialog key={dialog} ref={dialogRef} className={menuDialog?"modal-card game-menu-dialog":dialog==="profile"?"modal-card player-profile-dialog":"modal-card"} onCancel={close} aria-labelledby="dialog-heading" onClick={e=>{if(e.target===e.currentTarget){const b=e.currentTarget.getBoundingClientRect();if(e.clientX<b.left||e.clientX>b.right||e.clientY<b.top||e.clientY>b.bottom)close()}}}>
       {menuDialog&&screen!=="home"&&<div className="game-menu-profile"><CharacterHeader life={s} l={l}/></div>}
       <div className={menuDialog?(slideMenu&&showJournal?"game-menu-content menu-enter":"game-menu-content"):undefined}>

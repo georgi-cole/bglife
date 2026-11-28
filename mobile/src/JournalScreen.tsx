@@ -6,18 +6,22 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { selectionAsync } from "expo-haptics";
 import { assetTitle } from "../../src/assetMenu.ts";
 import { getAvatarLook, getAvatarTreatments } from "../../src/avatar.ts";
+import { activityMoment } from "../../src/activityMoments.ts";
 import { cleanFirstName } from "../../src/babyNames.ts";
 import { cityWeatherDate } from "../../src/cityLife.ts";
 import {
-  choose, defaultPlayChoice, doAction, doMaternityReturn, doPathAction, doPregnancyAction, getChoices, getCityOpportunity, getScene,
-  nameNewborns, playYear, type GameState, type Memory,
+  choose, doAction, doMaternityReturn, doPathAction, doPregnancyAction, getCityOpportunity, hasPendingStoryDecision,
+  nameNewborns, playYear, skipDecision, type GameState, type Memory,
 } from "../../src/engine.ts";
 import { maternityPay, maternityStatus, maternityYear } from "../../src/maternity.ts";
 import { canEndPregnancy, pregnancyNoticeCopy, pregnancyTurnLabel } from "../../src/pregnancyTimeline.ts";
 import { newbornName, newbornSurname, pregnancyStatus, type BirthNaming } from "../../src/reproduction.ts";
+import { cityDecision, storyDecision } from "../../src/journalDecisions.ts";
+import { familyActivityLine, journalLine } from "../../src/journalCopy.ts";
 import type { Language } from "../../src/sessionCodec.ts";
 import { getWorkDecision } from "../../src/workplace.ts";
 import { Avatar } from "./Avatar";
+import { DecisionModal } from "./DecisionModal";
 import { type Screens, useGame } from "./game";
 import { ageLabel, base, Button, Chip, color, labels, lifeName, money, town, translation } from "./ui";
 
@@ -38,13 +42,13 @@ function journalYears(life: GameState): Year[] {
   }).reverse();
 }
 
-function YearCard({ year, language, current, opportunity, saving, onCityAction }: {
+function YearCard({ life, year, language, current, opportunityId, onCityDecision }: {
+  life: GameState;
   year: Year;
   language: Language;
   current: boolean;
-  opportunity: ReturnType<typeof getCityOpportunity>;
-  saving: boolean;
-  onCityAction: (id: string) => void;
+  opportunityId?: string;
+  onCityDecision: () => void;
 }) {
   const events = year.entries.filter(entry => entry.kind !== "year");
   const budget = year.entries.find(entry => entry.kind === "year");
@@ -56,29 +60,23 @@ function YearCard({ year, language, current, opportunity, saving, onCityAction }
         </Text>
         {current && <Text style={styles.current}>{translation(language, "Сега", "Now")}</Text>}
       </View>
-      {events.map((entry, index) => (
-        entry.decision ? <WorkJournalEntry key={entry.id + "-" + index} entry={entry} language={language}/>
-          : <View key={entry.id + "-" + index} style={styles.entry}>
-          <Text style={styles.entryTitle}>{entry.title[language]}</Text>
+      {events.map((entry, index) => {
+        if (entry.decision) return <WorkJournalEntry key={entry.id + "-" + index} entry={entry} language={language}/>;
+        const result = entry.kind === "choice" || (entry.kind === "action" && entry.id.startsWith("city-life."));
+        return <View key={entry.id + "-" + index} style={[styles.entry, result && styles.outcome]}>
+          {!result && <Text style={styles.entryTitle}>{entry.title[language]}</Text>}
           {entry.cityEvent && <Text style={base.muted}>{cityWeatherDate(entry.cityEvent, language)}</Text>}
-          <Text style={base.body}>{entry.text[language]}</Text>
-          {current && opportunity?.id === entry.id && (
-            <View style={styles.cityChoices} testID="city-opportunity">
-              {opportunity.options.map(({ option, blocked }) => {
-                const cash = option.effect?.cash ?? 0;
-                const label = option.label[language] + (cash ? " · " + (cash > 0 ? "+" : "") + money(cash, language) : "");
-                return <Button key={option.id} label={label} secondary disabled={saving || blocked}
-                  testID={option.id} onPress={() => onCityAction(option.id)} />;
-              })}
-            </View>
-          )}
+          <Text style={[base.body, result && styles.outcomeText]}>{familyActivityLine(entry, language, life) ?? activityMoment(entry, life.seed)?.[language]
+            ?? (result ? journalLine(entry, language, life.birthFamily) : entry.text[language])}</Text>
+          {current && opportunityId === entry.id && <Button label={translation(language, "Виж вариантите", "See options")}
+            secondary testID="city-opportunity" onPress={onCityDecision}/>}
           {entry.cashDelta !== 0 && (
             <Text style={[styles.delta, entry.cashDelta < 0 && styles.negative]}>
               {entry.cashDelta > 0 ? "+" : ""}{money(entry.cashDelta, language)}
             </Text>
           )}
-        </View>
-      ))}
+        </View>;
+      })}
       {budget && (
         <View style={styles.budget}>
           <Text style={base.muted}>{budget.text[language]}</Text>
@@ -195,6 +193,7 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
   const years = useMemo(() => life ? journalYears(life) : [], [life]);
   const look = useMemo(() => life ? getAvatarLook(life.avatar, life.age, getAvatarTreatments(life.history, life.age)) : null, [life]);
   const list = useRef<FlatList<Year>>(null);
+  const [cityPrompt, setCityPrompt] = useState<string | null>(null);
   const t = (bg: string, en: string) => translation(language, bg, en);
   const text = labels(language);
 
@@ -206,11 +205,13 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
   const pregnancy = pregnancyStatus(life);
   const pregnancyPrompt = !archived && focused && notice ? pregnancyNoticeCopy(notice) : null;
   const maternity = maternityStatus(life);
-  const scene = getScene(life);
-  const choices = getChoices(life);
+  const showDecision = !archived && focused && !birth && !notice;
+  const story = showDecision && !turn ? storyDecision(life) : null;
   const opportunity = archived ? null : getCityOpportunity(life);
-  const workDecision = !archived && focused ? getWorkDecision(life) : null;
-  const blocked = Boolean(birth || notice || (!turn && scene && life.choiceId === null && !defaultPlayChoice(life)));
+  const workDecision = showDecision && !story ? getWorkDecision(life) : null;
+  const local = showDecision && !story && !workDecision && cityPrompt !== null ? cityDecision(life) : null;
+  const decision = story ?? (local?.key === cityPrompt ? local : null);
+  const blocked = Boolean(birth || notice || (!turn && hasPendingStoryDecision(life)));
 
   function changeLife(change: (state: GameState) => GameState) {
     return updateSession(current => {
@@ -244,8 +245,8 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
     <SafeAreaView style={base.page} edges={["bottom"]} testID="journal-screen">
       <FlatList ref={list} data={years} keyExtractor={year => String(year.age)} contentContainerStyle={base.scroll}
         keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets
-        renderItem={({ item }) => <YearCard year={item} language={language} current={item.age === age && !life.finished && !archived}
-          opportunity={opportunity} saving={saving} onCityAction={id => { void changeLife(current => doAction(current, id, age)); }} />}
+        renderItem={({ item }) => <YearCard life={life} year={item} language={language} current={item.age === age && !life.finished && !archived}
+          opportunityId={opportunity?.id} onCityDecision={() => setCityPrompt(cityDecision(life)?.key ?? null)} />}
         ListHeaderComponent={(
           <View style={styles.journalHeader}>
             <View style={styles.profile}>
@@ -279,16 +280,6 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
                 onPress={() => { void changeLife(current => doMaternityReturn(current, age)); }} />}
             </View>}
             {!archived && birth && <BirthNames key={life.seed + "-" + life.age} life={life} birth={birth} />}
-            {!archived && !birth && !life.finished && scene && choices.length > 0 && (
-              <View style={base.card}>
-                <Text style={base.section}>{scene.title[language]}</Text>
-                <Text style={base.body}>{scene.body[language]}</Text>
-                {choices.map(option => (
-                  <Button key={option.id} label={option.label[language]} secondary disabled={saving}
-                    onPress={() => { void changeLife(current => choose(current, option.id, age)); }} />
-                ))}
-              </View>
-            )}
           </View>
         )} />
       {workDecision && <WorkPrompt life={life} decision={workDecision}/>}
@@ -313,6 +304,9 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
           </View>
         </View>
       </Modal>}
+      {decision && <DecisionModal key={decision.key} decision={decision} age={age} language={language} saving={saving}
+        onClose={() => { void changeLife(current => skipDecision(current, decision.id, age)); }}
+        onChoose={id => { void changeLife(current => decision.kind === "story" ? choose(current, id, age) : doAction(current, id, age)); }}/>}
     </SafeAreaView>
   );
 }
@@ -333,11 +327,12 @@ const styles = StyleSheet.create({
   current: { color: color.green, fontSize: 12, fontWeight: "800" },
   entry: { borderLeftWidth: 2, borderLeftColor: color.lightGreen, paddingLeft: 11, gap: 3 },
   entryTitle: { fontSize: 15, fontWeight: "800", color: color.ink },
-  cityChoices: { gap: 6, marginTop: 6 },
   workJournalLine: { minHeight: 44, justifyContent: "center" },
   workJournalDetail: { padding: 10, backgroundColor: color.lightGreen, borderRadius: 8, gap: 4 },
   workBackdrop: { flex: 1, justifyContent: "center", alignItems: "center", padding: 16, backgroundColor: "#14221BC7" },
   workPrompt: { width: "100%", maxWidth: 460, maxHeight: "82%", backgroundColor: "#F3F5E9" },
+  outcome: { borderLeftColor: "#5A947F" },
+  outcomeText: { fontWeight: "700" },
   delta: { color: color.green, fontSize: 13, fontWeight: "700" },
   negative: { color: color.red },
   budget: { paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderColor: color.line, gap: 3 },

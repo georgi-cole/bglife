@@ -1,8 +1,9 @@
 import React, { type ReactNode } from "react";
 import { getCityOpportunity, type GameState, type Memory } from "./engine.ts";
 import { cityWeatherDate } from "./cityLife.ts";
-import { isJournalMilestone, journalLine } from "./journalCopy.ts";
+import { familyActivityLine, isJournalMilestone, journalLine } from "./journalCopy.ts";
 import { quietYear } from "./everydayEvents.ts";
+import { activityMoment } from "./activityMoments.ts";
 import type { Language } from "./session.ts";
 import { Icon, copy, lifeStatLabels, money, occupation, town } from "./ui.tsx";
 
@@ -29,21 +30,24 @@ function LifeEvent({ event, l, life, latestWithId, children }: {
   event: Memory; l: Language; life: GameState; latestWithId: boolean; children?: ReactNode;
 }) {
   const personEvent = event.kind === "action" && event.id.startsWith("people.");
+  const cityResult = event.kind === "action" && event.id.startsWith("city-life.");
+  const decisionResult = event.kind === "choice" || cityResult;
   const pregnancyEvent = event.kind === "event" && (event.id.startsWith("pregnancy-") || (event.id === "birth" && event.age > 0));
   const familyEvent = pregnancyEvent || event.id === "relationship-anniversary" || event.id === "wedding-anniversary" || event.id.startsWith("maternity-");
-  const focusable = latestWithId && (event.decision || personEvent || familyEvent
+  const focusable = latestWithId && (event.decision || personEvent || decisionResult || familyEvent
     || (event.kind === "action" && /^(city-life|asset|bank)\./.test(event.id)));
   const eventDate = event.cityEvent && cityWeatherDate(event.cityEvent, l);
-  const line = journalLine(event, l, life.birthFamily);
+  const detail = familyActivityLine(event, l, life) ?? activityMoment(event, life.seed)?.[l];
+  const line = detail ?? journalLine(event, l, life.birthFamily);
   const original = event.text[l];
   const showTitle = event.kind === "choice" || Boolean(event.decision);
-  const showOriginal = original !== line;
+  const showOriginal = !detail && original !== line;
   const impact = event.workImpact;
   const hasChanges = event.movedTo || event.startedCareer || event.cashDelta !== 0
     || hasStatChanges(event.statsDelta) || impact?.performance || impact?.relationship;
   const content = isJournalMilestone(event) ? <strong>{line}</strong> : <span>{line}</span>;
 
-  return <li className="life-event"
+  return <li className="life-event" data-decision-result={decisionResult || undefined}
     id={focusable ? "life-event-" + event.age + "-" + event.id : undefined}
     tabIndex={focusable ? -1 : undefined} data-person-event={personEvent || undefined} data-event-id={event.id}>
     {familyEvent && <span className="family-event-title">{event.title[l]}</span>}
@@ -118,7 +122,7 @@ export function JournalFinances({ s, l }: { s: GameState; l: Language }) {
   </details>;
 }
 
-export function LifeTimeline({ s, l, children, onAction }: { s: GameState; l: Language; children: ReactNode; onAction: (id: string) => void }) {
+export function LifeTimeline({ s, l, children, onCityDecision }: { s: GameState; l: Language; children: ReactNode; onCityDecision: () => void }) {
   const opportunity = getCityOpportunity(s);
   return <section className="life-timeline" aria-labelledby="timeline-heading">
     <h1 id="timeline-heading" className="timeline-heading"><Icon name="journal" size={16}/>{copy(l, "Дневник", "Journal")}</h1>
@@ -131,13 +135,10 @@ export function LifeTimeline({ s, l, children, onAction }: { s: GameState; l: La
         </h2>
         {events.length > 0 ? <ul className="life-entries" role="list">
           {events.map((event, index) => <LifeEvent key={event.kind + event.id + index} event={event} l={l} life={s} latestWithId={lastIndex.get(event.id)===index}>
-            {latest && opportunity?.id === event.id && <div className="city-event-actions" data-city-opportunity>
-              {opportunity.options.map(({ option, blocked }) => <button key={option.id} type="button" className="secondary-button"
-                data-action={option.id} disabled={blocked} onClick={() => onAction(option.id)}>
-                <span>{option.label[l]}</span>
-                {!!option.effect?.cash && <span className={option.effect.cash > 0 ? "cash-in" : "cash-out"}>{signedMoney(option.effect.cash, l)}</span>}
-              </button>)}
-            </div>}
+            {latest && opportunity?.id === event.id && <button type="button" className="decision-trigger city-decision-trigger"
+              data-city-opportunity aria-haspopup="dialog" onClick={onCityDecision}>
+              <Icon name="pin" size={15}/><span>{copy(l, "Виж вариантите", "See options")}</span><Icon name="next" size={14}/>
+            </button>}
           </LifeEvent>)}
         </ul> : <p className="life-quiet">{quietYear(s.seed, age)[l]}</p>}
         {latest && children}

@@ -8,6 +8,7 @@ import { choose, doLifeActivity, doPathAction, getChoices, newChapterLife, newLi
 import { familyRoll } from "../src/fertilityModel.ts";
 import { startPregnancyPlay } from "../src/pregnancyTimeline.ts";
 import { getWorkDecision } from "../src/workplace.ts";
+import { personRelationship } from "../src/peopleIdentity.ts";
 import { serialize } from "../src/sessionCodec.ts";
 
 const test = base.extend({
@@ -127,10 +128,9 @@ test("intimacy can repeat and a confirmed pregnancy changes Play until the birth
   await page.locator('[data-person="appMatch"]').tap();
   await page.locator('[data-action-group="intimacy"]').tap();
   await page.getByRole("button", { name: /Without protection/ }).tap();
-  const confirm = page.locator('.person-dialog-actions').getByRole("button", { name: "Confirm", exact: true });
-  await confirm.tap();
-  await page.getByRole("button", { name: "Repeat", exact: true }).tap();
-  await confirm.tap();
+  const result = page.locator('dialog[data-action-phase="outcome"]');
+  await expect(result).toBeVisible();
+  await result.getByRole("button", { name: "Repeat", exact: true }).tap();
 
   const alert = page.locator("[data-pregnancy-notice]");
   await expect(alert).toHaveAttribute("data-pregnancy-notice", "test");
@@ -309,4 +309,164 @@ test("Career and Work have separate screens and workplace decisions go to the jo
   await resume.tap();
   await expect(prompt).toHaveCount(0);
   await expect(entry).toHaveCount(1);
+});
+
+async function resumeFixture(page, life) {
+  await page.addInitScript(save => {
+    if (!localStorage.getItem("bglife.journal.v1")) localStorage.setItem("bglife.journal.v1", save);
+    localStorage.setItem("bglife.language", "bg");
+  }, serialize({ life, album: [] }));
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("./");
+  await page.getByRole("button", { name: /^Продължи/ }).tap();
+}
+
+function chapterAtShelf() {
+  let life = newChapterLife(108);
+  while (life.age < 20) {
+    const next = playYear(life.age === 19 ? choose(life, "shared") : life);
+    expect(next.age).toBe(life.age + 1);
+    life = next;
+  }
+  return life;
+}
+
+test("closing a story dialog skips it after reload and allows the next year", async ({ page }) => {
+  await resumeFixture(page, chapterAtShelf());
+  const decision = page.getByRole("dialog", { name: "Чий е този рафт?" });
+  await expect(decision).toBeVisible();
+  await expect(page.locator(".life-timeline [data-choice]")).toHaveCount(0);
+  await decision.getByRole("button", { name: "Пропусни събитието" }).tap();
+  await page.locator('[data-tab="more"]').tap();
+  await page.locator('[data-category="gym"]').tap();
+  const run = page.locator('[data-activity-id="gym.run"]');
+  await expect(run).toHaveAttribute("data-locked", "false");
+  await run.tap();
+  await page.locator('[data-activity-confirm="gym.run"]').tap();
+  await page.getByRole("button", { name: "Към дневника", exact: true }).tap();
+  await expect(decision).toHaveCount(0);
+  await expect(page.locator('[data-event-id="gym.run"]')).toBeVisible();
+
+  await page.reload();
+  await page.getByRole("button", { name: /^Продължи/ }).tap();
+  await expect(decision).toHaveCount(0);
+  await page.getByTestId("advance").tap();
+  await expect(page.getByTestId("chapter-age")).toHaveText(/^21\b/);
+  await expect(decision).toHaveCount(0);
+  await expect(page.locator('[data-life-year="20"] [data-decision-result]')).toHaveCount(0);
+});
+
+test("choosing a response still records its outcome in the current year", async ({ page }) => {
+  await resumeFixture(page, chapterAtShelf());
+  const decision = page.getByRole("dialog", { name: "Чий е този рафт?" });
+  await expect(decision).toBeVisible();
+  await decision.getByRole("button", { name: "Запази бурканите за гости" }).tap();
+  const result = page.locator('[data-decision-result][data-event-id="keep"]');
+  await expect(decision).toHaveCount(0);
+  await expect(result).toHaveCount(1);
+  await expect(result).toBeFocused();
+  await expect(result).toContainText("Под леглото");
+  await expect(page.getByTestId("chapter-age")).toHaveText(/^20\b/);
+  await page.reload();
+  await page.getByRole("button", { name: /^Продължи/ }).tap();
+  await expect(result).toHaveCount(1);
+});
+
+test("city invitations show options only after opening the dialog", async ({ page }) => {
+  let life = startCareerLife(newLife(112, null, "burgas"));
+  while (life.age < 16) {
+    const next = playYear(life);
+    expect(next.age).toBe(life.age + 1);
+    life = next;
+  }
+  await resumeFixture(page, life);
+  const dialog = page.getByTestId("decision-dialog");
+  const invitation = page.locator("[data-city-opportunity]");
+  const choice = "city-life.burgas.story.join";
+  await expect(dialog).toHaveCount(0);
+  await invitation.tap();
+  await expect(dialog).toHaveAttribute("data-kind", "city");
+  await dialog.locator('[data-choice="' + choice + '"]').tap();
+  await expect(dialog).toHaveCount(0);
+  await expect(invitation).toHaveCount(0);
+  await expect(page.locator('[data-decision-result][data-event-id="' + choice + '"]')).toBeFocused();
+});
+
+test("a partner activity after a skipped decision uses the same local detail in its result and journal", async ({ page }) => {
+  let life = newChapterLife(107);
+  while (life.age < 18) {
+    const next = playYear(life);
+    expect(next.age).toBe(life.age + 1);
+    life = next;
+  }
+  const [choice] = getChoices(life);
+  if (choice) life = choose(life, choice.id);
+  life = doLifeActivity(life, "family.tinder");
+  expect(life.lifeSystems.family.partner).toBe("appMatch");
+  life = playYear(life);
+  expect(life.age).toBe(19);
+  await resumeFixture(page, life);
+
+  await page.getByTestId("decision-dialog").getByRole("button", { name: "Пропусни събитието" }).tap();
+  await page.locator('[data-tab="people"]').tap();
+  await page.locator('[data-person="appMatch"]').tap();
+  await page.getByRole("button", { name: "Комплимент", exact: true }).tap();
+  const compliment = page.getByRole("dialog", { name: "Комплимент" });
+  await expect(compliment).toHaveAttribute("data-action-phase", "choose");
+  await compliment.getByRole("button", { name: /За стила/ }).tap();
+  await expect(compliment).toHaveAttribute("data-action-phase", "outcome");
+  await expect(compliment).toContainText("Похвалих стила");
+  await expect(compliment.getByRole("button", { name: "Потвърди" })).toHaveCount(0);
+  await compliment.getByRole("button", { name: "Продължи" }).tap();
+
+  await page.getByRole("button", { name: /Поръчайте вечеря/ }).tap();
+  const outcome = page.getByRole("dialog", { name: "Поръчайте вечеря" });
+  await expect(outcome).toHaveAttribute("data-action-phase", "outcome");
+  await expect(outcome).toContainText("„Ергенът“");
+  await expect(outcome.locator(".person-dialog-avatar")).toBeVisible();
+  await expect(outcome.getByRole("meter", { name: "Връзката се подобри" })).toHaveCount(1);
+  await expect(outcome.getByRole("button", { name: "Към дневника" })).toHaveCount(0);
+  await outcome.getByRole("button", { name: "Продължи" }).tap();
+  await expect(page.locator(".people-profile")).toContainText("Александър Георгиев");
+  await page.getByRole("button", { name: "Назад към Хора" }).tap();
+  await page.getByRole("button", { name: "Към дневника", exact: true }).tap();
+  await expect(page.getByTestId("decision-dialog")).toHaveCount(0);
+  await expect(page.locator('[data-event-id="people.appMatch.takeaway"]')).toContainText("„Ергенът“");
+});
+
+test("a brother's family activities take one tap and use first names and kinship in the result and journal", async ({ page }) => {
+  let life = startCareerLife(newProfileLife({
+    seed: 5, city: "tryavna", presentation: "female", avatar: defaultAvatar,
+    profile: { name: "Лора Иванова", talent: "none", vip: true, wealthy: false, disposition: null },
+  }));
+  while (life.age < 8) {
+    const next = playYear(life);
+    expect(next.age).toBe(life.age + 1);
+    life = next;
+  }
+  const id = "kin-sibling-0";
+  await resumeFixture(page, life);
+  await page.locator('[data-tab="people"]').tap();
+  await page.locator('[data-person="' + id + '"]').tap();
+
+  const timeId = "people." + id + ".family-time";
+  await page.getByRole("button", { name: "Прекарайте време заедно", exact: true }).tap();
+  life = doLifeActivity(life, timeId);
+  const outcome = page.getByRole("dialog");
+  await expect(outcome).toHaveAttribute("data-action-phase", "outcome");
+  await expect(outcome.locator(".person-dialog-result")).toContainText("брат ми Александър");
+  await expect(outcome.getByRole("meter")).toHaveAttribute("value", String(personRelationship(life, id)));
+  await expect(outcome.locator(".person-dialog-result")).not.toContainText("Иванов");
+  await outcome.getByRole("button", { name: "Продължи" }).tap();
+  await expect(page.locator(".people-profile")).toContainText("Александър Иванов");
+
+  const storyId = "people." + id + ".family-story";
+  await page.getByRole("button", { name: "Попитай за семейна история", exact: true }).tap();
+  const text = "Поговорих с брат ми Александър за живота в Трявна преди години. Остана ми в главата едно „Туй тука ли е?“";
+  await expect(outcome.locator(".person-dialog-result")).toHaveText(text);
+  await outcome.getByRole("button", { name: "Затвори" }).tap();
+  await page.getByRole("button", { name: "Назад към Хора" }).tap();
+  await page.getByRole("button", { name: "Към дневника", exact: true }).tap();
+  await expect(page.locator('[data-event-id="' + storyId + '"]')).toContainText(text);
+  await expect(page.locator('[data-event-id="' + timeId + '"]')).toHaveCount(1);
 });

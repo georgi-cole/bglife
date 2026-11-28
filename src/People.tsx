@@ -108,13 +108,14 @@ const actionIcons: Record<string,IconName> = {
 function ActionRow({options,l,onClick}: {options:LifeActivityOption[];l:Language;onClick:()=>void}) {
   const action=options[0],branch=action.branch;
   const symbol=actionIcons[branch?.id??action.id.split(".")[2]]??"people";
-  const blocked=!branch&&action.blocked;
+  const single=options.length===1;
+  const blocked=single&&action.blocked;
   return <button type="button" className="people-action" data-action-group={branch?.id} aria-disabled={!!blocked}
     onClick={()=>{if(!blocked)onClick()}}>
     <span className="people-action-icon"><Icon name={symbol} size={20}/></span>
     <span className="people-action-copy">
-      <strong>{(branch?.label??action.label)[l]}</strong>
-      {!branch&&action.cashDelta<0&&<span className="people-action-cost">
+      <strong>{(single?action.label:branch?.label??action.label)[l]}</strong>
+      {single&&action.cashDelta<0&&<span className="people-action-cost">
         <span><Icon name="wallet" size={13}/>{money(-action.cashDelta,l)}</span>
       </span>}
       {blocked&&<small className="people-action-blocked">{blocked[l]}</small>}
