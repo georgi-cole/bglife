@@ -1,6 +1,6 @@
 import type { GameState, Text } from "./engine.ts";
 import type { Heir, LifeActivityDefinition } from "./lifeActivities.ts";
-import { hasLivingChildren, newChildProfile, type PeopleId } from "./peopleIdentity.ts";
+import { hasLivingChildren, newChildProfile, personCity, type PeopleId } from "./peopleIdentity.ts";
 import { isExpecting } from "./reproduction.ts";
 
 type Systems = GameState["lifeSystems"];
@@ -71,8 +71,13 @@ const familyActivities: LifeActivityDefinition[] = [
     cost: 2400, stats: { joy: 5 },
   }, {
     id: "family.date-eli", category: "family", minAge: 18,
-    requires: s => availableMatch(s, "friend") ?? (s.trust.friend >= 65 ? null
-      : t("Ели трябва да ти има повече доверие.", "Eli needs to trust you more.")),
+    requires: s => {
+      const relationship = s.lifeSystems.contacts?.lives.friend?.relationship;
+      if (relationship && !s.deceased[relationship.partner]) return t("Ели вече има партньор.", "Eli already has a partner.");
+      if (s.lifeSystems.contacts && personCity(s, "friend") !== s.city) return t("Ели живее в друг град.", "Eli lives in another city.");
+      return availableMatch(s, "friend") ?? (s.trust.friend >= 65 ? null
+        : t("Ели трябва да ти има повече доверие.", "Eli needs to trust you more."));
+    },
     label: t("Покани Ели на среща", "Ask Eli on a date"),
     description: t("Покани Ели от кръга ти за разходка и кафе.", "Ask Eli, your childhood friend, to go for a walk and coffee."),
     result: t("Ели приема. На раздяла тя е тази, която предлага да се видите отново.", "Eli says yes. When you say goodbye, she is the one who suggests meeting again."),

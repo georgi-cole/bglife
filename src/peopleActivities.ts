@@ -1,16 +1,20 @@
-import { cityIds, type City } from "./cities.ts";
+import { cities, cityIds, inCityBg, type City } from "./cities.ts";
+import { isKin } from "./birthFamily.ts";
+import { changeKinBond } from "./kinActivities.ts";
+import { weddingInvitation } from "./contactLives.ts";
 import { cityCulture } from "./cityCulture.ts";
-import type {GameState,PersonId,Text} from "./engine.ts";
+import type {GameState,Text} from "./engine.ts";
 import {partnerIntimacy} from "./lifeReproduction.ts";
 import {relationshipActivities} from "./relationships.ts";
-import type {ActivityBranch,LifeActivityDefinition,LifeSystems} from "./lifeActivities.ts";
-import {childIndex,isChild,isKnownPerson,personAge,personRelationship,personSeed,type ContactId} from "./peopleIdentity.ts";
+import type {ActivityBranch,ActivityResolution,LifeActivityDefinition,LifeSystems} from "./lifeActivities.ts";
+import {childIndex,isChild,isKnownPerson,personAge,personCity,personRelationship,personSeed,storyPeople,type ContactId,type PeopleId} from "./peopleIdentity.ts";
 
 const t = (bg:string, en:string):Text => ({bg,en});
 type Context = "relative" | "cousin" | "mentor" | "friend" | "partner" | "former" | "child";
 
-function context(s:GameState,id:ContactId):Context|null {
+function context(s:GameState,id:PeopleId):Context|null {
   if (!isKnownPerson(s,id) || s.deceased[id]) return null;
+  if (isKin(id)) return "relative";
   if(isChild(id))return personAge(s,id)===null?null:"child";
   const family=s.lifeSystems.family;
   if(family.partner===id)return "partner";
@@ -29,26 +33,27 @@ type Interaction = {
   bond:number;
   joy:number;
   cost?:number;
+  sameCity?:true;
   minAge?:number;
   maxAge?:number;
 };
 
-const interaction=(id:string,title:Text,description:Text,result:Text,bond:number,joy:number,extras:Pick<Interaction,"cost"|"minAge"|"maxAge">={}):Interaction=>
+const interaction=(id:string,title:Text,description:Text,result:Text,bond:number,joy:number,extras:Pick<Interaction,"cost"|"minAge"|"maxAge"|"sameCity">={}):Interaction=>
   ({id,title,description,result,bond,joy,...extras});
 
 const actions: Record<Context, Interaction[]> = {
   relative:[
     interaction("voice-note",t("Прати гласово съобщение","Send a voice note"),t("Разкажи как ти е минала седмицата.","Share how your week went."),t("Руми ти върна съобщение с новини от вкъщи.","Rumi sent back a voice note with news from home."),4,2),
-    interaction("coffee",t("Кафе и баница","Coffee and banitsa"),t("Уговорете си закуска през уикенда.","Meet for breakfast over the weekend."),t("Останахте на масата, докато кафето изстина.","You stayed at the table until the coffee went cold."),7,4,{cost:800}),
+    interaction("coffee",t("Кафе и баница","Coffee and banitsa"),t("Уговорете си закуска през уикенда.","Meet for breakfast over the weekend."),t("Останахте на масата, докато кафето изстина.","You stayed at the table until the coffee went cold."),7,4,{sameCity:true,cost:800}),
   ],
   cousin:[
     interaction("game",t("Поиграйте онлайн","Play online"),t("Съберете се за един мач след училище.","Get together for a match after school."),t("Изгубихте първия мач, но с втория си върнахте резултата.","You lost the first match and evened the score in the second."),6,4,{maxAge:17}),
     interaction("gaming",t("Онлайн мач вечерта","Play an online match"),t("Уговорете се за един мач, когато и двамата сте свободни.","Find an evening when you’re both free to play."),t("След мача останахте в разговора и наваксахте с новините.","After the match you stayed on the call and caught up."),6,4,{minAge:18}),
-    interaction("basketball",t("Баскетбол в квартала","Play pickup basketball"),t("Съберете се на площадката следобед.","Meet up at the local court in the afternoon."),t("Изиграхте няколко мача и уговорихте реванш.","You played a few games and agreed on a rematch."),7,5,{minAge:12}),
+    interaction("basketball",t("Баскетбол в квартала","Play pickup basketball"),t("Съберете се на площадката следобед.","Meet up at the local court in the afternoon."),t("Изиграхте няколко мача и уговорихте реванш.","You played a few games and agreed on a rematch."),7,5,{sameCity:true,minAge:12}),
   ],
   friend:[
     interaction("meme",t("Прати меме","Send a meme"),t("Прати нещо, което само вие двамата бихте разбрали.","Send something only the two of you would get."),t("Отговорът беше старо меме, което си мислеше, че отдавна е забравено.","The reply was an old meme you thought had long been forgotten."),4,3),
-    interaction("cinema",t("Отидете на кино","Go to the cinema"),t("Изберете филм и вземете билети.","Pick a film and get tickets."),t("На излизане спорихте за финала чак до спирката.","You argued about the ending all the way to the bus stop."),7,5,{cost:2200,minAge:15}),
+    interaction("cinema",t("Отидете на кино","Go to the cinema"),t("Изберете филм и вземете билети.","Pick a film and get tickets."),t("На излизане спорихте за финала чак до спирката.","You argued about the ending all the way to the bus stop."),7,5,{sameCity:true,cost:2200,minAge:15}),
   ],
   mentor:[
     interaction("feedback",t("Поискай мнение за проект","Ask for feedback on a project"),t("Прати снимка на това, по което работиш.","Send a photo of what you’re working on."),t("Стефан ти прати две конкретни идеи как да го подобриш.","Stefan sent you two specific ideas for improving it."),5,2),
@@ -56,18 +61,18 @@ const actions: Record<Context, Interaction[]> = {
   ],
   partner:[
     interaction("video-call",t("Видеочат вечерта","Catch up on a video call"),t("Отделете време да си поговорите на спокойствие.","Make time for a quiet conversation."),t("Поговорихте си за неща, за които през седмицата не остана време.","You found time to talk about things the week had crowded out."),7,4),
-    interaction("takeaway",t("Поръчайте вечеря","Order takeaway together"),t("Изберете вечеря и си направете вечер вкъщи.","Choose something to eat and spend the evening in."),t("Пуснахте си сериал и стигнахте до следващия епизод.","You put on a series and ended up watching the next episode too."),9,6,{cost:2400,minAge:18}),
-    interaction("concert",t("Вземете билети за концерт","Get concert tickets"),t("Изберете изпълнител, когото и двамата искате да чуете.","Pick an artist you both want to hear."),t("Прибрахте се с общ плейлист за следващия ден.","You went home with a playlist to share the next day."),11,8,{cost:4800,minAge:18}),
+    interaction("takeaway",t("Поръчайте вечеря","Order takeaway together"),t("Изберете вечеря и си направете вечер вкъщи.","Choose something to eat and spend the evening in."),t("Пуснахте си сериал и стигнахте до следващия епизод.","You put on a series and ended up watching the next episode too."),9,6,{sameCity:true,cost:2400,minAge:18}),
+    interaction("concert",t("Вземете билети за концерт","Get concert tickets"),t("Изберете изпълнител, когото и двамата искате да чуете.","Pick an artist you both want to hear."),t("Прибрахте се с общ плейлист за следващия ден.","You went home with a playlist to share the next day."),11,8,{sameCity:true,cost:4800,minAge:18}),
   ],
   former:[
     interaction("check-in",t("Попитай как е","Ask how they’re doing"),t("Изпрати кратко и спокойно съобщение.","Send a brief, low-pressure message."),t("Разменихте си няколко спокойни съобщения.","You exchanged a few friendly messages."),3,2),
   ],
   child:[
-    interaction("park",t("Разходка в парка","Go for a park walk"),t("Излезте на въздух заедно.","Get outside for a little while together."),t("Направихте обиколка и се прибрахте спокойно.","You made a loop through the park and came home relaxed."),6,4,{maxAge:4}),
-    interaction("bedtime",t("Прочети приказка","Read a bedtime story"),t("Изберете книжка преди лягане.","Pick a book to read before bedtime."),t("Четохте любимата книжка и накрая измислихте свой финал.","You read a favourite book and made up your own ending."),8,5,{maxAge:7}),
-    interaction("playground",t("Отидете на площадката","Visit the playground"),t("Изберете площадка наблизо.","Pick a playground nearby."),t("Останахте да играете почти до вечеря.","You stayed out playing until nearly dinnertime."),7,5,{minAge:2,maxAge:9}),
-    interaction("board-game",t("Играйте настолна игра","Play a board game"),t("Оставете телефоните и изберете игра.","Put the phones away and pick a game."),t("До последния ход никой не знаеше кой ще спечели.","Nobody knew who would win until the last turn."),8,5,{minAge:5}),
-    interaction("skate",t("Излезте с колела","Go for a bike ride"),t("Изберете маршрут и се разходете заедно.","Pick a route and go for a ride together."),t("Спряхте за сладолед по пътя обратно.","You stopped for ice cream on the way back."),8,6,{cost:600,minAge:8}),
+    interaction("park",t("Разходка в парка","Go for a park walk"),t("Излезте на въздух заедно.","Get outside for a little while together."),t("Направихте обиколка и се прибрахте спокойно.","You made a loop through the park and came home relaxed."),6,4,{sameCity:true,maxAge:4}),
+    interaction("bedtime",t("Прочети приказка","Read a bedtime story"),t("Изберете книжка преди лягане.","Pick a book to read before bedtime."),t("Четохте любимата книжка и накрая измислихте свой финал.","You read a favourite book and made up your own ending."),8,5,{sameCity:true,maxAge:7}),
+    interaction("playground",t("Отидете на площадката","Visit the playground"),t("Изберете площадка наблизо.","Pick a playground nearby."),t("Останахте да играете почти до вечеря.","You stayed out playing until nearly dinnertime."),7,5,{sameCity:true,minAge:2,maxAge:9}),
+    interaction("board-game",t("Играйте настолна игра","Play a board game"),t("Оставете телефоните и изберете игра.","Put the phones away and pick a game."),t("До последния ход никой не знаеше кой ще спечели.","Nobody knew who would win until the last turn."),8,5,{sameCity:true,minAge:5}),
+    interaction("skate",t("Излезте с колела","Go for a bike ride"),t("Изберете маршрут и се разходете заедно.","Pick a route and go for a ride together."),t("Спряхте за сладолед по пътя обратно.","You stopped for ice cream on the way back."),8,6,{sameCity:true,cost:600,minAge:8}),
   ],
 };
 
@@ -81,9 +86,16 @@ function changeBond(s:GameState,id:ContactId,amount:number):LifeSystems {
   return {...s.lifeSystems,family:{...family,bond:Math.max(0,Math.min(100,family.bond+amount))}};
 }
 
+function contactReaction(s: GameState, contact: PeopleId, amount: number): Pick<ActivityResolution, "trust" | "lifeSystems"> {
+  if (isKin(contact)) return { lifeSystems: changeKinBond(s, contact, amount) };
+  if (isChild(contact) || s.lifeSystems.family.partner === contact) return { lifeSystems: changeBond(s, contact, amount) };
+  const person = storyPeople.find(id => id === contact);
+  return person ? { trust: { [person]: amount } } : {};
+}
+
 const contextualActivities = (contact: ContactId): LifeActivityDefinition[] =>
   (Object.entries(actions) as Array<[Context,Interaction[]]>).flatMap(([kind,options])=>options.map(row=>{
-    const knownContact: PersonId|undefined=contact==="rumi"||contact==="niki"||contact==="mentor"||contact==="friend"?contact:undefined;
+    const knownContact = storyPeople.find(id => id === contact);
     const trackBond=kind==="partner"||kind==="child";
     return {
       id:"people."+contact+"."+row.id, category:"family", contact,
@@ -92,6 +104,7 @@ const contextualActivities = (contact: ContactId): LifeActivityDefinition[] =>
         const age=personAge(s,contact);
         return context(s,contact)===kind&&age!==null&&age>=(row.minAge??0)&&age<=(row.maxAge??Infinity);
       },
+      sameCity:row.sameCity ? "new-actions" : undefined,
       person:knownContact,
       trust:knownContact&&!trackBond?{[knownContact]:row.bond}:undefined,
       update:trackBond?s=>changeBond(s,contact,row.bond):undefined,
@@ -100,9 +113,9 @@ const contextualActivities = (contact: ContactId): LifeActivityDefinition[] =>
 
 type BranchVariant = {
   id:string;label:Text;description:Text;city?:City;cost?:number;request?:number;
-  minAge?:number;maxAge?:number;impact?:number;reaction?:Text;
+  minAge?:number;maxAge?:number;impact?:number;reaction?:Text;sameCity?:true;
 };
-type BranchGroup = ActivityBranch & {variants:BranchVariant[]; minAge?:number; available?: (kind:Context)=>boolean};
+type BranchGroup = ActivityBranch & {variants:BranchVariant[]; minAge?:number; sameCity?:true; available?: (kind:Context)=>boolean};
 
 const variant=(id:string,bg:string,en:string,detailBg:string,detailEn:string,extras:Omit<BranchVariant,"id"|"label"|"description">={}):BranchVariant=>
   ({id,label:t(bg,en),description:t(detailBg,detailEn),...extras});
@@ -124,19 +137,19 @@ const groups:BranchGroup[] = [
     variant("doner","Кой е правилният сос за дюнер?","Which sauce belongs in a döner?","Задай въпроса, който дели всяка компания на лагери.","Ask the question that splits every friend group into camps.",{minAge:10,reaction:t("Уговорихте се да решите спора с дегустация.","You agreed to settle the debate with a taste test.")}),
     variant("plans","Планове за уикенда","Weekend plans","Обсъдете кой какво е намислил.","See what you both have planned.",{minAge:7}),
   ]},
-  {id:"gift",label:t("Подарък","Gift"),description:t("Избери нещо, което би зарадвало човека.","Pick something they might enjoy."),variants:[
+  {id:"gift",sameCity:true,label:t("Подарък","Gift"),description:t("Избери нещо, което би зарадвало човека.","Pick something they might enjoy."),variants:[
     variant("book","Книга от книжарницата","A book from the bookshop","Избери книга според интересите на човека.","Choose a book that suits their interests.",{minAge:5,cost:1800,impact:6}),
     variant("chocolate","Кутия бонбони","A box of chocolates","Вземи малка кутия за подарък.","Pick up a small box as a gift.",{minAge:5,cost:900,impact:4}),
     variant("lyutenitsa","Буркан домашна лютеница","A jar of homemade lyutenitsa","Подари буркан с уговорката да ти го върнат празен.","Give a jar on condition that it comes back empty.",{minAge:8,cost:600,impact:4,reaction:t("Бурканът замина. Уговорката да се върне празен беше приета.","The jar changed hands. They agreed to return it empty.")}),
     variant("toy","Плюшена играчка","A soft toy","Избери малка играчка.","Pick a small toy.",{maxAge:9,cost:1400,impact:6}),
   ]},
   {id:"give-money",label:t("Дай пари","Give money"),description:t("Избери сума, с която да помогнеш.","Choose an amount to help out."),minAge:6,variants:[moneyChoice(10),moneyChoice(30),moneyChoice(50),
-    variant("old-leva","Отърви се от старите левове","Pass on some old leva","Подари шепа монети като спомен.","Pass on a handful of coins as a keepsake.",{impact:2,reaction:t("Прие монетите за спомен и веднага започна да ги разглежда.","They kept the coins as a souvenir and started looking through them.")}),
+    variant("old-leva","Отърви се от старите левове","Pass on some old leva","Подари шепа монети като спомен.","Pass on a handful of coins as a keepsake.",{sameCity:true,impact:2,reaction:t("Прие монетите за спомен и веднага започна да ги разглежда.","They kept the coins as a souvenir and started looking through them.")}),
     variant("billa-voucher","Ваучер за BILLA","BILLA voucher","Дай ваучер за следващото пазаруване.","Give a voucher for their next shop.",{minAge:10,cost:1500,impact:5,reaction:t("Прие ваучера и вече имаше план за половината покупки.","They accepted the voucher and already had plans for half the shopping.")})]},
   {id:"ask-money",label:t("Поискай пари","Ask for money"),description:t("Избери сума и попитай дали човекът може да ти помогне.","Choose an amount and ask whether they can help."),minAge:18,
     available:kind=>kind!=="former"&&kind!=="mentor",variants:[moneyChoice(10,true),moneyChoice(30,true),moneyChoice(50,true),
     variant("doner","5 € за дюнер","€5 for a döner","Попитай дали може да те почерпи, че си огладнял.","Ask whether they can spot you something to eat.",{request:500})]},
-  {id:"walk",label:t("Разходка","Go for a walk"),description:t("Избери къде да се видите.","Choose where to meet."),variants:[
+  {id:"walk",sameCity:true,label:t("Разходка","Go for a walk"),description:t("Избери къде да се видите.","Choose where to meet."),variants:[
     ...cityIds.filter(city => city !== "sofia" && city !== "tryavna").map(city => ({
       id: "local-" + city, city, label: cityCulture[city].places[0],
       description: t("Разходете се заедно в района.", "Take a walk together nearby."),
@@ -149,7 +162,7 @@ const groups:BranchGroup[] = [
     variant("tryavna-centre","Часовниковата кула","Tryavna Clock Tower","Срещнете се на площада и минете по старите улици.","Meet at the square and explore the old streets.",{city:"tryavna"}),
     variant("tryavna-river","Мостът в Трявна","Tryavna’s old bridge","Завършете разходката край реката.","Finish your walk by the river.",{city:"tryavna"}),
   ]},
-  {id:"fitness",label:t("Фитнес","Gym"),description:t("Избери зала или тренировка навън.","Choose a gym or work out outside."),minAge:16,variants:[
+  {id:"fitness",sameCity:true,label:t("Фитнес","Gym"),description:t("Избери зала или тренировка навън.","Choose a gym or work out outside."),minAge:16,variants:[
     variant("pulse","Pulse Mall of Sofia","Pulse Mall of Sofia","Направете лека тренировка заедно.","Do a light workout together.",{city:"sofia",cost:1800}),
     variant("next-level","Next Level · The Mall","Next Level · The Mall","Уговорете си обща тренировка.","Meet for a workout together.",{city:"sofia",cost:1600}),
     variant("outdoor","Лостове в квартала","Outdoor workout bars","Тренирайте на лостовете и пребройте само истинските набирания.","Work out on the bars and count only the honest pull-ups."),
@@ -161,20 +174,20 @@ const groups:BranchGroup[] = [
     variant("drama","„Стига си правил драми.“","“Enough with the drama.”","Прекъсни разговора с остра реплика.","Interrupt with a sharp remark.",{impact:-7}),
   ]},
   {id:"argue",label:t("Спор","Argument"),description:t("Повдигни въпрос, по който не сте съгласни.","Bring up something you disagree about."),minAge:8,variants:[
-    variant("late","За закъснението","About being late","Кажи какво те е подразнило.","Say what annoyed you."),
+    variant("late","За закъснението","About being late","Кажи какво те е подразнило.","Say what annoyed you.",{sameCity:true}),
     variant("decision","За общо решение","About a shared decision","Защити гледната си точка.","Explain your point of view."),
-    variant("pizza","За последното парче пица","Over the last slice of pizza","Виж кой има по-добър аргумент за последното парче.","See who makes a better case for the last slice.",{minAge:10}),
+    variant("pizza","За последното парче пица","Over the last slice of pizza","Виж кой има по-добър аргумент за последното парче.","See who makes a better case for the last slice.",{minAge:10,sameCity:true}),
     variant("messages","За тона в чата","About the tone in chat","Обсъдете как са прозвучали съобщенията.","Talk about how the messages came across.",{minAge:12}),
   ]},
   {id:"persuade",label:t("Накарай","Persuade"),description:t("Опитай се да убедиш човека да направите нещо заедно.","Try to persuade them to do something together."),minAge:5,variants:[
-    variant("offline","Да оставите телефоните","Put the phones away","Предложи малко време без екрани.","Suggest spending a little time without screens.",{minAge:8}),
+    variant("offline","Да оставите телефоните","Put the phones away","Предложи малко време без екрани.","Suggest spending a little time without screens.",{minAge:8,sameCity:true}),
     variant("help","Да ти помогне","Help you with a task","Помоли за помощ с нещо конкретно.","Ask for help with something specific."),
     variant("voice-note","Да праща по-кратки войсове","Send shorter voice notes","Предложи едно съобщение под минута и виж дали ще се навие.","Ask if they’ll keep their next voice note under a minute.",{minAge:13,reaction:t("Отговорът дойде като 54-секундно гласово. Засега работи.","The reply was a 54-second voice note. So far, so good.")}),
-    variant("outing","Да дойде на разходка","Come for a walk","Опитай да промениш плановете му за деня.","See if they want to change their plans for the day."),
+    variant("outing","Да дойде на разходка","Come for a walk","Опитай да промениш плановете му за деня.","See if they want to change their plans for the day.",{sameCity:true}),
   ]},
 ];
 
-function reaction(s:GameState,contact:ContactId,group:BranchGroup,choice:BranchVariant) {
+function reaction(s:GameState,contact:PeopleId,group:BranchGroup,choice:BranchVariant) {
   const seed=Array.from(group.id+"."+choice.id).reduce((hash,char)=>Math.imul(hash^char.charCodeAt(0),16777619),personSeed(s.seed,contact));
   const roll=(Math.imul(seed^s.age,0x45d9f3b)>>>0)%100;
   const bond=personRelationship(s,contact)??42;
@@ -199,32 +212,110 @@ function reaction(s:GameState,contact:ContactId,group:BranchGroup,choice:BranchV
         t("Жестът беше приет спокойно.","They acknowledged it quietly."))};
 }
 
-const branchActivities = (contact: ContactId): LifeActivityDefinition[] => groups.flatMap(group=>group.variants.map(choice=>{
-  const knownContact:PersonId|undefined=contact==="rumi"||contact==="niki"||contact==="mentor"||contact==="friend"?contact:undefined;
+const branchActivities = (contact: PeopleId): LifeActivityDefinition[] => groups.flatMap(group=>group.variants.map(choice=>{
+  const knownContact = storyPeople.find(id => id === contact);
+  const kin = isKin(contact);
+  const kinMinAge = Math.max(4, group.id === "ask-money" ? 10 : group.minAge ?? 0, choice.minAge ?? 0);
   return {
     id:"people."+contact+"."+group.id+"."+choice.id, category:"family", contact, branch:{id:group.id,label:group.label,description:group.description},
     label:choice.label, description:choice.description, result:choice.description, city:choice.city, cost:choice.cost,
     walletDelta:choice.request?s=>reaction(s,contact,group,choice).amount:undefined,
     person:knownContact,
+    sameCity:group.sameCity || choice.sameCity ? kin ? "always" : "new-actions" : undefined,
     visible:s=>{
       const age=personAge(s,contact),kind=context(s,contact);
-      return age!==null&&kind!==null&&(group.available?.(kind)??true)
+      return age!==null&&kind!==null&&(!kin || s.age >= kinMinAge)&&(group.available?.(kind)??true)
         && (!choice.id.startsWith("local-") || choice.city === s.city)
         && age >= Math.max(group.minAge ?? 0, choice.minAge ?? 0) && age <= (choice.maxAge ?? Infinity);
     },
     resolve:s=>{
       const outcome=reaction(s,contact,group,choice);
-      const tracksBond=isChild(contact)||s.lifeSystems.family.partner===contact;
       return {
         result:outcome.result,
         stats:{joy:outcome.joy,...(group.id==="fitness"?{health:3}:group.id==="walk"?{health:1}:{})},
-        trust:knownContact&&!tracksBond?{[knownContact]:outcome.delta}:undefined,
-        lifeSystems:tracksBond?changeBond(s,contact,outcome.delta):undefined,
+        ...contactReaction(s,contact,outcome.delta),
       };
     },
   } satisfies LifeActivityDefinition;
 }));
 
-export function getPeopleActivityDefinitions(contact: ContactId): LifeActivityDefinition[] {
-  return [...relationshipActivities(contact), ...partnerIntimacy(contact), ...contextualActivities(contact), ...branchActivities(contact)];
+const remoteActions = [
+  interaction("remote-message", t("Прати съобщение", "Send a message"),
+    t("Пиши как вървят нещата при теб.", "Send a quick update about how things are going."),
+    t("Разменихте си няколко съобщения и се уговорихте да се чуете пак.", "You traded a few messages and made plans to catch up again."),
+    3, 2, { minAge: 7 }),
+  interaction("remote-parcel", t("Изпрати подарък по пощата", "Send a gift by post"),
+    t("Подготви малък подарък, картичка и доставка.", "Pack a small gift with a note and pay for delivery."),
+    t("Подаръкът пристигна. Получи съобщение с благодарност за картичката.", "The gift arrived, and they sent a message thanking you for the note."),
+    5, 3, { minAge: 10, cost: 1500 }),
+];
+
+function remoteActivities(contact: PeopleId): LifeActivityDefinition[] {
+  return remoteActions.map(row => ({
+    id: "people." + contact + "." + row.id, category: "family", contact,
+    label: row.title, description: row.description, result: row.result, cost: row.cost,
+    minAge: row.minAge, stats: { joy: row.joy },
+    visible: s => s.age >= (row.minAge ?? 0) && (personAge(s, contact) ?? 0) >= (row.minAge ?? 0)
+      && isKnownPerson(s, contact) && s.city !== personCity(s, contact),
+    resolve: s => ({ result: row.result, stats: { joy: row.joy }, ...contactReaction(s, contact, row.bond) }),
+  }));
+}
+
+function visitFare(from: City, to: City) {
+  return from === to ? 0 : cities[from].district === cities[to].district ? 1500 : 3500;
+}
+
+export function personVisitDefinition(contact: PeopleId, city: City): LifeActivityDefinition {
+  const name = cities[city].name;
+  const label = t("Посети " + inCityBg(city), "Visit in " + name.en);
+  const result = t("Отиде на гости " + inCityBg(city) + " и след гостуването се прибра.",
+    "You went to see them in " + name.en + " and came home afterwards.");
+  return {
+    id: "people." + contact + ".visit." + city, category: "family", contact, minAge: 16,
+    label, description: t("Отиди на гости. Цената е за път в двете посоки.", "Go for a visit. The cost covers the round trip."),
+    result, stats: { joy: 5 },
+    walletDelta: s => -visitFare(s.city, city),
+    visible: s => s.age >= 16 && s.city !== city && isKnownPerson(s, contact) && personCity(s, contact) === city,
+    resolve: s => ({ result, stats: { joy: 5 }, ...contactReaction(s, contact, 9) }),
+  };
+}
+
+const weddingBranch = {
+  id: "wedding", label: t("Покана за сватба", "Wedding invitation"),
+  description: t("Избери как да отбележиш повода.", "Decide how to mark the occasion."),
+};
+
+export function weddingActivities(contact: PeopleId): LifeActivityDefinition[] {
+  const visible = (s: GameState) => weddingInvitation(s)?.contact === contact;
+  const prefix = "people." + contact + ".wedding.";
+  const attendResult = t("Отидох на сватбата и поздравих младоженците.", "I went to the wedding and congratulated the couple.");
+  const greetResult = t("Изпратих поздравления за сватбата.", "I sent my congratulations on the wedding.");
+  return [
+    {
+      id: prefix + "attend", category: "family", contact, branch: weddingBranch, visible, beforeChoice: true,
+      label: t("Отиди на сватбата", "Attend the wedding"),
+      description: t("Виж се с младоженците и празнувайте заедно.", "See the newlyweds and celebrate with them."),
+      result: attendResult, stats: { joy: 4 },
+      walletDelta: s => -visitFare(s.city, weddingInvitation(s)?.city ?? s.city),
+      resolve: s => ({result: attendResult, stats: { joy: 4 }, ...contactReaction(s, contact, 7)}),
+    },
+    {
+      id: prefix + "greet", category: "family", contact, branch: weddingBranch, visible, beforeChoice: true,
+      label: t("Изпрати поздравления", "Send congratulations"),
+      description: t("Пожелай им хубав семеен живот.", "Wish the couple well."),
+      result: greetResult, stats: { joy: 1 },
+      resolve: s => ({result: greetResult, stats: { joy: 1 }, ...contactReaction(s, contact, 3)}),
+    },
+  ];
+}
+
+export const remoteBranchLabels: Readonly<Partial<Record<string, Text>>> = {
+  conversation: t("Обади се", "Call"),
+  "give-money": t("Преведи пари", "Send money"),
+};
+
+export function getPeopleActivityDefinitions(contact: PeopleId): LifeActivityDefinition[] {
+  const social = [...weddingActivities(contact), ...remoteActivities(contact), ...branchActivities(contact)];
+  if (isKin(contact)) return social;
+  return [...relationshipActivities(contact), ...partnerIntimacy(contact), ...contextualActivities(contact), ...social];
 }

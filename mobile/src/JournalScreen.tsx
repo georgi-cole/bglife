@@ -16,7 +16,7 @@ import {
 import { maternityPay, maternityStatus, maternityYear } from "../../src/maternity.ts";
 import { canEndPregnancy, pregnancyNoticeCopy, pregnancyTurnLabel } from "../../src/pregnancyTimeline.ts";
 import { newbornName, newbornSurname, pregnancyStatus, type BirthNaming } from "../../src/reproduction.ts";
-import { cityDecision, storyDecision } from "../../src/journalDecisions.ts";
+import { cityDecision, storyDecision, weddingDecision } from "../../src/journalDecisions.ts";
 import { familyActivityLine, journalLine } from "../../src/journalCopy.ts";
 import type { Language } from "../../src/sessionCodec.ts";
 import { getWorkDecision } from "../../src/workplace.ts";
@@ -42,13 +42,15 @@ function journalYears(life: GameState): Year[] {
   }).reverse();
 }
 
-function YearCard({ life, year, language, current, opportunityId, onCityDecision }: {
+function YearCard({ life, year, language, current, opportunityId, onCityDecision, weddingId, onWeddingDecision }: {
   life: GameState;
   year: Year;
   language: Language;
   current: boolean;
   opportunityId?: string;
   onCityDecision: () => void;
+  weddingId?: string;
+  onWeddingDecision: () => void;
 }) {
   const events = year.entries.filter(entry => entry.kind !== "year");
   const budget = year.entries.find(entry => entry.kind === "year");
@@ -70,6 +72,8 @@ function YearCard({ life, year, language, current, opportunityId, onCityDecision
             ?? (result ? journalLine(entry, language, life.birthFamily) : entry.text[language])}</Text>
           {current && opportunityId === entry.id && <Button label={translation(language, "Виж вариантите", "See options")}
             secondary testID="city-opportunity" onPress={onCityDecision}/>}
+          {current && weddingId === entry.id && <Button label={translation(language, "Покана за сватба", "Wedding invitation")}
+            secondary testID="wedding-invitation" onPress={onWeddingDecision}/>}
           {entry.cashDelta !== 0 && (
             <Text style={[styles.delta, entry.cashDelta < 0 && styles.negative]}>
               {entry.cashDelta > 0 ? "+" : ""}{money(entry.cashDelta, language)}
@@ -209,8 +213,11 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
   const story = showDecision && !turn ? storyDecision(life) : null;
   const opportunity = archived ? null : getCityOpportunity(life);
   const workDecision = showDecision && !story ? getWorkDecision(life) : null;
-  const local = showDecision && !story && !workDecision && cityPrompt !== null ? cityDecision(life) : null;
-  const decision = story ?? (local?.key === cityPrompt ? local : null);
+  const wedding = archived ? null : weddingDecision(life);
+  const optional = showDecision && !story && !workDecision && cityPrompt !== null
+    ? [cityDecision(life), wedding].find(item => item?.key === cityPrompt)
+    : null;
+  const decision = story ?? optional;
   const blocked = Boolean(birth || notice || (!turn && hasPendingStoryDecision(life)));
 
   function changeLife(change: (state: GameState) => GameState) {
@@ -246,7 +253,8 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
       <FlatList ref={list} data={years} keyExtractor={year => String(year.age)} contentContainerStyle={base.scroll}
         keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets
         renderItem={({ item }) => <YearCard life={life} year={item} language={language} current={item.age === age && !life.finished && !archived}
-          opportunityId={opportunity?.id} onCityDecision={() => setCityPrompt(cityDecision(life)?.key ?? null)} />}
+          opportunityId={opportunity?.id} onCityDecision={() => setCityPrompt(cityDecision(life)?.key ?? null)}
+          weddingId={wedding?.id} onWeddingDecision={() => setCityPrompt(wedding?.key ?? null)} />}
         ListHeaderComponent={(
           <View style={styles.journalHeader}>
             <View style={styles.profile}>

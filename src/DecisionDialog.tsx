@@ -34,7 +34,7 @@ export function DecisionDialog({ decision, age, l, onClose, onChoose }: {
     <p id="decision-situation">{decision.body[l]}</p>
     <div className="decision-options">
       {decision.options.map(({option, blocked}) => {
-        const cash = local ? option.effect?.cash ?? 0 : 0;
+        const cash = decision.kind !== "story" ? option.effect?.cash ?? 0 : 0;
         return <button type="button" className="decision-option" data-choice={option.id} key={option.id}
           disabled={blocked} onClick={() => onChoose(option.id)}>
           <strong>{option.label[l]}</strong>

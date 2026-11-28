@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { getAvatarLook } from "./avatar.ts";
 import { AvatarPortrait, LifePortrait } from "./AvatarPortrait.tsx";
-import { relativeLabel, type Relative } from "./birthFamily.ts";
+import { isKin, relativeLabel, relativesOf, type Relative } from "./birthFamily.ts";
+import { familyConnection } from "./contactLives.ts";
 import { cities, type City } from "./cities.ts";
 import type { GameState, Text } from "./engine.ts";
-import { isKnownPerson, personAge, personAvatarTraits, personGender, personName, type PeopleId } from "./peopleIdentity.ts";
+import { isChild, isKnownPerson, personAge, personAvatarTraits, personGender, personName, type PeopleId } from "./peopleIdentity.ts";
 import { maritalStatus, playerBirthday, playerEducation, playerJob, playerStatus, zodiacFor } from "./playerProfile.ts";
 import type { Language } from "./session.ts";
 import { ageLabel, copy, Icon, lifeName, money, town } from "./ui.tsx";
@@ -56,12 +57,12 @@ export function CharacterHeader({ life, l, onProfile, onWallet }: {
   </div>;
 }
 
-type FamilyMember = { id: PeopleId; label: Text; adopted?: boolean };
+type FamilyMember = { id: PeopleId; label: Text; adopted?: boolean; connection?: Text };
 
 function memberDetails(life: GameState, member: FamilyMember, l: Language) {
   const age = personAge(life, member.id);
   const death = life.deceased[member.id];
-  return [member.label[l], member.adopted && copy(l, "Осиновяване", "Adopted"),
+  return [member.label[l], member.connection?.[l], member.adopted && copy(l, "Осиновяване", "Adopted"),
     death && copy(l, personGender(life, member.id) === "male" ? "Починал" : "Починала", "Deceased"),
     age !== null && ageLabel(age, l)].filter(Boolean).join(" · ");
 }
@@ -76,17 +77,23 @@ function MemberCard({ life, member, l }: { life: GameState; member: FamilyMember
 }
 
 function FamilyTree({ life, l, children, partner }: { life: GameState; l: Language; children: FamilyMember[]; partner: FamilyMember | null }) {
-  const relatives = life.birthFamily?.relatives ?? [];
-  const card = (relative: Relative) => <MemberCard key={relative.id} life={life} l={l} member={{ id: relative.id, label: relativeLabel(relative) }}/>;
+  const relatives = relativesOf(life);
+  const member = (relative: Relative): FamilyMember => ({
+    id: relative.id, label: relativeLabel(relative), connection: familyConnection(life, relative),
+  });
+  const card = (relative: Relative) => <MemberCard key={relative.id} life={life} l={l} member={member(relative)}/>;
+  const grandchildren = relatives.filter(relative => relative.role === "grandchild");
   const branches = (["maternal", "paternal"] as const).map(side => ({
     side,
     parent: relatives.find(relative => relative.role === (side === "maternal" ? "mother" : "father")),
     elders: relatives.filter(relative => relative.id.startsWith("kin-" + side + "-grand")),
   })).filter(branch => branch.parent || branch.elders.length);
-  const extended: FamilyMember[] = relatives.filter(relative =>
-    ["aunt", "uncle", "maternal-uncle", "sibling"].includes(relative.role)).map(relative => ({
-      id: relative.id, label: relativeLabel(relative),
-    }));
+  const extended: FamilyMember[] = relatives.filter(relative => {
+    if (["aunt", "uncle", "maternal-uncle", "sibling", "cousin", "niece-nephew"].includes(relative.role)) return true;
+    const owner = relative.homeWith;
+    return relative.role === "contact-partner" && owner !== undefined
+      && (isKin(owner) || isChild(owner) || owner === "rumi" || owner === "niki");
+  }).map(member);
   if (!life.birthFamily) {
     const storyKin: FamilyMember[] = [
       { id: "rumi", label: { bg: "Леля", en: "Aunt" } },
@@ -114,6 +121,10 @@ function FamilyTree({ life, l, children, partner }: { life: GameState; l: Langua
       {children.length > 0 && <section className="tree-descendants" aria-labelledby="tree-children-heading">
         <h3 id="tree-children-heading">{copy(l, "Деца", "Children")}</h3>
         <div className="tree-children">{children.map(member => <MemberCard key={member.id} life={life} l={l} member={member}/>)}</div>
+      </section>}
+      {grandchildren.length > 0 && <section className="tree-descendants" aria-labelledby="tree-grandchildren-heading">
+        <h3 id="tree-grandchildren-heading">{copy(l, "Внуци", "Grandchildren")}</h3>
+        <div className="tree-children">{grandchildren.map(card)}</div>
       </section>}
     </div>
     {extended.length > 0 && <details className="tree-extended">
