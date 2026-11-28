@@ -29,6 +29,7 @@ import { settleAssets } from "./lifeAssets.ts";
 import { settleWellbeing, storyStats } from "./lifeWellbeing.ts";
 import { closePathYear, pathBudget, relocatePath, resolvePathAction, startPath, type LifePath } from "./lifePath.ts";
 import { pathText } from "./pathCatalog.ts";
+import { openSpecialYear } from "./specialCareers.ts";
 import { serviceMonths } from "./employment.ts";
 import { drawWorkEvent, queueWorkEvent, type WorkImpact } from "./workplace.ts";
 
@@ -682,6 +683,12 @@ function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRol
     "Tuition " + currency(pathFinances.tuition, "en-IE") + "."));
   if (pathFinances?.health) notes.push(pathText("Лични здравни вноски " + currency(pathFinances.health, "bg-BG") + ".",
     "Personal health contributions " + currency(pathFinances.health, "en-IE") + "."));
+  const independent = pathFinances?.special?.independent.net;
+  if (independent) notes.push(pathText("Хонорари и отчисления " + currency(independent, "bg-BG") + ".",
+    "Independent fees and royalties " + currency(independent, "en-IE") + "."));
+  const prize = pathFinances?.special?.prize;
+  if (prize) notes.push(pathText("Спортна премия " + currency(prize, "bg-BG") + ".",
+    "Sports prize " + currency(prize, "en-IE") + "."));
   const pathMemories: Memory[] = (pathYear?.events ?? []).map(event => ({
     age: s.age, city: s.city, kind: "path", id: event.id, title: event.title, text: event.note, witnesses: [], cashDelta: 0,
   }));
@@ -750,8 +757,9 @@ function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRol
   const yearWithMemories = everyday.length ? { ...withFamily, history: [...withFamily.history.slice(0, openingStart), ...everyday, ...opening] } : withFamily;
   const year = familyPlayEnabled(s) ? backgroundPregnancy(markAnniversaries(markMaternityYear(yearWithMemories, true))) : yearWithMemories;
   const workId = workResult === "draw" ? drawWorkEvent(year) : workResult;
-  if (!workId) return year;
+  if (!workId && !year.path?.special) return year;
   const otherDecision = year.sceneId || year.lifeSystems.reproduction.naming || year.lifeSystems.reproduction.notice || getCityOpportunity(year);
+  if (!workId) return otherDecision ? year : openSpecialYear(year);
   if (otherDecision) return workResult === "draw" ? year : s;
   const queued = queueWorkEvent(year, workId);
   if (queued === year) return s;

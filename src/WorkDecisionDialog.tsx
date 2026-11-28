@@ -2,11 +2,11 @@
 import { useLayoutEffect, useRef } from "react";
 import type { Language } from "./session.ts";
 import { Icon, copy } from "./ui.tsx";
-import type { getWorkDecision } from "./workplace.ts";
+import type { CareerDecision } from "./specialCareers.ts";
 import "./workplace.css";
 
 export function WorkDecisionDialog({ decision, l, onChoose }: {
-  decision: NonNullable<ReturnType<typeof getWorkDecision>>;
+  decision: CareerDecision;
   l: Language;
   onChoose: (id: string) => void;
 }) {

@@ -7,6 +7,8 @@ import { netMonthly } from "./pathPolicy.ts";
 import type { Language } from "./session.ts";
 import { Icon, MenuTitle, copy, money } from "./ui.tsx";
 import { workplaceView } from "./workplace.ts";
+import { SpecialCards } from "./SpecialCareer.tsx";
+import { specialCareerView } from "./specialCareers.ts";
 import "./workplace.css";
 
 export function Workplace({ s, l, onAction, onClose, onCareer }: {
@@ -19,9 +21,10 @@ export function Workplace({ s, l, onAction, onClose, onCareer }: {
   const t = (bg: string, en: string) => copy(l, bg, en);
   const work = s.finished ? null : workplaceView(s);
   const leave = maternityStatus(s);
+  const special = !s.finished && !leave ? s.path?.work.job?.special : null;
   const [openPerson, setOpenPerson] = useState<string | null>(null);
   const last = s.history.at(-1);
-  const feedback = last?.age === s.age && !last.decision && (last.id.startsWith("workplace.") || ["work.raise", "work.leave"].includes(last.id)) ? last : null;
+  const feedback = last?.age === s.age && !last.decision && (last.id.startsWith("workplace.") || /^special\.[^.]+\.work\./.test(last.id) || ["work.raise", "work.leave"].includes(last.id)) ? last : null;
   const track = { s, l, onAction };
   return <section className="career-view workplace-view" data-panel="work" data-testid="workplace" aria-labelledby="workplace-title">
     <header className="career-heading">
@@ -35,7 +38,7 @@ export function Workplace({ s, l, onAction, onClose, onCareer }: {
     {feedback && <div className="career-feedback" role="status">
       <Icon name="check" size={17}/><p>{feedback.text[l]}</p>
     </div>}
-    {work ? <>
+    {special ? <SpecialCards cards={specialCareerView(s, special.kind).work} l={l} renderActions={items => <Actions {...track} items={items}/>}/> : work ? <>
       <section className="career-card workplace-contract">
         <div className="workplace-role">
           <span className="workplace-emblem"><Icon name="bag" size={23}/></span>

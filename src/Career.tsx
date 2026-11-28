@@ -11,6 +11,7 @@ import { gradeName, SCHOOL_EFFORT, schoolView } from "./school.ts";
 import type { Language } from "./session.ts";
 import { Icon, MenuTitle, copy, money, type IconName } from "./ui.tsx";
 import { allPrograms, findProgram, fundingName, scholarshipAmount, universityCosts, universityCoursework, universityView } from "./university.ts";
+import { SpecialCareerPanel } from "./SpecialCareer.tsx";
 import "./career.css";
 
 type Props = {
@@ -316,7 +317,8 @@ function University({ s, l, onAction }: TrackProps) {
             {outcome.outcome === "refused" ? t("Извън класирането", "No place offered") : fundingName[outcome.outcome][l]} · {mark(outcome.score, l)}
           </span>,
           details: <>
-            <p>{program.admission.exam ? t("Приемен изпит", "Entrance exam") + " · " + program.admission.exam.map(subject => subjects[subject][l]).join(", ")
+            <p>{program.admission.practical ? t("Практически изпит · 3 кръга", "Practical entrance exam · 3 rounds")
+              : program.admission.exam ? t("Приемен изпит", "Entrance exam") + " · " + program.admission.exam.map(subject => subjects[subject][l]).join(", ")
               : t("Бал от диплома и матури", "Diploma and matriculation grades") + " · " + subjects[program.admission.subject][l]}</p>
             {exams && <Row label={t("Оценки от приемния изпит", "Entrance exam results")}>{exams.map(score => mark(score, l)).join(" · ")}</Row>}
             {Object.entries(program.fee).map(([funding, fee]) => <Row key={funding} label={fundingName[funding as keyof typeof fundingName][l]}>{money(pathMoney(fee), l)} {t("/ год.", "/ year")}</Row>)}
@@ -446,7 +448,7 @@ function Insurance({ s, l, onAction }: TrackProps) {
   </>;
 }
 
-type Panel = "education" | "vacancies" | "insurance";
+type Panel = "education" | "vacancies" | "insurance" | "special";
 
 export function Career({ s, l, onAction, onClose, onWorkplace, onMaternityReturn }: Props) {
   const t = (bg: string, en: string) => copy(l, bg, en);
@@ -455,6 +457,7 @@ export function Career({ s, l, onAction, onClose, onWorkplace, onMaternityReturn
   const [selected, setSelected] = useState<Panel>(!onMaternityLeave(s) && (child || (path?.school.grade != null && !path.school.left) || path?.university.student) ? "education" : "vacancies");
   const panels: { id: Panel; label: string }[] = [{ id: "education", label: child ? t("Училище", "School") : t("Образование", "Education") }];
   if (s.age >= 16) panels.push({ id: "vacancies", label: child ? t("Летни обяви", "Summer jobs") : t("Обяви", "Vacancies") });
+  if (s.age >= 7) panels.push({ id: "special", label: t("Специални", "Special") });
   if (!child) panels.push({ id: "insurance", label: t("Осигуряване", "Social insurance") });
   const panel = panels.some(item => item.id === selected) ? selected : panels[0].id;
   const [requestedSubject, setSubject] = useState<{ id: Subject; age: number; city: GameState["city"] } | null>(null);
@@ -476,7 +479,7 @@ export function Career({ s, l, onAction, onClose, onWorkplace, onMaternityReturn
   }, [subject]);
   const track = { s, l, onAction };
   const last = s.history.at(-1);
-  const feedback = last?.age === s.age && last.kind === "path" && !last.id.startsWith("workplace.") && last.id !== "work.raise" ? last : null;
+  const feedback = last?.age === s.age && last.kind === "path" && !last.decision && !last.id.startsWith("workplace.") && !/^special\.[^.]+\.work\./.test(last.id) && last.id !== "work.raise" ? last : null;
   return <section className="career-view" data-panel={panel} aria-labelledby="career-title">
     <header className="career-heading">
       <MenuTitle onClose={subject ? () => setSubject(null) : onClose}
@@ -499,7 +502,8 @@ export function Career({ s, l, onAction, onClose, onWorkplace, onMaternityReturn
         {!child && <University {...track}/>}
       </> : panel === "vacancies" ? (
         onMaternityLeave(s) ? <MaternityCard s={s} l={l} onMaternityReturn={onMaternityReturn}/> : <Vacancies {...track}/>
-      ) : <Insurance {...track}/>}
+      ) : panel === "special" ? <SpecialCareerPanel s={s} l={l} renderActions={items => <Actions {...track} items={items}/>}/>
+        : <Insurance {...track}/>}
     </> : <section className="career-card"><p>{t("Тази история е приключила. Можеш да разгледаш дневника ѝ.", "This life has ended. You can still read its journal.")}</p></section>}
   </section>;
 }

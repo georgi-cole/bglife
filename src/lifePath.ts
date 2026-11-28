@@ -6,12 +6,15 @@ import { pathCities, pathMoney, pathText as t } from "./pathCatalog.ts";
 import { closeSchoolYear, moveSchool, schoolView, startSchool, type SchoolState } from "./school.ts";
 import { closeUniversityYear, startUniversity, universityCosts, universityView, type UniversityState } from "./university.ts";
 import { resolveWorkplaceAction } from "./workplace.ts";
+import { resolveSpecialAction, settleSpecialYear, specialOccupation } from "./specialCareers.ts";
+import type { SpecialProgress } from "./specialCareerTypes.ts";
 
 export type LifePath = {
   school: SchoolState;
   university: UniversityState;
   work: EmploymentState;
   used: string[];
+  special?: SpecialProgress;
 };
 export const isSchoolAge = (age: number) => age < 18;
 
@@ -36,10 +39,13 @@ export function pathOccupation(s: GameState): Text | null {
   const path = s.path;
   if (!path || s.age < 7) return null;
   const masculine = s.avatar?.presentation === "male";
-  if (path.work.job) return findJob(path.work.job.city, path.work.job.job)?.title ?? t("На работа", "Employed");
+  if (path.work.job) return specialOccupation(s, path.work.job) ?? findJob(path.work.job.city, path.work.job.job)?.title ?? t("На работа", "Employed");
   if (path.work.pension) return t(masculine ? "Пенсионер" : "Пенсионерка", "Pensioner");
   if (path.university.student && !path.university.student.paused) return t(masculine ? "Студент" : "Студентка", "University student");
   if (path.school.grade !== null && !path.school.left) return t(masculine ? "Ученик" : "Ученичка", "School student");
+  const channel = path.special?.channel;
+  if (s.age >= 18 && channel && (channel.monetized || channel.followers >= 1500))
+    return t("Създател на съдържание", "Content creator");
   return s.age < 18 ? t("Извън училище", "Out of school") : t("Без работа", "Between jobs");
 }
 
@@ -47,6 +53,8 @@ export function pathActionBlock(s: GameState, action: Pick<PathAction<unknown>, 
   if (s.finished) return t("Историята е приключила.", "This life has ended.");
   if (s.lifeSystems.reproduction.naming) return t("Първо запиши името на бебето.", "Name the new baby first.");
   if (s.path?.used.includes(action.id)) return t("Вече е направено тази година.", "Already done this year.");
+  if (action.id.startsWith("special.") && onMaternityLeave(s))
+    return t("Тази дейност е паузирана по време на майчинство.", "This activity is paused during maternity leave.");
   return action.blocked;
 }
 
@@ -58,6 +66,10 @@ export function resolvePathAction(s: GameState, id: string) {
     if (!action || pathActionBlock(s, action)) return;
     const { state, ...result } = action.run();
     return { ...result, state: { ...path!, [key]: state }, label: action.label };
+  }
+  if (id.startsWith("special.")) {
+    const action = resolveSpecialAction(s, id);
+    return action && !pathActionBlock(s, action) ? { ...action.run(), label: action.label } : undefined;
   }
   if (id.startsWith("school.")) return resolve("school", schoolView(s, path.school).actions);
   if (id.startsWith("university.")) return resolve("university", universityView(s, path.university, path.school.diploma).actions);
@@ -74,7 +86,9 @@ export function pathBudget(s: GameState, path: LifePath) {
   const employment = employmentIncome(s, path.work);
   const study = universityCosts(path.university);
   const pocket = pocketMoney(s);
-  const pay = pocket + employment.wage + employment.maternity + employment.benefit + employment.pension + study.scholarship;
+  const special = settleSpecialYear(s, path);
+  const specialPay = special ? special.independent.net + special.prize : 0;
+  const pay = pocket + employment.wage + employment.maternity + employment.benefit + employment.pension + study.scholarship + specialPay;
   const dependent = s.age < 18 || (s.age < 20 && path.school.grade !== null && !path.school.left && s.housing === "home");
   const student = path.university.student && !path.university.student.paused;
   const retired = path.work.pension !== null && !path.work.job;
@@ -91,7 +105,7 @@ export function pathBudget(s: GameState, path: LifePath) {
   const essentials = Math.min(essentialsDue, available - tuition - health - housing);
   const net = pay - essentials - housing - tuition - health;
   return {
-    ...employment, health, healthDue,
+    ...employment, health, healthDue, special,
     pocket, scholarship: study.scholarship, pay, tuition, tuitionPaid, housing, essentials, net,
     shortfall: limit(essentialsDue + housingDue - essentials - housing, 0, essentialsDue + housingDue),
   };
@@ -101,7 +115,8 @@ export function closePathYear(s: GameState, path: LifePath, budget: ReturnType<t
   const school = s.age === 6 && !finished ? { school: startSchool({ ...s, age: 7 }), events: [] } : closeSchoolYear(s, path.school);
   const university = closeUniversityYear(s, path.university, path.school.diploma, budget.tuitionPaid);
   const employment = closeEmploymentYear(s, path.work);
-  const events: PathEvent[] = [...school.events, ...university.events, ...employment.events];
+  const special = budget.special;
+  const events: PathEvent[] = [...school.events, ...university.events, ...employment.events, ...(special?.events ?? [])];
   if (budget.shortfall) events.push({
     id: "living-costs-" + s.age, title: t("Тесен бюджет", "A tight budget"),
     note: t("Намали разходите, за да се вместиш в бюджета.", "You cut back to stay within your budget."),
@@ -110,7 +125,12 @@ export function closePathYear(s: GameState, path: LifePath, budget: ReturnType<t
     id: "health-contributions-" + s.age, title: t("Здравни вноски", "Health contributions"),
     note: t("Бюджетът не стигна за всички лични здравни вноски.", "You could not cover all personal health contributions."),
   });
-  return { path: { school: school.school, university: university.university, work: { ...employment.work, healthDebt: budget.healthDue - budget.health }, used: [] }, events };
+  return {
+    path: { ...path, school: school.school, university: university.university,
+      work: { ...employment.work, healthDebt: budget.healthDue - budget.health }, used: [],
+      ...(special && { special: special.progress }) },
+    events,
+  };
 }
 
 export function relocatePath(path: LifePath, city: City): LifePath {

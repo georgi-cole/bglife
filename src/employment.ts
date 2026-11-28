@@ -5,9 +5,10 @@ import { maternityPay, onMaternityLeave } from "./maternity.ts";
 import { average, limit, pathRoll, type PathAction, type PathEvent } from "./pathActions.ts";
 import { fields, legacyGenericJob, legacyLocalJobId, pathCities, pathMoney, pathText as t, type Field, type Job } from "./pathCatalog.ts";
 import { netMonthly, policy } from "./pathPolicy.ts";
+import type { SpecialJob } from "./specialCareerTypes.ts";
 import type { WorkplaceProgress } from "./workplace.ts";
 
-type Contract = {
+export type Contract = {
   job: string;
   city: City;
   gross: number;
@@ -17,6 +18,7 @@ type Contract = {
   performance: number;
   startedAt: number;
   workplace?: WorkplaceProgress;
+  special?: SpecialJob;
 };
 type Application = "interview" | "offer" | "no-callback" | "interview-failed" | "declined" | "accepted";
 type Separation = { age: number; reason: "leave" | "expiry" | "dismissal" };
@@ -373,14 +375,14 @@ export function closeEmploymentYear(s: GameState, work: EmploymentState) {
     const performance = onLeave ? current.performance : limit(current.performance + (work.worked ? 1 : s.stats.health < 50 ? -5 : -2), 0, 100);
     const remaining = current.monthsLeft === null ? null : current.monthsLeft - months;
     const expired = remaining !== null && remaining === 0;
-    const dismissed = !onLeave && !expired && performance < 35 && pathRoll(s, "dismissal." + current.job) < .48;
+    const dismissed = !current.special && !onLeave && !expired && performance < 35 && pathRoll(s, "dismissal." + current.job) < .48;
     next.job = expired || dismissed ? null : { ...current, monthsLeft: remaining, tenure: current.tenure + months, performance };
     const title = findJob(current.city, current.job)?.title ?? t("Трудов договор", "Employment contract");
-    if (!onLeave) events.push({ id: "work-year-" + s.age, title,
+    if (!onLeave && !current.special) events.push({ id: "work-year-" + s.age, title,
       note: t(months + " месеца с трудов договор. Отчетени са заплатата и осигуровките.", months + " months on contract. Pay and contributions have been recorded.") });
     if (expired || dismissed) {
       next.separation = { age: s.age + 1, reason: expired ? "expiry" : "dismissal" };
-      events.push({ id: "work-end-" + s.age, title: expired ? t("Срокът на договора изтече", "Your contract expired") : t("Договорът беше прекратен", "Your contract was terminated"),
+      if (!current.special) events.push({ id: "work-end-" + s.age, title: expired ? t("Срокът на договора изтече", "Your contract expired") : t("Договорът беше прекратен", "Your contract was terminated"),
         note: t("Виж „Осигуряване“, за да провериш дали имаш право на обезщетение.", "Check Social insurance to see if you qualify for benefits.") });
     }
   }

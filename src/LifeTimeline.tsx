@@ -44,7 +44,7 @@ function LifeEvent({ event, l, life, latestWithId, children }: {
   const showOriginal = !detail && original !== line;
   const impact = event.workImpact;
   const hasChanges = event.movedTo || event.startedCareer || event.cashDelta !== 0
-    || hasStatChanges(event.statsDelta) || impact?.performance || impact?.relationship;
+    || hasStatChanges(event.statsDelta) || impact?.performance || impact?.relationship || impact?.career?.length;
   const content = isJournalMilestone(event) ? <strong>{line}</strong> : <span>{line}</span>;
 
   return <li className="life-event" data-decision-result={decisionResult || undefined}
@@ -74,6 +74,9 @@ function LifeEvent({ event, l, life, latestWithId, children }: {
           {impact?.relationship && <span className={impact.relationship.delta > 0 ? "life-stat-up" : "life-stat-down"}>
             {impact.relationship.name[l]} {impact.relationship.delta > 0 ? "+" : ""}{impact.relationship.delta}
           </span>}
+          {impact?.career?.map(effect => <span className="career-effect" key={effect.label.en}>
+            {effect.label[l]} {effect.delta > 0 ? "+" : ""}{effect.delta}
+          </span>)}
           <StatChanges delta={event.statsDelta} l={l}/>
         </div>}
       </div>

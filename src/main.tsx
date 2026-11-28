@@ -7,6 +7,7 @@ import {Career} from "./Career.tsx";
 import {Workplace} from "./Workplace.tsx";
 import {WorkDecisionDialog} from "./WorkDecisionDialog.tsx";
 import {getWorkDecision} from "./workplace.ts";
+import {getSpecialDecision} from "./specialCareers.ts";
 import {isSchoolAge} from "./lifePath.ts";
 import {BirthNamingDialog} from "./BirthNamingDialog.tsx";
 import {PregnancyDialog} from "./PregnancyDialog.tsx";
@@ -73,7 +74,7 @@ function App(){
   const showNav=screen==="game"&&(tab==="journal"||tab==="career"||tab==="workplace");
   const showDecision=showJournal&&!dialog&&!personAction&&!pregnancyNotice&&!s.lifeSystems.reproduction.naming;
   const story=showDecision&&!pregnancyTurn?storyDecision(s):null;
-  const workDecision=showDecision&&!story?getWorkDecision(s):null;
+  const workDecision=showDecision&&!story?(getWorkDecision(s)??getSpecialDecision(s)):null;
   const local=showDecision&&!story&&!workDecision&&cityPrompt!==null?cityDecision(s):null;
   const pendingDecision=story??(local?.key===cityPrompt?local:null);
   const dialogTitle=dialog==="profile"?t("Профил","Profile"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):dialog==="give-up"?t("Приключване на живота","End this life"):dialog==="pregnancy-end"?t("Прекъсване на бременността","End the pregnancy"):t("Нов живот","New life");
