@@ -34,7 +34,7 @@ function getPeople(s: GameState, l: Language): Group[] {
     const profile = personProfiles[id];
     const trust = s.trust[id];
     return {
-      id, name:personName(s,id)[l], status:profile.role[l]+" · "+town(personCity(s,id),l),
+      id, name:personName(s,id)[l], status:profile.role[l],
       score:{label:t("Доверие","Trust"),value:trust}, portraitAge:personAge(s,id)??0,
     };
   }
@@ -101,7 +101,8 @@ const actionIcons: Record<string,IconName> = {
   park:"leaf", bedtime:"journal", playground:"sun", "board-game":"sparkle", skate:"shoes",
   compliment:"sparkle", conversation:"people", gift:"bag", "give-money":"wallet", "ask-money":"wallet",
   walk:"places", fitness:"bolt", insult:"bolt", argue:"live", persuade:"heart", intimacy:"heart",
-  "family-time":"heart", "family-story":"journal", "hold-hands":"heart", "first-kiss":"heart", kiss:"heart",
+  "family-time":"heart", "family-story":"journal", "family-advice":"people", "family-help":"heart",
+  "family-recipe":"food", "family-album":"photo", "remote-message":"phone", "remote-parcel":"bag", visit:"places", "hold-hands":"heart", "first-kiss":"heart", kiss:"heart",
   "inside-joke":"sparkle", "sunday-ritual":"clock", "future-together":"people",
 };
 
@@ -110,11 +111,12 @@ function ActionRow({options,l,onClick}: {options:LifeActivityOption[];l:Language
   const symbol=actionIcons[branch?.id??action.id.split(".")[2]]??"people";
   const single=options.length===1;
   const blocked=single&&action.blocked;
+  const label = !single && branch ? branch.label : action.label;
   return <button type="button" className="people-action" data-action-group={branch?.id} aria-disabled={!!blocked}
     onClick={()=>{if(!blocked)onClick()}}>
     <span className="people-action-icon"><Icon name={symbol} size={20}/></span>
     <span className="people-action-copy">
-      <strong>{(single?action.label:branch?.label??action.label)[l]}</strong>
+      <strong>{label[l]}</strong>
       {single&&action.cashDelta<0&&<span className="people-action-cost">
         <span><Icon name="wallet" size={13}/>{money(-action.cashDelta,l)}</span>
       </span>}
@@ -170,7 +172,7 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
         <Portrait person={person} life={s}/>
         <div className="people-profile-copy">
           <h2>{person.name}</h2>
-          <small>{person.death ? person.status : ageLabel(person.portraitAge,l) + " · " + person.status}</small>
+          <small>{person.death ? person.status : ageLabel(person.portraitAge,l) + " · " + person.status + " · " + town(personCity(s,person.id),l)}</small>
           {person.death && <small>{deathCauses[person.death.cause][l]}</small>}
           {person.score&&<RelationshipMeter score={person.score}/>}
         </div>
@@ -201,7 +203,7 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
           {group.people.map(row=><button type="button" className="people-row" key={row.id} data-person={row.id} onClick={()=>openPerson(row.id)}>
             <Portrait person={row} life={s}/>
             <span className="people-row-copy">
-              <strong>{row.name}</strong><small>{row.status}</small>
+              <strong>{row.name}</strong><small>{row.status}{!row.death && " · " + town(personCity(s,row.id),l)}</small>
               {row.score&&<RelationshipMeter score={row.score}/>}
             </span>
             <Icon name="next" size={16}/>

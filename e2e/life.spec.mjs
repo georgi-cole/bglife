@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import { defaultAvatar } from "../src/avatar.ts";
 import { builtGameServer, sitePath } from "./serve-built-game.mjs";
-import { choose, doLifeActivity, doPathAction, getChoices, newChapterLife, newLife, newProfileLife, playYear, startCareerLife } from "../src/engine.ts";
+import { choose, doAction, doLifeActivity, doPathAction, getChoices, newChapterLife, newLife, newProfileLife, playYear, startCareerLife } from "../src/engine.ts";
 import { familyRoll } from "../src/fertilityModel.ts";
 import { startPregnancyPlay } from "../src/pregnancyTimeline.ts";
 import { getWorkDecision } from "../src/workplace.ts";
@@ -469,4 +469,42 @@ test("a brother's family activities take one tap and use first names and kinship
   await page.getByRole("button", { name: "Към дневника", exact: true }).tap();
   await expect(page.locator('[data-event-id="' + storyId + '"]')).toContainText(text);
   await expect(page.locator('[data-event-id="' + timeId + '"]')).toHaveCount(1);
+});
+
+test("an out-of-town family profile offers contact by phone and a visit in the right city", async ({ page }) => {
+  let life = startCareerLife(newProfileLife({
+    seed: 108, city: "tryavna", presentation: "female", avatar: defaultAvatar,
+    profile: { name: "Яна Костова", talent: "none", vip: true, wealthy: true, disposition: null },
+  }));
+  while (life.age < 18) {
+    const next = playYear(life);
+    expect(next.age).toBe(life.age + 1);
+    life = next;
+  }
+  life = doAction(life, "move.sofia");
+  expect(life.city).toBe("sofia");
+  await resumeFixture(page, life);
+  await page.locator('[data-tab="people"]').tap();
+  await page.locator('[data-person="kin-mother"]').tap();
+
+  await expect(page.locator(".people-profile")).toContainText("Трявна");
+  await expect(page.getByRole("button", { name: "Прати съобщение", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Поискай семеен съвет", exact: true })).toBeVisible();
+  await expect(page.locator('[data-action-group="walk"]')).toHaveCount(0);
+  await page.getByRole("button", { name: "Обади се", exact: true }).tap();
+  const call = page.getByRole("dialog", { name: "Обади се" });
+  await expect(call.getByRole("button", { name: /Как мина денят/ })).toBeVisible();
+  await call.getByRole("button", { name: "Затвори" }).tap();
+
+  const visit = page.getByRole("button", { name: /^Посети в Трявна/ });
+  await expect(visit).toContainText("35");
+  await visit.tap();
+  const result = page.getByRole("dialog", { name: "Посети в Трявна" });
+  await expect(result).toHaveAttribute("data-action-phase", "outcome");
+  await expect(result.locator(".person-dialog-result")).toContainText("майка ми Рая в Трявна");
+  await result.getByRole("button", { name: "Продължи", exact: true }).tap();
+  await expect(page.locator(".people-profile")).toContainText("Трявна");
+  await page.getByRole("button", { name: "Назад към Хора" }).tap();
+  await page.getByRole("button", { name: "Към дневника", exact: true }).tap();
+  await expect(page.locator('[data-event-id="people.kin-mother.visit.tryavna"]')).toContainText("майка ми Рая в Трявна");
 });

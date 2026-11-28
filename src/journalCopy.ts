@@ -1,6 +1,6 @@
 import { activityMoment } from "./activityMoments.ts";
 import { relativeLabel, type BirthFamily } from "./birthFamily.ts";
-import { cities, inCityBg, placeAfterPreposition } from "./cities.ts";
+import { cities, inCityBg, isCity, placeAfterPreposition } from "./cities.ts";
 import { cityCulture, voices } from "./cityCulture.ts";
 import { cityPaths, jobTypes, type JobId } from "./cityPaths.ts";
 import type { GameState, Memory, Text } from "./engine.ts";
@@ -250,6 +250,28 @@ function personLine(event: Memory, l: Language, contactOverride?: string): strin
       break;
     case "family-time":
       return (l === "bg" ? "Прекарах време " : "I spent time ") + withContact + ".";
+    case "family-advice":
+      return l === "bg" ? "Поисках съвет от " + contact + " и подредих мислите си."
+        : "I asked " + contact + " for advice and got my thoughts in order.";
+    case "family-help":
+      return l === "bg" ? "Помогнах вкъщи на " + contact + "."
+        : "I helped " + contact + " around the house.";
+    case "family-recipe":
+      return l === "bg" ? "Записах семейна рецепта от " + contact + ", включително мерките „на око“."
+        : "I wrote down a family recipe from " + contact + ", including the parts they always measure by eye.";
+    case "family-album":
+      return (l === "bg" ? "Разгледах семейния албум " : "I looked through the family album ") + withContact + ".";
+    case "remote-message":
+      return l === "bg" ? "Писах на " + contact + " и се уговорихме да се чуем."
+        : "I messaged " + contact + " and we made plans to catch up.";
+    case "remote-parcel":
+      return l === "bg" ? "Изпратих подарък и картичка по пощата на " + contact + "."
+        : "I mailed a gift and a note to " + contact + ".";
+    case "visit":
+      if (isCity(choice)) return l === "bg"
+        ? "Отидох на гости на " + contact + " " + inCityBg(choice) + " и после се прибрах."
+        : "I went to see " + contact + " in " + cities[choice].name.en + " and came home afterwards.";
+      break;
     case "family-story":
       return l === "bg" ? "Поговорих " + withContact + " за родния ми град."
         : "I talked " + withContact + " about my hometown.";

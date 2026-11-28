@@ -2,9 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   advance, annualBudget, choose, decodeSave, doAction, doLifeActivity, encodeSave,
-  getChoices, getEstate, getLifeActivities, getPersonActivities, giveUp, lifeStatKeys, newChapterLife as newLife, playYear,
+  getChoices, getEstate, getLifeActivities, getPersonActivities, giveUp, lifeStatKeys, newChapterLife as newLife, newProfileLife, playYear, startCareerLife,
 } from "../src/engine.ts";
-import { personAvatarTraits, personName } from "../src/peopleIdentity.ts";
+import { defaultAvatar } from "../src/avatar.ts";
+import { personAvatarTraits, personCity, personName, personRelationship } from "../src/peopleIdentity.ts";
 
 const option = (s, id) => getLifeActivities(s).find(activity => activity.id === id);
 function pick(s) {
@@ -178,10 +179,17 @@ test("profile actions use money and trust and replay with the same outcome", () 
   assert.deepEqual(getPersonActivities(s,"appMatch"), []);
   assert.strictEqual(doLifeActivity(s,"people.appMatch.video-call"),s);
   assert.ok(!getLifeActivities(s).some(action=>action.id.startsWith("people.")));
-  const after=doLifeActivity(s,"people.rumi.coffee");
-  assert.equal(after.trust.rumi,s.trust.rumi+7);
-  assert.equal(after.cash,s.cash-800);
-  assert.equal(after.history.at(-1).person,"rumi");
+  assert.strictEqual(doLifeActivity(s,"people.rumi.coffee"),s);
+  const oldVisit = replayLegacyAction(s, "people.rumi.coffee");
+  assert.equal(oldVisit.trust.rumi,s.trust.rumi+7);
+  assert.equal(oldVisit.cash,s.cash-800);
+  assert.equal(oldVisit.history.at(-1).person,"rumi");
+  roundTrip(oldVisit);
+
+  const sofia = choose(toAge(19), "rumi");
+  const after = doLifeActivity(sofia, "people.rumi.coffee");
+  assert.equal(after.trust.rumi, sofia.trust.rumi + 7);
+  assert.equal(after.cash, sofia.cash - 800);
   assert.strictEqual(doLifeActivity(after,"people.rumi.coffee"),after);
   roundTrip(after);
 });
@@ -203,7 +211,8 @@ test("child profiles offer age-appropriate actions that strengthen their bond", 
 test("branched walks respect locations and record the selected place and person", () => {
   const town=pick(toAge(16));
   const townChoices=getPersonActivities(town,"friend").filter(action=>action.branch?.id==="walk");
-  assert.ok(townChoices.find(action=>action.id.endsWith(".south-park")).blocked);
+  assert.ok(!townChoices.some(action=>action.id.endsWith(".south-park")));
+  assert.strictEqual(doLifeActivity(town, "people.friend.walk.south-park"), town);
   const walked=doLifeActivity(town,"people.friend.walk.tryavna-centre");
   assert.ok(walked.history.at(-1).title.bg.includes("Часовниковата кула"));
   assert.ok(walked.history.at(-1).text.bg.includes("Елица Петрова"));
@@ -214,6 +223,80 @@ test("branched walks respect locations and record the selected place and person"
   const route=getPersonActivities(sofia,"rumi").find(action=>action.id==="people.rumi.walk.ariana");
   assert.equal(route.blocked,null);
   roundTrip(doLifeActivity(sofia,route.id));
+});
+
+function familyAt(age) {
+  let life = startCareerLife(newProfileLife({
+    seed: 108, city: "tryavna", presentation: "female", avatar: defaultAvatar,
+    profile: { name: "Яна Костова", talent: "none", vip: true, wealthy: true, disposition: null },
+  }));
+  while (life.age < age && !life.finished) life = playYear(life);
+  assert.equal(life.age, age);
+  const [choice] = getChoices(life);
+  return choice ? choose(life, choice.id) : life;
+}
+
+test("relatives share the social catalogue and get different family activities by role", () => {
+  const life = familyAt(18);
+  const mother = life.birthFamily.relatives.find(row => row.role === "mother");
+  const distant = life.birthFamily.relatives.find(row => row.role === "aunt" && !row.household && !life.deceased[row.id]);
+  assert.ok(mother && distant);
+  const motherOptions = getPersonActivities(life, mother.id);
+  const auntOptions = getPersonActivities(life, distant.id);
+  for (const options of [motherOptions, auntOptions]) {
+    for (const group of ["conversation", "compliment", "gift", "walk"]) {
+      assert.ok(options.some(option => option.branch?.id === group && !option.blocked), group);
+    }
+  }
+  assert.ok(motherOptions.some(option => option.id.endsWith(".family-advice")));
+  assert.ok(motherOptions.some(option => option.id.endsWith(".family-help")));
+  assert.ok(!motherOptions.some(option => option.id.endsWith(".family-recipe")));
+  assert.ok(auntOptions.some(option => option.id.endsWith(".family-recipe")));
+  assert.ok(auntOptions.some(option => option.id.endsWith(".family-album")));
+  assert.ok(!auntOptions.some(option => option.id.endsWith(".family-help")));
+
+  const compliment = "people." + mother.id + ".compliment.effort";
+  const after = doLifeActivity(life, compliment);
+  assert.ok(personRelationship(after, mother.id) > personRelationship(life, mother.id));
+  assert.strictEqual(doLifeActivity(after, "people." + mother.id + ".compliment.style"), after);
+  roundTrip(after);
+});
+
+test("moving switches contacts to remote actions and visits use the destination without relocating", () => {
+  const home = familyAt(18);
+  const mother = "kin-mother";
+  const together = getPersonActivities(home, mother);
+  assert.ok(together.some(option => option.branch?.id === "walk"));
+  assert.ok(!together.some(option => option.id.includes(".visit.")));
+  const moved = doAction(home, "move.sofia");
+  assert.equal(moved.city, "sofia");
+  assert.equal(personCity(moved, mother), "tryavna");
+  const away = getPersonActivities(moved, mother);
+  assert.ok(away.some(option => option.branch?.label.bg === "Обади се"));
+  assert.ok(away.some(option => option.id.endsWith(".remote-message")));
+  assert.ok(away.some(option => option.id.endsWith(".remote-parcel")));
+  assert.ok(away.some(option => option.id.endsWith(".family-advice")));
+  assert.ok(!away.some(option => ["walk", "fitness", "gift"].includes(option.branch?.id)));
+  assert.ok(!away.some(option => option.id.endsWith(".family-help")));
+  assert.strictEqual(doLifeActivity(moved, "people.kin-mother.walk.south-park"), moved);
+  assert.strictEqual(doLifeActivity(moved, "people.kin-mother.family-help"), moved);
+  assert.strictEqual(doLifeActivity(moved, "people.kin-mother.visit.varna"), moved);
+  assert.ok(getPersonActivities(moved, "friend").some(option => option.id === "people.friend.visit.tryavna"));
+  assert.ok(!getPersonActivities(moved, "friend").some(option => option.id === "people.friend.cinema"));
+  assert.ok(!getPersonActivities(moved, "rumi").some(option => option.id.includes(".visit.")));
+
+  const visit = away.find(option => option.id === "people.kin-mother.visit.tryavna");
+  assert.equal(visit?.label.bg, "Посети в Трявна");
+  assert.ok(visit.cashDelta < 0);
+  const shortOnCash = { ...moved, cash: 0 };
+  assert.strictEqual(doAction(shortOnCash, visit.id), shortOnCash);
+  const visited = doAction(moved, visit.id);
+  assert.equal(visited.cash - moved.cash, visit.cashDelta);
+  assert.equal(visited.city, "sofia");
+  assert.ok(personRelationship(visited, mother) > personRelationship(moved, mother));
+  assert.match(visited.history.at(-1).text.bg, /в Трявна/);
+  assert.strictEqual(doAction(visited, visit.id), visited);
+  roundTrip(visited);
 });
 
 test("localized branch choices use actual wallet and relationship changes", () => {

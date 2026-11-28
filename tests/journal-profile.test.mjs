@@ -67,14 +67,19 @@ test("the profile distinguishes an heir, pending school enrolment and the actual
   assert.match(playerEducation(life).bg, /107/u);
 });
 
-test("regional walks remain distinct and keep the city where the action occurred after moving", () => {
+test("saved regional walks keep their original cities, and new walks require the contact nearby", () => {
   const coastal = until(born(108, "burgas", false), 18);
   const walked = doLifeActivity(coastal, "people.friend.walk.local-burgas");
   const moved = doAction(walked, "move.varna");
   assert.equal(moved.city, "varna");
-  const second = doLifeActivity(playYear(moved), "people.friend.walk.local-varna");
-  const restored = decodeSave(encodeSave(second));
-  assert.deepEqual(second, restored);
+  const nextYear = playYear(moved);
+  const formerAction = "people.friend.walk.local-varna";
+  assert.strictEqual(doLifeActivity(nextYear, formerAction), nextYear);
+  const oldSave = JSON.parse(encodeSave(nextYear));
+  oldSave.commands.push({ kind: "action", age: nextYear.age, id: formerAction });
+  const restored = decodeSave(JSON.stringify(oldSave));
+  assert.ok(restored);
+  assert.deepEqual(decodeSave(encodeSave(restored)), restored);
   const walks = restored.history.filter(event => event.id.startsWith("people.friend.walk.local-"));
   assert.deepEqual(walks.map(event => journalLine(event, "bg")), [
     "Разходих се с Елица Петрова край Морското казино.",

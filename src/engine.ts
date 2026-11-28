@@ -1,5 +1,5 @@
 import { cleanFirstName } from "./babyNames.ts";
-import { getPeopleActivityDefinitions } from "./peopleActivities.ts";
+import { getPeopleActivityDefinitions, personVisitDefinition, remoteBranchLabels } from "./peopleActivities.ts";
 import { applyNewbornNames, familyPlayEnabled, settleReproductionYear, updateReproduction, type SurnameSource } from "./reproduction.ts";
 import { backgroundPregnancy } from "./lifeReproduction.ts";
 import { advancePregnancy, dismissPregnancyNotice, resolvePregnancyCheck, startPregnancyPlay, terminatePregnancy } from "./pregnancyTimeline.ts";
@@ -509,6 +509,10 @@ export function getCityOpportunity(s: GameState) {
 }
 
 export function doAction(s: GameState, actionId: string, expectedAge = s.age): GameState {
+  return applyAction(s, actionId, expectedAge);
+}
+
+function applyAction(s: GameState, actionId: string, expectedAge: number, replaying = false): GameState {
   if (s.age !== expectedAge || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice) return s;
   if (actionId.startsWith("city-life.")) {
     const choice = getCityOpportunity(s)?.options.find(row => row.option.id === actionId);
@@ -519,7 +523,7 @@ export function doAction(s: GameState, actionId: string, expectedAge = s.age): G
     return isCity(city) ? moveTo(s, city) : s;
   }
   const action = getActions(s).find((a) => a.id === actionId);
-  if (!action) return doLifeActivity(s, actionId, expectedAge);
+  if (!action) return applyLifeActivity(s, actionId, expectedAge, replaying);
   const result = applyOption(s, "action", action, action.label);
   if (action.id === retire.id) return { ...result, retirement: { age: s.age, payment: Math.round(baseBudget(s).pay * 0.67) } };
   if (action.id.startsWith("life.work.")) return { ...result, localJob: action.id.slice(10) as JobId };
@@ -538,20 +542,34 @@ export function getLifeActivities(s: GameState): LifeActivityOption[] {
 }
 
 export function getPersonActivities(s: GameState, contact: PeopleId): LifeActivityOption[] {
-  if (s.deceased[contact]) return [];
-  if (isKin(contact)) return kinActivities(s, contact).map(definition => lifeActivityOption(s, definition));
-  return getPeopleActivityDefinitions(contact).filter(definition => definition.visible?.(s))
-    .map(definition => lifeActivityOption(s, definition));
+  if (!isKnownPerson(s, contact) || s.deceased[contact] || (isKin(contact) && s.age < 4)) return [];
+  const city = personCity(s, contact);
+  const remote = s.city !== city;
+  const definitions = [
+    ...(remote ? [personVisitDefinition(contact, city)] : []),
+    ...(isKin(contact) ? kinActivities(s, contact) : []),
+    ...getPeopleActivityDefinitions(contact),
+  ];
+  return definitions.filter(definition => (!definition.visible || definition.visible(s))
+    && (!definition.sameCity || !remote) && (!definition.city || definition.city === s.city))
+    .map(definition => {
+      const option = lifeActivityOption(s, definition);
+      const label = remote && option.branch && remoteBranchLabels[option.branch.id];
+      return label && option.branch ? { ...option, branch: { ...option.branch, label } } : option;
+    });
 }
 
 export function doLifeActivity(s: GameState, id: string, expectedAge = s.age): GameState {
   return applyLifeActivity(s, id, expectedAge);
 }
 
-function applyLifeActivity(s: GameState, id: string, expectedAge: number, replayingLegacyActivity = false): GameState {
+function applyLifeActivity(s: GameState, id: string, expectedAge: number, replaying = false): GameState {
   if (s.age !== expectedAge) return s;
   const definition = getLifeActivityDefinition(id) ?? kinActivityById(s, id);
-  if (!definition || (definition.replayOnly && !replayingLegacyActivity)) return s;
+  if (!definition || (definition.replayOnly && !replaying)) return s;
+  // Old journals may contain meetings recorded before contact locations were enforced.
+  if (definition.contact && (definition.sameCity === "always" || (definition.sameCity && !replaying))
+    && personCity(s, definition.contact) !== s.city) return s;
   const activity = lifeActivityOption(s, definition);
   if (activity.blocked) return s;
 
@@ -860,8 +878,7 @@ export function decodeSave(raw: string): GameState | null {
         if (typeof c.id !== "string" || c.id.length > 100) return null;
         if (c.kind === "choice") next = choose(s, c.id, s.age);
         else if (c.kind === "skip-decision") next = skipDecision(s, c.id, s.age);
-        else if (c.kind === "action") next = getLifeActivityDefinition(c.id)?.replayOnly
-          ? applyLifeActivity(s, c.id, s.age, true) : doAction(s, c.id, s.age);
+        else if (c.kind === "action") next = applyAction(s, c.id, s.age, true);
         else if (c.kind === "path") next = doPathAction(s, c.id, s.age);
         else return null;
       }
