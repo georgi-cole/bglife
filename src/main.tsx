@@ -25,7 +25,7 @@ import {AvatarCreator} from "./AvatarCreator.tsx";
 import {CharacterHeader,CityBadge,PlayerProfile} from "./PlayerProfile.tsx";
 import type {NewLifeDraft} from "./lifeProfile.ts";
 import {DecisionDialog} from "./DecisionDialog.tsx";
-import {cityDecision,storyDecision} from "./journalDecisions.ts";
+import {cityDecision,storyDecision,weddingDecision} from "./journalDecisions.ts";
 
 type Dialog="profile"|"settings"|"replay"|"guide"|"give-up"|"pregnancy-end"|null;
 type Screen = "home" | "game" | "album" | "avatar";
@@ -74,8 +74,10 @@ function App(){
   const showDecision=showJournal&&!dialog&&!personAction&&!pregnancyNotice&&!s.lifeSystems.reproduction.naming;
   const story=showDecision&&!pregnancyTurn?storyDecision(s):null;
   const workDecision=showDecision&&!story?getWorkDecision(s):null;
-  const local=showDecision&&!story&&!workDecision&&cityPrompt!==null?cityDecision(s):null;
-  const pendingDecision=story??(local?.key===cityPrompt?local:null);
+  const optional=showDecision&&!story&&!workDecision&&cityPrompt!==null
+    ? [cityDecision(s), weddingDecision(s)].find(item=>item?.key===cityPrompt)
+    : null;
+  const pendingDecision=story??optional;
   const dialogTitle=dialog==="profile"?t("Профил","Profile"):dialog==="settings"?t("Настройки","Settings"):dialog==="guide"?t("Как се играе","How to play"):dialog==="give-up"?t("Приключване на живота","End this life"):dialog==="pregnancy-end"?t("Прекъсване на бременността","End the pregnancy"):t("Нов живот","New life");
   function commit(next:Session){
     live.current=next;setSession(next);
@@ -352,7 +354,7 @@ function App(){
         onAlbum={()=>openMenuScreen("album")} onGuide={()=>setDialog("guide")}>{toolbar}</HomeHub>:
        screen==="avatar"?<AvatarCreator l={l} vip={vip} onVip={toggleTrialVip} onClose={cancelAvatarCreator} onStart={startWithAvatar}/>:
        screen==="album"?<Album {...menuProps} back s={s} archive={session.album} l={l}/>:
-       tab==="journal"?<Journal s={s} l={l} onCityDecision={()=>setCityPrompt(cityDecision(s)?.key??null)} onAction={id=>act(v=>doAction(v,id,s.age))} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore} onEndPregnancy={requestPregnancyEnd} onCareer={()=>route("career")}/>:
+       tab==="journal"?<Journal s={s} l={l} onCityDecision={()=>setCityPrompt(cityDecision(s)?.key??null)} onWeddingDecision={()=>setCityPrompt(weddingDecision(s)?.key??null)} onAction={id=>act(v=>doAction(v,id,s.age))} onAlbum={()=>openAlbum()} onReplay={()=>setDialog("replay")} onMore={openMore} onEndPregnancy={requestPregnancyEnd} onCareer={()=>route("career")}/>:
        tab==="career"?<Career s={s} l={l} onClose={closeMenu} onMaternityReturn={()=>act(v=>doMaternityReturn(v,s.age))} onWorkplace={()=>route("workplace")} onAction={id=>act(v=>doPathAction(v,id,s.age))}/>:
        tab==="workplace"?<Workplace s={s} l={l} onClose={closeMenu} onCareer={()=>route("career")} onAction={id=>act(v=>doPathAction(v,id,s.age))}/>:
        tab==="people"?<People {...menuProps} s={s} l={l} onFamily={()=>openMore("family","people")} onActivity={openPersonAction}/>:

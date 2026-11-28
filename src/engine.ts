@@ -1,3 +1,4 @@
+import { advanceContactLives, weddingInvitation } from "./contactLives.ts";
 import { cleanFirstName } from "./babyNames.ts";
 import { getPeopleActivityDefinitions, personVisitDefinition, remoteBranchLabels } from "./peopleActivities.ts";
 import { applyNewbornNames, familyPlayEnabled, settleReproductionYear, updateReproduction, type SurnameSource } from "./reproduction.ts";
@@ -84,7 +85,7 @@ const pregnancyActions = {
 export type PregnancyAction = keyof typeof pregnancyActions;
 export type Command =
   | { age: number; kind: "choice" | "action" | "path" | "skip-decision"; id: string }
-  | { age: number; kind: "year"; cityEvent?: CityEventRoll | null; workEvent?: string }
+  | { age: number; kind: "year"; cityEvent?: CityEventRoll | null; workEvent?: string; contactLives?: 1 }
   | { age: number; kind: "end" | "maternity-return" | PregnancyAction }
   | { age: number; kind: "name-children"; names: string[]; surname: SurnameSource };
 export type Memory = {
@@ -481,7 +482,7 @@ export function choose(s: GameState, optionId: string, expectedAge = s.age): Gam
 export function skipDecision(s: GameState, id: string, expectedAge = s.age): GameState {
   if (s.finished || s.age !== expectedAge || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice) return s;
   const pendingStory = id === s.sceneId && hasPendingStoryDecision(s);
-  if (!pendingStory && openCityEvent(s)?.entry.id !== id) return s;
+  if (!pendingStory && openCityEvent(s)?.entry.id !== id && weddingInvitation(s)?.id !== id) return s;
   return { ...s, skippedDecisions: [...s.skippedDecisions, id],
     commands: [...s.commands, { age: s.age, kind: "skip-decision", id }] };
 }
@@ -664,11 +665,11 @@ function currency(amount: number, locale: keyof typeof formatters): string {
 }
 
 export function advance(s: GameState, expectedAge = s.age): GameState {
-  return advanceYear(s, expectedAge, s.path ? "draw" : undefined, s.path ? "draw" : undefined);
+  return advanceYear(s, expectedAge, s.path ? "draw" : undefined, s.path ? "draw" : undefined, s.lifespanStart !== null ? 1 : undefined);
 }
 
 function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRoll | null | "draw" | undefined,
-  workResult?: string): GameState {
+  workResult?: string, contactLives?: 1): GameState {
   const { pregnancy, naming, notice } = s.lifeSystems.reproduction;
   if (s.finished || s.age !== expectedAge || hasPendingStoryDecision(s) || naming || notice || pregnancy?.gestation) return s;
   const full = s.lifespanStart !== null;
@@ -766,7 +767,10 @@ function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRol
   // Optional family conversations must not change the everyday memories when an older transcript is replayed.
   const everyday = everydayEvents(withFamily, opening.filter(event => event.id !== "family-questions"));
   const yearWithMemories = everyday.length ? { ...withFamily, history: [...withFamily.history.slice(0, openingStart), ...everyday, ...opening] } : withFamily;
-  const year = familyPlayEnabled(s) ? backgroundPregnancy(markAnniversaries(markMaternityYear(yearWithMemories, true))) : yearWithMemories;
+  const familyYear = familyPlayEnabled(s) ? backgroundPregnancy(markAnniversaries(markMaternityYear(yearWithMemories, true))) : yearWithMemories;
+  // Follow the version on the recorded annual command. Old journals did not simulate contact milestones.
+  if (contactLives === 1) yearCommand.contactLives = contactLives;
+  const year = contactLives === 1 ? advanceContactLives(familyYear) : familyYear;
   const workId = workResult === "draw" ? drawWorkEvent(year) : workResult;
   if (!workId) return year;
   const otherDecision = year.sceneId || year.lifeSystems.reproduction.naming || year.lifeSystems.reproduction.notice || getCityOpportunity(year);
@@ -860,7 +864,11 @@ export function decodeSave(raw: string): GameState | null {
           if (cityResult === null && c.cityEvent !== null) return null;
         }
         if ("workEvent" in c && (!s.path || typeof c.workEvent !== "string" || !/^[a-z-]{3,40}$/.test(c.workEvent) || c.workEvent === "draw")) return null;
-        next = advanceYear(s, s.age, cityResult, typeof c.workEvent === "string" ? c.workEvent : undefined);
+        if ("contactLives" in c && (c.contactLives !== 1 || s.lifespanStart === null)) return null;
+        next = advanceYear(s, s.age, cityResult, typeof c.workEvent === "string" ? c.workEvent : undefined,
+          c.contactLives === 1 ? 1 : undefined);
+        const recorded = next.commands.at(-1);
+        if (c.contactLives === 1 && (recorded?.kind !== "year" || recorded.contactLives !== 1)) return null;
       } else if (c.kind === "end") {
         if ("id" in c || "cityEvent" in c || "workEvent" in c) return null;
         next = giveUp(s, s.age);

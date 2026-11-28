@@ -1,5 +1,6 @@
 import { cities, inCityBg, isCity } from "./cities.ts";
 import type { City, GameState, PersonId, Text } from "./engine.ts";
+import type { ContactWorld } from "./contactLives.ts";
 import type { HealthCondition } from "./lifeHealth.ts";
 import { isKin, type KinId } from "./birthFamily.ts";
 import { talentBonus } from "./lifeProfile.ts";
@@ -35,6 +36,7 @@ export type LifeSystems = {
   medicalIssue: "routine" | "urgent" | null;
   healthCondition?: HealthCondition | null;
   kinBonds?: Partial<Record<KinId, number>>;
+  contacts?: ContactWorld;
   pets: { adopted: boolean; rescued: boolean; bond: number };
   family: {
     partner: PartnerId | null;

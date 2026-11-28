@@ -239,7 +239,8 @@ function familyAt(age) {
 test("relatives share the social catalogue and get different family activities by role", () => {
   const life = familyAt(18);
   const mother = life.birthFamily.relatives.find(row => row.role === "mother");
-  const distant = life.birthFamily.relatives.find(row => row.role === "aunt" && !row.household && !life.deceased[row.id]);
+  const distant = life.birthFamily.relatives.find(row => ["aunt", "uncle", "grandmother"].includes(row.role)
+    && !row.household && !life.deceased[row.id] && personCity(life, row.id) === life.city);
   assert.ok(mother && distant);
   const motherOptions = getPersonActivities(life, mother.id);
   const auntOptions = getPersonActivities(life, distant.id);

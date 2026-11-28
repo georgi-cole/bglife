@@ -26,7 +26,12 @@ export function hasLivingChildren(s: GameState): boolean {
 }
 
 export function personCity(s: GameState, id: PeopleId): City {
-  if (s.lifeSystems.family.partner === id || isChild(id)) return s.city;
+  if (s.lifeSystems.family.partner === id) return s.city;
+  const independentCity = s.lifeSystems.contacts?.lives[id]?.city;
+  if (independentCity) return independentCity;
+  const homeWith = isKin(id) ? getRelative(s, id)?.homeWith : undefined;
+  if (homeWith) return personCity(s, homeWith);
+  if (isChild(id)) return s.city;
   if (id === "rumi" || id === "niki") return "sofia";
   return s.birthCity;
 }

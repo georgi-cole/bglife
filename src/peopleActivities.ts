@@ -1,6 +1,7 @@
 import { cities, cityIds, inCityBg, type City } from "./cities.ts";
 import { isKin } from "./birthFamily.ts";
 import { changeKinBond } from "./kinActivities.ts";
+import { weddingInvitation } from "./contactLives.ts";
 import { cityCulture } from "./cityCulture.ts";
 import type {GameState,Text} from "./engine.ts";
 import {partnerIntimacy} from "./lifeReproduction.ts";
@@ -260,6 +261,10 @@ function remoteActivities(contact: PeopleId): LifeActivityDefinition[] {
   }));
 }
 
+function visitFare(from: City, to: City) {
+  return from === to ? 0 : cities[from].district === cities[to].district ? 1500 : 3500;
+}
+
 export function personVisitDefinition(contact: PeopleId, city: City): LifeActivityDefinition {
   const name = cities[city].name;
   const label = t("Посети " + inCityBg(city), "Visit in " + name.en);
@@ -269,10 +274,39 @@ export function personVisitDefinition(contact: PeopleId, city: City): LifeActivi
     id: "people." + contact + ".visit." + city, category: "family", contact, minAge: 16,
     label, description: t("Отиди на гости. Цената е за път в двете посоки.", "Go for a visit. The cost covers the round trip."),
     result, stats: { joy: 5 },
-    walletDelta: s => cities[s.city].district === cities[city].district ? -1500 : -3500,
+    walletDelta: s => -visitFare(s.city, city),
     visible: s => s.age >= 16 && s.city !== city && isKnownPerson(s, contact) && personCity(s, contact) === city,
     resolve: s => ({ result, stats: { joy: 5 }, ...contactReaction(s, contact, 9) }),
   };
+}
+
+const weddingBranch = {
+  id: "wedding", label: t("Покана за сватба", "Wedding invitation"),
+  description: t("Избери как да отбележиш повода.", "Decide how to mark the occasion."),
+};
+
+export function weddingActivities(contact: PeopleId): LifeActivityDefinition[] {
+  const visible = (s: GameState) => weddingInvitation(s)?.contact === contact;
+  const prefix = "people." + contact + ".wedding.";
+  const attendResult = t("Отидох на сватбата и поздравих младоженците.", "I went to the wedding and congratulated the couple.");
+  const greetResult = t("Изпратих поздравления за сватбата.", "I sent my congratulations on the wedding.");
+  return [
+    {
+      id: prefix + "attend", category: "family", contact, branch: weddingBranch, visible, beforeChoice: true,
+      label: t("Отиди на сватбата", "Attend the wedding"),
+      description: t("Виж се с младоженците и празнувайте заедно.", "See the newlyweds and celebrate with them."),
+      result: attendResult, stats: { joy: 4 },
+      walletDelta: s => -visitFare(s.city, weddingInvitation(s)?.city ?? s.city),
+      resolve: s => ({result: attendResult, stats: { joy: 4 }, ...contactReaction(s, contact, 7)}),
+    },
+    {
+      id: prefix + "greet", category: "family", contact, branch: weddingBranch, visible, beforeChoice: true,
+      label: t("Изпрати поздравления", "Send congratulations"),
+      description: t("Пожелай им хубав семеен живот.", "Wish the couple well."),
+      result: greetResult, stats: { joy: 1 },
+      resolve: s => ({result: greetResult, stats: { joy: 1 }, ...contactReaction(s, contact, 3)}),
+    },
+  ];
 }
 
 export const remoteBranchLabels: Readonly<Partial<Record<string, Text>>> = {
@@ -281,7 +315,7 @@ export const remoteBranchLabels: Readonly<Partial<Record<string, Text>>> = {
 };
 
 export function getPeopleActivityDefinitions(contact: PeopleId): LifeActivityDefinition[] {
-  const social = [...remoteActivities(contact), ...branchActivities(contact)];
+  const social = [...weddingActivities(contact), ...remoteActivities(contact), ...branchActivities(contact)];
   if (isKin(contact)) return social;
   return [...relationshipActivities(contact), ...partnerIntimacy(contact), ...contextualActivities(contact), ...social];
 }

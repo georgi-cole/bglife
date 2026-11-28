@@ -1,6 +1,7 @@
 import {useLayoutEffect,useRef,useState} from "react";
-import {currentCaregiver,relativeLabel,type KinRole,type Relative} from "./birthFamily.ts";
+import {currentCaregiver,relativeLabel,relativesOf,type KinRole,type Relative} from "./birthFamily.ts";
 import {AvatarPortrait} from "./AvatarPortrait.tsx";
+import {contactDetails,familyConnection} from "./contactLives.ts";
 import {getAvatarLook} from "./avatar.ts";
 import {getPersonActivities,type GameState,type LifeActivityOption,type PersonId} from "./engine.ts";
 import {isKnownPerson,personAge,personAvatarTraits,personCity,personName,personRelationship,type PeopleId} from "./peopleIdentity.ts";
@@ -50,17 +51,23 @@ function getPeople(s: GameState, l: Language): Group[] {
     { title: t("Братя и сестри","Siblings"), roles: ["sibling"] },
     { title: t("Баби и дядовци","Grandparents"), roles: ["grandmother","grandfather"] },
     { title: t("Лели, чичовци и вуйчовци","Aunts and uncles"), roles: ["aunt","uncle","maternal-uncle"] },
+    { title: t("Племенници","Nieces and nephews"), roles: ["niece-nephew"] },
+    { title: t("Внуци","Grandchildren"), roles: ["grandchild"] },
+    { title: t("Братовчеди","Cousins"), roles: ["cousin"] },
+    { title: t("Други познати","Other people"), roles: ["contact-partner","contact-child"] },
   ];
   const caregiver = currentCaregiver(s)?.id;
   function relativeCard(relative: Relative): Person {
-    let status = relativeLabel(relative)[l];
+    const connection = familyConnection(s, relative);
+    let status = relative.role === "contact-partner" || relative.role === "contact-child"
+      ? connection?.[l] ?? relativeLabel(relative)[l] : relativeLabel(relative)[l];
     if (s.age < 18 && relative.id === caregiver) status += " · " + t("Грижи се за теб","Your caregiver");
     else if (s.age < 18 && relative.household) status += " · " + t("У дома","At home");
     return { id: relative.id, name: relative.name[l], status, portraitAge: personAge(s,relative.id) ?? 0,
       score: { label: t("Близост","Bond"), value: personRelationship(s,relative.id) ?? relative.bond } };
   }
   const groups: Group[] = [
-    ...relativeGroups.map(group => ({ title: group.title, people: (s.birthFamily?.relatives ?? [])
+    ...relativeGroups.map(group => ({ title: group.title, people: relativesOf(s)
       .filter(relative => group.roles.includes(relative.role)).map(relativeCard) })),
     {title:t("Леля и братовчед","Aunt and cousin"),people:[contact("rumi"),contact("niki")]},
     {title:t("Деца","Children"),people:childProfiles.map(({bond},index)=>{
@@ -102,7 +109,7 @@ const actionIcons: Record<string,IconName> = {
   compliment:"sparkle", conversation:"people", gift:"bag", "give-money":"wallet", "ask-money":"wallet",
   walk:"places", fitness:"bolt", insult:"bolt", argue:"live", persuade:"heart", intimacy:"heart",
   "family-time":"heart", "family-story":"journal", "family-advice":"people", "family-help":"heart",
-  "family-recipe":"food", "family-album":"photo", "remote-message":"phone", "remote-parcel":"bag", visit:"places", "hold-hands":"heart", "first-kiss":"heart", kiss:"heart",
+  "family-recipe":"food", "family-album":"photo", "remote-message":"phone", "remote-parcel":"bag", visit:"places", wedding:"heart", "hold-hands":"heart", "first-kiss":"heart", kiss:"heart",
   "inside-joke":"sparkle", "sunday-ritual":"clock", "future-together":"people",
 };
 
@@ -138,6 +145,10 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
   const {partner}=s.lifeSystems.family;
   const pregnancy=pregnancyStatus(s);
   const actions=person?getPersonActivities(s,person.id):[];
+  const details=person&&!person.death?contactDetails(s,person.id):null;
+  const partnerId=details?.relationship?.partner;
+  const relationship=details?.relationship;
+  const children=details?.children??[];
   const received=person?s.lifeSystems.assets.transfers?.filter(transfer=>transfer.recipient===person.id)??[]:[];
   const actionRows=new Map<string,LifeActivityOption[]>();
   for(const action of actions){
@@ -174,6 +185,12 @@ export function People({s,l,onFamily,onClose,closeLabel,onActivity}: {
           <h2>{person.name}</h2>
           <small>{person.death ? person.status : ageLabel(person.portraitAge,l) + " · " + person.status + " · " + town(personCity(s,person.id),l)}</small>
           {person.death && <small>{deathCauses[person.death.cause][l]}</small>}
+          {details?.education && <small>{details.education[l]}</small>}
+          {details?.work && <small>{details.work[l]}</small>}
+          {partnerId && <small>{s.deceased[partnerId]
+            ? t("Партньорът е починал", "Partner has died")
+            : (relationship?.married ? t("В брак с ", "Married to ") : t("Във връзка с ", "In a relationship with ")) + personName(s,partnerId)[l]}</small>}
+          {children.length>0 && <small>{t("Деца", "Children")} · {children.map(child=>child.name[l].split(" ")[0]).join(", ")}</small>}
           {person.score&&<RelationshipMeter score={person.score}/>}
         </div>
       </div>

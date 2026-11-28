@@ -4,7 +4,8 @@ import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import { defaultAvatar } from "../src/avatar.ts";
 import { builtGameServer, sitePath } from "./serve-built-game.mjs";
-import { choose, doAction, doLifeActivity, doPathAction, getChoices, newChapterLife, newLife, newProfileLife, playYear, startCareerLife } from "../src/engine.ts";
+import { choose, doAction, doLifeActivity, doPathAction, getChoices, hasPendingStoryDecision, newChapterLife, newLife, newProfileLife, playYear, skipDecision, startCareerLife } from "../src/engine.ts";
+import { weddingDecision } from "../src/journalDecisions.ts";
 import { familyRoll } from "../src/fertilityModel.ts";
 import { startPregnancyPlay } from "../src/pregnancyTimeline.ts";
 import { getWorkDecision } from "../src/workplace.ts";
@@ -507,4 +508,35 @@ test("an out-of-town family profile offers contact by phone and a visit in the r
   await page.getByRole("button", { name: "Назад към Хора" }).tap();
   await page.getByRole("button", { name: "Към дневника", exact: true }).tap();
   await expect(page.locator('[data-event-id="people.kin-mother.visit.tryavna"]')).toContainText("майка ми Рая в Трявна");
+});
+
+test("an independent wedding appears in the journal and its optional decision can be skipped", async ({page}) => {
+  let life = startCareerLife(newProfileLife({
+    seed: 5, city: "tryavna", presentation: "female", avatar: defaultAvatar,
+    profile: {name: "Яна Костова", talent: "none", vip: true, wealthy: true, disposition: null},
+  }));
+  while (life.age < 30 && !weddingDecision(life)) {
+    if (hasPendingStoryDecision(life)) {
+      const [choice] = getChoices(life);
+      life = choice ? choose(life, choice.id) : skipDecision(life, life.sceneId);
+    }
+    const next = playYear(life);
+    expect(next.age).toBe(life.age + 1);
+    life = next;
+  }
+  const wedding = weddingDecision(life);
+  expect(wedding).not.toBeNull();
+  await resumeFixture(page, life);
+  await expect(page.getByTestId("decision-dialog")).toHaveCount(0);
+  await page.getByRole("button", {name: "Покана за сватба", exact: true}).tap();
+  const dialog = page.getByRole("dialog", {name: "Покана за сватба"});
+  await expect(dialog.getByRole("button", {name: /^Отиди на сватбата/})).toBeVisible();
+  await expect(dialog.getByRole("button", {name: "Изпрати поздравления", exact: true})).toBeVisible();
+  await dialog.getByRole("button", {name: "Пропусни събитието"}).tap();
+  await expect(page.getByRole("button", {name: "Покана за сватба", exact: true})).toHaveCount(0);
+  await expect(page.locator('[data-event-id="' + wedding.id + '"]')).toContainText("сключи брак");
+  await page.reload();
+  await page.getByRole("button", {name: /^Продължи/}).tap();
+  await expect(page.getByRole("button", {name: "Покана за сватба", exact: true})).toHaveCount(0);
+  await expect(page.locator('[data-event-id="' + wedding.id + '"]')).toContainText("сключи брак");
 });

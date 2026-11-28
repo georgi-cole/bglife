@@ -1,5 +1,5 @@
 import { activityMoment } from "./activityMoments.ts";
-import { relativeLabel, type BirthFamily } from "./birthFamily.ts";
+import { getRelative, isKin, relativeLabel, type BirthFamily } from "./birthFamily.ts";
 import { cities, inCityBg, isCity, placeAfterPreposition } from "./cities.ts";
 import { cityCulture, voices } from "./cityCulture.ts";
 import { cityPaths, jobTypes, type JobId } from "./cityPaths.ts";
@@ -155,7 +155,7 @@ const walkPlaces: Readonly<Partial<Record<string, Text>>> = {
 export function familyActivityLine(event: Memory, l: Language, life: GameState): string | undefined {
   if (event.kind !== "action" || !event.id.startsWith("people.")) return;
   const [, id, activity] = event.id.split(".");
-  const relative = life.birthFamily?.relatives.find(member => member.id === id);
+  const relative = isKin(id) ? getRelative(life, id) : undefined;
   const child = id.startsWith("child-") ? life.lifeSystems.family.childProfiles[Number(id.slice(6))] : undefined;
   const role = relative ? relativeLabel(relative)
     : child ? child.gender === "male" ? t("Син", "Son") : t("Дъщеря", "Daughter")
@@ -267,6 +267,11 @@ function personLine(event: Memory, l: Language, contactOverride?: string): strin
     case "remote-parcel":
       return l === "bg" ? "Изпратих подарък и картичка по пощата на " + contact + "."
         : "I mailed a gift and a note to " + contact + ".";
+    case "wedding":
+      if (choice === "attend") return l === "bg" ? "Отидох на сватбата на " + contact + "."
+        : "I went to " + contact + "’s wedding.";
+      return l === "bg" ? "Изпратих сватбени поздрави на " + contact + "."
+        : "I sent my congratulations to " + contact + ".";
     case "visit":
       if (isCity(choice)) return l === "bg"
         ? "Отидох на гости на " + contact + " " + inCityBg(choice) + " и после се прибрах."
