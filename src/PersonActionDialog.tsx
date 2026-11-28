@@ -1,14 +1,18 @@
 import {useLayoutEffect,useRef} from "react";
-import {getPersonActivities,type GameState,type LifeActivityOption,type Memory} from "./engine.ts";
+import {activityMoment} from "./activityMoments.ts";
+import {getAvatarLook} from "./avatar.ts";
+import {AvatarPortrait} from "./AvatarPortrait.tsx";
+import {getPersonActivities,type GameState,type LifeActivityOption,type Memory,type Text} from "./engine.ts";
+import {familyActivityLine,journalLine} from "./journalCopy.ts";
 import type {ActivityBranch} from "./lifeActivities.ts";
-import {personName,type PeopleId} from "./peopleIdentity.ts";
+import {personAge,personAvatarTraits,personName,type PeopleId} from "./peopleIdentity.ts";
 import type {Language} from "./session.ts";
-import {Icon,NavigationButton,copy,lifeStatLabels,money} from "./ui.tsx";
+import {Icon,NavigationButton,copy,money} from "./ui.tsx";
 import "./person-action.css";
 
 export type PersonActionFlow = {
-  contact:PeopleId; seed:number; age:number; ids:string[]; branch?:ActivityBranch; selected:string|null;
-  outcome:{entry:Memory;relationDelta:number|null}|null;
+  contact:PeopleId; seed:number; age:number; ids:string[]; branch?:ActivityBranch;
+  outcome:{entry:Memory;title:Text;relationship:{before:number;after:number}|null}|null;
 };
 
 export function BgLifeMark() {
@@ -26,68 +30,70 @@ function SpendPreview({option,l}: {option:LifeActivityOption;l:Language}) {
     <span><Icon name="wallet" size={14}/>{money(-option.cashDelta,l)}</span>
   </span>;
 }
-const signed=(value:number)=>(value>0?"+":"−")+Math.abs(value);
-
-export function PersonActionDialog({flow,life,l,onClose,onSelect,onConfirm,onRepeat}: {
-  flow:PersonActionFlow;life:GameState;l:Language;onClose:()=>void;onSelect:(id:string|null)=>void;onConfirm:()=>void;onRepeat:()=>void;
+export function PersonActionDialog({flow,life,l,onClose,onChoose,onRepeat}: {
+  flow:PersonActionFlow;life:GameState;l:Language;onClose:()=>void;onChoose:(id:string)=>void;onRepeat:(id:string)=>void;
 }) {
   const ref=useRef<HTMLDialogElement>(null),heading=useRef<HTMLHeadingElement>(null);
   const t=(bg:string,en:string)=>copy(l,bg,en);
   const options=life.seed===flow.seed&&life.age===flow.age
     ?getPersonActivities(life,flow.contact).filter(option=>flow.ids.includes(option.id)):[];
-  const selected=options.find(option=>option.id===flow.selected);
-  const stage=flow.outcome?"outcome":flow.selected?"confirm":"choose";
-  const title=flow.outcome?t("Как мина","How it went"):flow.branch?.label[l]??selected?.label[l]??t("Действие","Activity");
-  const labels=lifeStatLabels(l);
-  useLayoutEffect(()=>{const dialog=ref.current;if(dialog&&!dialog.open)dialog.showModal();},[]);
+  const stage=flow.outcome?"outcome":"choose";
+  const title=flow.outcome?.title[l]??flow.branch?.label[l]??t("Действие","Activity");
+  const contact=personName(life,flow.contact)[l];
+  const portrait=getAvatarLook(personAvatarTraits(life,flow.contact),personAge(life,flow.contact)??life.age);
+  const outcome=flow.outcome?.entry;
+  const repeat=outcome && options.find(option=>option.id===outcome.id&&option.repeatable&&!option.blocked);
+  const prefix=contact+" · ";
+  const original=outcome?.text[l];
+  const result=outcome && (familyActivityLine(outcome,l,life) ?? activityMoment(outcome,life.seed,false)?.[l]
+    ?? (flow.branch?.id==="conversation"||flow.branch?.id==="compliment" ? journalLine(outcome,l,life.birthFamily)
+      : original?.startsWith(prefix) ? original.slice(prefix.length) : original));
+  const relation=flow.outcome?.relationship;
+  const wentDown=relation ? relation.after<relation.before : false;
+  const reactionLabel=wentDown ? t("Връзката се влоши","Relationship worsened") : t("Връзката се подобри","Relationship improved");
+  useLayoutEffect(()=>{
+    const dialog=ref.current;
+    if(!dialog)return;
+    dialog.showModal();
+    return ()=>{if(dialog.open)dialog.close();};
+  },[]);
   useLayoutEffect(()=>{
     if(ref.current)ref.current.scrollTop=0;
     heading.current?.focus({preventScroll:true});
-  },[stage]);
+  },[stage,outcome]);
 
   return <dialog ref={ref} className="modal-card person-action-dialog" aria-labelledby="person-action-heading"
-    data-action-phase={stage} onCancel={e=>{e.preventDefault();onClose();}}>
-    <div className="person-dialog-top">
-      {stage==="confirm"&&flow.branch ? <NavigationButton back label={t("Назад към вариантите","Back to choices")} onClick={()=>onSelect(null)}/> : <span/>}
-      <BgLifeMark/>
+    aria-describedby={outcome ? "person-action-result" : undefined} data-action-phase={stage}
+    onCancel={e=>{e.preventDefault();onClose();}}
+    onClick={e=>{
+      if(!outcome||e.target!==e.currentTarget)return;
+      const {left,right,top,bottom}=e.currentTarget.getBoundingClientRect();
+      if(e.clientX<left||e.clientX>right||e.clientY<top||e.clientY>bottom)onClose();
+    }}>
+    <header className="person-dialog-top">
+      <div className="person-dialog-identity"><AvatarPortrait look={portrait} region="badge" className="person-dialog-avatar"/><span>{contact}</span></div>
       <NavigationButton label={t("Затвори","Close")} onClick={onClose}/>
-    </div>
+    </header>
     <div className="person-dialog-body">
-      <p className="person-dialog-contact">{personName(life,flow.contact)[l]}</p>
       <h2 id="person-action-heading" ref={heading} tabIndex={-1}>{title}</h2>
       {stage==="choose" && (options.length>0?<div className="person-action-options">{options.map(option=>
         <button type="button" key={option.id} className="person-action-option" data-person-option={option.id}
-          onClick={()=>onSelect(option.id)}>
+          disabled={Boolean(option.blocked)} onClick={()=>onChoose(option.id)}>
           <span><strong>{option.label[l]}</strong><small>{option.description[l]}</small>
             <SpendPreview option={option} l={l}/>
             {option.blocked&&<small className="person-dialog-lock">{option.blocked[l]}</small>}
           </span>
-          <Icon name={option.blocked?"key":"next"} size={16}/>
+          <span className="person-option-arrow"><Icon name={option.blocked?"key":"next"} size={16}/></span>
         </button>)}</div>:<p className="person-dialog-lock">{t("Вариантите вече не са достъпни.","These choices are no longer available.")}</p>)}
-      {stage==="confirm" && <>
-        {flow.branch&&selected&&<h3>{selected.label[l]}</h3>}
-        {selected&&<><p>{selected.description[l]}</p><SpendPreview option={selected} l={l}/></>}
-        {(!selected||selected.blocked)&&<p className="person-dialog-lock">
-          {selected?.blocked?.[l]??t("Действието вече не е достъпно.","This activity is no longer available.")}
-        </p>}
+      {outcome && <>
+        <p id="person-action-result" className="person-dialog-result">{result}</p>
+        {relation && <div className="person-reaction" data-direction={wentDown?"down":"up"}>
+          <span id="person-reaction-label">{reactionLabel}</span>
+          <meter aria-labelledby="person-reaction-label" min={0} max={100} value={relation.after}/>
+        </div>}
         <div className="person-dialog-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>{t("Отказ","Cancel")}</button>
-          <button type="button" className="primary-button" disabled={!selected||!!selected.blocked} onClick={onConfirm}>{t("Потвърди","Confirm")}</button>
-        </div>
-      </>}
-      {flow.outcome && <>
-        <p className="person-dialog-result">{flow.outcome.entry.text[l]}</p>
-        <div className="person-action-effects">
-          {flow.outcome.relationDelta!==null&&flow.outcome.relationDelta!==0&&<span>{t("Връзка","Relationship")} {signed(flow.outcome.relationDelta)}</span>}
-          {(Object.keys(labels) as Array<keyof typeof labels>).map(key=>{
-            const delta=flow.outcome?.entry.statsDelta?.[key];
-            return delta?<span key={key}>{labels[key]} {signed(delta)}</span>:null;
-          })}
-          {flow.outcome.entry.cashDelta!==0&&<span>{t("Портфейл","Cash")} {flow.outcome.entry.cashDelta>0?"+":"−"}{money(Math.abs(flow.outcome.entry.cashDelta),l)}</span>}
-        </div>
-        <div className="person-dialog-actions">
-          {selected?.repeatable && !selected.blocked && <button type="button" className="secondary-button" onClick={onRepeat}>{t("Повтори","Repeat")}</button>}
-          <button type="button" className="primary-button person-dialog-done" onClick={onClose}>{t("Към дневника","Go to journal")}</button>
+          {repeat&&<button type="button" className="secondary-button" onClick={()=>onRepeat(repeat.id)}>{t("Повтори","Repeat")}</button>}
+          <button type="button" className="person-dialog-done" onClick={onClose}>{t("Продължи","Continue")}<Icon name="next" size={14}/></button>
         </div>
       </>}
     </div>

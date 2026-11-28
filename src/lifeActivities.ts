@@ -14,7 +14,7 @@ import { familyPlayEnabled, startingReproduction, type Reproduction } from "./re
 import type { RelationshipProgress } from "./relationships.ts";
 import { lifeLeisure } from "./lifeLeisure.ts";
 import { lifeSocial } from "./lifeSocial.ts";
-import { personProfiles } from "./story.ts";
+import { hasPendingStoryDecision, personProfiles } from "./story.ts";
 import { applyStats, statsChange, type StatDelta } from "./lifeStats.ts";
 
 export { applyStats, boundStat, lifeStatKeys, startingStats, statsChange } from "./lifeStats.ts";
@@ -145,7 +145,7 @@ function blocked(s: GameState, definition: LifeActivityDefinition, cashDelta: nu
   }
   const requirement = definition.requires?.(s);
   if (requirement) return requirement;
-  if (s.sceneId && s.choiceId === null && !definition.beforeChoice) return { bg: "Първо вземи решението за тази година в „Живот“.", en: "Make this year’s decision in Life first." };
+  if (hasPendingStoryDecision(s) && !definition.beforeChoice) return { bg: "Първо вземи решението за тази година в „Живот“.", en: "Make this year’s decision in Life first." };
   const exclusive = definition.branch?.id ?? definition.exclusive;
   const alreadyUsed = s.usedActions.includes(definition.id) || (exclusive && s.usedActions.some(id => {
     const used = getLifeActivityDefinition(id);

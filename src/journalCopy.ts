@@ -1,8 +1,9 @@
+import { activityMoment } from "./activityMoments.ts";
 import { relativeLabel, type BirthFamily } from "./birthFamily.ts";
 import { cities, inCityBg, placeAfterPreposition } from "./cities.ts";
 import { cityCulture, voices } from "./cityCulture.ts";
 import { cityPaths, jobTypes, type JobId } from "./cityPaths.ts";
-import type { Memory, Text } from "./engine.ts";
+import type { GameState, Memory, Text } from "./engine.ts";
 import { fundIds, funds, goodIds, goods } from "./lifeAssets.ts";
 import type { Language } from "./session.ts";
 
@@ -151,7 +152,32 @@ const walkPlaces: Readonly<Partial<Record<string, Text>>> = {
   "tryavna-river": t("край реката в Трявна", "by the river in Tryavna"),
 };
 
-function personLine(event: Memory, l: Language): string | undefined {
+export function familyActivityLine(event: Memory, l: Language, life: GameState): string | undefined {
+  if (event.kind !== "action" || !event.id.startsWith("people.")) return;
+  const [, id, activity] = event.id.split(".");
+  const relative = life.birthFamily?.relatives.find(member => member.id === id);
+  const child = id.startsWith("child-") ? life.lifeSystems.family.childProfiles[Number(id.slice(6))] : undefined;
+  const role = relative ? relativeLabel(relative)
+    : child ? child.gender === "male" ? t("Син", "Son") : t("Дъщеря", "Daughter")
+    : id === "rumi" ? t("Леля", "Aunt")
+    : id === "niki" ? t("Братовчед", "Cousin") : null;
+  if (!role || !event.text.bg.includes(" · ") || !event.text.en.includes(" · ")) return;
+  const firstName = (lang: Language) => event.text[lang].split(/\s+/u)[0];
+  const contact = t(role.bg.toLocaleLowerCase("bg") + " ми " + firstName("bg"), "my " + role.en.toLowerCase() + " " + firstName("en"));
+  const moment = activityMoment(event, life.seed, true, contact);
+  if (moment) return moment[l];
+  if (activity === "family-story") {
+    const city = life.birthCity;
+    const withContact = (/^[сз]/iu.test(contact.bg) ? "със " : "с ") + contact.bg;
+    const quote = l === "bg" ? event.text.bg.match(/„[^“]+“$/u)?.[0] : event.text.en.match(/“[^”]+”$/u)?.[0];
+    const story = l === "bg" ? "Поговорих " + withContact + " за живота " + inCityBg(city) + " преди години."
+      : "I talked with " + contact.en + " about what " + cities[city].name.en + " was like years ago.";
+    return quote ? story + " " + sentence((l === "bg" ? "Остана ми в главата едно " : "I can still hear ") + quote) : story;
+  }
+  return personLine(event, l, contact[l]);
+}
+
+function personLine(event: Memory, l: Language, contactOverride?: string): string | undefined {
   if (event.kind !== "action" || !event.id.startsWith("people.")) return;
   const separator = " · ";
   const original = event.text[l];
@@ -159,7 +185,7 @@ function personLine(event: Memory, l: Language): string | undefined {
   if (contactEnd <= 0) return;
 
   // These action results start with the name as it was when the action happened.
-  const contact = original.slice(0, contactEnd);
+  const contact = contactOverride ?? original.slice(0, contactEnd);
   const withContact = l === "bg" ? (/^[сз]/iu.test(contact) ? "със " : "с ") + contact : "with " + contact;
   const [, , activity, choice] = event.id.split(".");
   const option = event.title[l].split(separator).slice(1).join(separator);
@@ -188,13 +214,21 @@ function personLine(event: Memory, l: Language): string | undefined {
       break;
     case "ask-money":
       if (!option) break;
-      if (event.cashDelta > 0) return l === "bg" ? contact + " ми даде " + option + "."
-        : contact + " gave me " + option + ".";
+      if (event.cashDelta > 0) {
+        const subject = contact.charAt(0).toUpperCase() + contact.slice(1);
+        return l === "bg" ? subject + " ми даде " + option + "." : subject + " gave me " + option + ".";
+      }
       return l === "bg" ? "Поисках пари от " + contact + ". Получих отказ."
         : "I asked " + contact + " for money and was turned down.";
     case "conversation":
       if (choice === "doner") return l === "bg" ? "Обсъдих " + withContact + " кой е правилният сос за дюнер."
         : "I debated the right döner sauce " + withContact + ".";
+      if (choice === "week") return l === "bg" ? "Поговорих " + withContact + " за това как е минал денят ни."
+        : "I talked " + withContact + " about how our day went.";
+      if (choice === "music") return l === "bg" ? "Размених си препоръки за музика и сериали " + withContact + "."
+        : "I swapped music and TV recommendations " + withContact + ".";
+      if (choice === "plans") return l === "bg" ? "Обсъдих плановете за уикенда " + withContact + "."
+        : "I discussed weekend plans " + withContact + ".";
       return (l === "bg" ? "Поговорих си " : "I caught up ") + withContact + ".";
     case "compliment":
       if (choice === "style") return l === "bg" ? "Похвалих стила на " + contact + "."
@@ -223,6 +257,19 @@ function personLine(event: Memory, l: Language): string | undefined {
       return (l === "bg" ? "Отидох на кино " : "I went to the cinema ") + withContact + ".";
     case "coffee":
       return (l === "bg" ? "Хапнах баница и пих кафе " : "I had coffee and banitsa ") + withContact + ".";
+    case "game":
+    case "gaming":
+      return (l === "bg" ? "Поиграх онлайн " : "I played online ") + withContact + ".";
+    case "basketball":
+      return (l === "bg" ? "Играх баскетбол " : "I played basketball ") + withContact + ".";
+    case "park":
+      return (l === "bg" ? "Разходих се в парка " : "I went for a walk in the park ") + withContact + ".";
+    case "playground":
+      return (l === "bg" ? "Отидох на площадката " : "I went to the playground ") + withContact + ".";
+    case "board-game":
+      return (l === "bg" ? "Играх настолна игра " : "I played a board game ") + withContact + ".";
+    case "skate":
+      return (l === "bg" ? "Карах колело " : "I went for a bike ride ") + withContact + ".";
     case "voice-note":
       return l === "bg" ? "Пратих гласово съобщение на " + contact + "."
         : "I sent " + contact + " a voice note.";

@@ -6,7 +6,7 @@ import { cityChoices, cityEvents, cityPlaces, cityWeatherDate, getCityEvent } fr
 import { cityLifeData } from "../src/cityLifeData/index.ts";
 import {
   decodeSave, doAction, encodeSave, getCityOpportunity, newLife, newProfileLife,
-  playYear, startCareerLife,
+  playYear, skipDecision, startCareerLife,
 } from "../src/engine.ts";
 
 function advanceTo(life, age) {
@@ -95,6 +95,19 @@ test("a missed invitation and a secondary choice do not unlock the next episode"
     assert.ok(!next.history.some(e => e.cityEvent?.id === "continuation"));
     assert.equal(doAction(next, join.id), next);
   }
+});
+
+test("closing a city invitation consumes it without taking any of its options", () => {
+  const life = atAge("burgas", 16);
+  const open = getCityOpportunity(life);
+  assert.ok(open);
+  const skipped = skipDecision(life, open.id);
+  assert.equal(getCityOpportunity(skipped), null);
+  assert.strictEqual(skipped.history, life.history);
+  assert.strictEqual(skipped.usedActions, life.usedActions);
+  assert.strictEqual(doAction(skipped, open.options[0].option.id), skipped);
+  assert.deepEqual(decodeSave(encodeSave(skipped)), skipped);
+  assert.ok(!playYear(skipped).history.some(entry => entry.age === life.age + 1 && entry.cityEvent?.id === "continuation"));
 });
 
 test("moving closes the previous city's offer and the next birthdays use the new city", () => {

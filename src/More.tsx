@@ -1,7 +1,8 @@
+import { activityMoment } from "./activityMoments.ts";
 import { conditionLabel } from "./lifeHealth.ts";
 import React, { useLayoutEffect, useRef, useState } from "react";
 import {
-  annualBudget, getEstate, getLifeActivities, lifeHeirLabel, lifePartnerLabel,
+  annualBudget, getEstate, getLifeActivities, hasPendingStoryDecision, lifeHeirLabel, lifePartnerLabel,
   type GameState, type LifeActivityCategory, type LifeActivityOption, type LifeStat, type Memory,
 } from "./engine.ts";
 import { activeContraceptive, contraceptionNames } from "./contraception.ts";
@@ -168,9 +169,9 @@ function CategoryStatus({ life, category, l }: { life: GameState; category: Life
     <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
 }
 
-function ActivityFeedback({ feedback, onJournal, l }: { feedback: Memory; onJournal?: () => void; l: Language }) {
+function ActivityFeedback({ feedback, seed, onJournal, l }: { feedback: Memory; seed: number; onJournal?: () => void; l: Language }) {
   return <div className="activity-feedback">
-    <div role="status"><strong>{feedback.title[l]}</strong><p>{feedback.text[l]}</p></div>
+    <div role="status"><strong>{feedback.title[l]}</strong><p>{activityMoment(feedback, seed)?.[l] ?? feedback.text[l]}</p></div>
     {onJournal && <button type="button" onClick={onJournal}>{copy(l, "Към дневника", "View in journal")}<Icon name="right" size={15} /></button>}
   </div>;
 }
@@ -360,7 +361,7 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
         <h1 ref={heading} id="more-heading" tabIndex={-1}>{activityTitle ?? platform ?? category.title[l]}</h1>
       </MenuTitle>
     </header>
-    {detail ? result ? <ActivityFeedback feedback={result} onJournal={onJournal} l={l}/>
+    {detail ? result ? <ActivityFeedback feedback={result} seed={life.seed} onJournal={onJournal} l={l}/>
       : active && <ActivityDetails option={active} onChoose={chooseActivity} l={l}/> : <>
     {!platform && <CategoryStatus life={life} category={category.id} l={l}/>}
     {child && <button type="button" data-category={child.id} className={`activity-category activity-${child.id}`} onClick={()=>changeCategory(child.id)}>
@@ -368,11 +369,11 @@ export function More({ life, l, onActivity, onGiveUp, initialCategory = null, an
       <span className="activity-category-copy"><strong>{child.title[l]}</strong><small>{child.id === "adoption" ? adoptionStatus(life)?.[l] ?? child.clue[l] : child.clue[l]}</small></span>
       <Icon name="next" size={16}/>
     </button>}
-    {!life.finished && life.sceneId && life.choiceId === null && onJournal && <div className="activity-unlock">
+    {!life.finished && hasPendingStoryDecision(life) && onJournal && <div className="activity-unlock">
       <span>{t("Първо вземи решението за тази година.", "Make this year’s story decision to unlock activities.")}</span>
       <button type="button" onClick={onJournal}>{t("Към решението", "Go to decision")}<Icon name="right" size={15} /></button>
     </div>}
-    {feedback && !optionsForCategory.some(option => option.id === feedback.id) && <ActivityFeedback feedback={feedback} onJournal={onJournal} l={l}/>}
+    {feedback && !optionsForCategory.some(option => option.id === feedback.id) && <ActivityFeedback feedback={feedback} seed={life.seed} onJournal={onJournal} l={l}/>}
     {category.id === "social" && !platform ? <div className="activity-directory">
       {[...groups].map(([group, options]) => {
         const key = options[0].id.split(".")[1] as keyof typeof life.lifeSystems.social;

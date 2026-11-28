@@ -5,6 +5,7 @@ import { cityWeatherLabels, climates, t, type CityChoice, type CityEvent, type C
 import type { GameState, Memory, Text } from "./engine.ts";
 import { lifeVignettes } from "./lifeVignettes.ts";
 import { lifeDraw } from "./mortality.ts";
+import { hasPendingStoryDecision } from "./story.ts";
 
 const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 const monthFormats = {
@@ -197,9 +198,10 @@ export function cityEventMemory(s: GameState, roll: CityEventRoll): Memory {
 }
 
 export function openCityEvent(s: GameState) {
-  if (s.finished || s.lifeSystems.reproduction.naming || (s.sceneId && s.choiceId === null)) return null;
+  if (s.finished || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice
+    || hasPendingStoryDecision(s)) return null;
   const entry = s.history.find(row => row.age === s.age && row.city === s.city && row.cityEvent);
-  if (!entry?.cityEvent || s.usedActions.some(id => id.startsWith(entry.id + "."))) return null;
+  if (!entry?.cityEvent || s.skippedDecisions.includes(entry.id) || s.usedActions.some(id => id.startsWith(entry.id + "."))) return null;
   const event = getCityEvent(s.city, entry.cityEvent.id);
   return event?.choices.length ? { entry, event, roll: entry.cityEvent } : null;
 }

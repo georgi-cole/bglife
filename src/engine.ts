@@ -18,7 +18,7 @@ import { everydayEvents } from "./everydayEvents.ts";
 import { mortalityCondition, treatHealth } from "./lifeHealth.ts";
 import { settlePeople } from "./lifeLoss.ts";
 import { deathCauses, MAX_AGE, rollDeath, type Death } from "./mortality.ts";
-import { actions, scenes } from "./story.ts";
+import { actions, hasPendingStoryDecision, scenes } from "./story.ts";
 import { parseAvatar, type AvatarTraits } from "./avatar.ts";
 import {
   activityDefinitions, applyStats, getLifeActivityDefinition, lifeActivityOption, startingLifeSystems,
@@ -32,6 +32,7 @@ import { pathText } from "./pathCatalog.ts";
 import { serviceMonths } from "./employment.ts";
 import { drawWorkEvent, queueWorkEvent, type WorkImpact } from "./workplace.ts";
 
+export { hasPendingStoryDecision } from "./story.ts";
 export { lifeHeirLabel, lifePartnerLabel, lifeStatKeys } from "./lifeActivities.ts";
 export type { Heir, LifeActivityCategory, LifeActivityOption, LifeStat, LifeStats, Platform } from "./lifeActivities.ts";
 export { getEstate } from "./lifeEconomy.ts";
@@ -82,7 +83,7 @@ const pregnancyActions = {
 };
 export type PregnancyAction = keyof typeof pregnancyActions;
 export type Command =
-  | { age: number; kind: "choice" | "action" | "path"; id: string }
+  | { age: number; kind: "choice" | "action" | "path" | "skip-decision"; id: string }
   | { age: number; kind: "year"; cityEvent?: CityEventRoll | null; workEvent?: string }
   | { age: number; kind: "end" | "maternity-return" | PregnancyAction }
   | { age: number; kind: "name-children"; names: string[]; surname: SurnameSource };
@@ -131,6 +132,7 @@ export type GameState = {
   flags: string[];
   history: Memory[];
   usedActions: string[];
+  skippedDecisions: string[];
   sceneId: string;
   choiceId: string | null;
   commands: Command[];
@@ -189,7 +191,7 @@ function createLife(seed: number, avatar: AvatarTraits | null, birthCity: City, 
     death: null, deceased: {}, serviceYears: 0, retirement: null,
     housing: "home", career: "student", cash: chapter ? 70_000 : profile?.wealthy ? HEIR_CASH : 0, deposit: 0,
     trust: { rumi: 60, niki: 45, mentor: 45, friend: 55 },
-    flags: [], history: [], usedActions: [], sceneId: "", choiceId: null, commands: [], finished: false,
+    flags: [], history: [], usedActions: [], skippedDecisions: [], sceneId: "", choiceId: null, commands: [], finished: false,
     endReason: null, stats: chapter ? stats : applyStats({ ...stats, health: 88, brains: 12 },
       profile?.disposition ? dispositions[profile.disposition].stats : {}), lifeSystems: startingLifeSystems(),
   };
@@ -249,7 +251,9 @@ export function getScene(s: GameState): Scene | null {
   return { ...scene, choices: scene.choices.map(option => {
     const { career: _career, ...effect } = option.effect ?? {};
     return { ...option, effect, result: relocationReplies[option.id] ?? option.result,
-      label: option.id === "stay" ? pathText("Остани в Трявна", "Stay in Tryavna") : option.label };
+      label: option.id === "stay"
+        ? s.city === "tryavna" ? pathText("Остани в Трявна", "Stay in Tryavna") : pathText("Върни се в Трявна", "Return to Tryavna")
+        : option.label };
   }) };
 }
 
@@ -267,7 +271,7 @@ function available(s: GameState, option: Option): boolean {
 }
 
 export function getChoices(s: GameState): Option[] {
-  if (s.finished || s.choiceId !== null || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice) return [];
+  if (s.finished || !hasPendingStoryDecision(s) || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice) return [];
   return getScene(s)?.choices.filter((option) => available(s, option)) ?? [];
 }
 
@@ -286,7 +290,7 @@ export function playYear(s: GameState, expectedAge = s.age): GameState {
   const { pregnancy, naming, notice } = s.lifeSystems.reproduction;
   if (s.age !== expectedAge || s.finished || naming || notice) return s;
   if (pregnancy?.gestation) return doPregnancyAction(s, "pregnancy-turn", expectedAge);
-  if (!s.sceneId || s.choiceId !== null) return advance(s, expectedAge);
+  if (!hasPendingStoryDecision(s)) return advance(s, expectedAge);
   const option = defaultPlayChoice(s);
   return option ? advance(choose(s, option.id, expectedAge), expectedAge) : s;
 }
@@ -339,7 +343,7 @@ function workActions(s: GameState): Action[] {
 }
 
 export function getActions(s: GameState): Action[] {
-  if (s.finished || (s.sceneId && s.choiceId === null) || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice) return [];
+  if (s.finished || hasPendingStoryDecision(s) || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice) return [];
   const onLeave = onMaternityLeave(s);
   const availableActions = s.sceneId ? actions.filter((action) =>
     s.age >= (action.minAge ?? CHAPTER_START) && s.age <= (action.maxAge ?? CHAPTER_END)
@@ -368,7 +372,7 @@ export function moveBlocker(s: GameState, city: City): Text | null {
   if (s.lifeSystems.reproduction.notice) return { bg: "Първо виж съобщението за бременността.", en: "Read the pregnancy update first." };
   if (city === s.city) return { bg: "Вече живееш в този град.", en: "You already live in this city." };
   if (s.path) {
-    if (s.sceneId === "spare-key" && s.choiceId === null)
+    if (s.sceneId === "spare-key" && hasPendingStoryDecision(s))
       return pathText("Първо реши къде да живееш в дневника.", "Resolve the move in your journal first.");
     if (s.path.work.job) return pathText("Първо приключи трудовия си договор.", "End your current employment contract first.");
     const student = s.path.university.student;
@@ -474,6 +478,14 @@ export function choose(s: GameState, optionId: string, expectedAge = s.age): Gam
   return scene && option ? applyOption(s, "choice", option, scene.title) : s;
 }
 
+export function skipDecision(s: GameState, id: string, expectedAge = s.age): GameState {
+  if (s.finished || s.age !== expectedAge || s.lifeSystems.reproduction.naming || s.lifeSystems.reproduction.notice) return s;
+  const pendingStory = id === s.sceneId && hasPendingStoryDecision(s);
+  if (!pendingStory && openCityEvent(s)?.entry.id !== id) return s;
+  return { ...s, skippedDecisions: [...s.skippedDecisions, id],
+    commands: [...s.commands, { age: s.age, kind: "skip-decision", id }] };
+}
+
 export function getCityOpportunity(s: GameState) {
   const open = openCityEvent(s);
   if (!open) return null;
@@ -493,7 +505,7 @@ export function getCityOpportunity(s: GameState) {
     };
     return { option, blocked: !available(s, option) };
   });
-  return { id: open.entry.id, options };
+  return { id: open.entry.id, entry: open.entry, options };
 }
 
 export function doAction(s: GameState, actionId: string, expectedAge = s.age): GameState {
@@ -640,7 +652,7 @@ export function advance(s: GameState, expectedAge = s.age): GameState {
 function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRoll | null | "draw" | undefined,
   workResult?: string): GameState {
   const { pregnancy, naming, notice } = s.lifeSystems.reproduction;
-  if (s.finished || s.age !== expectedAge || (s.sceneId && s.choiceId === null) || naming || notice || pregnancy?.gestation) return s;
+  if (s.finished || s.age !== expectedAge || hasPendingStoryDecision(s) || naming || notice || pregnancy?.gestation) return s;
   const full = s.lifespanStart !== null;
   const death = full ? rollDeath({
     age: s.age, sex: s.avatar?.presentation ?? "female", city: s.city, player: true,
@@ -702,7 +714,8 @@ function advanceYear(s: GameState, expectedAge: number, cityResult: CityEventRol
     closed = settlePeople(closed);
   }
 
-  const next: GameState = { ...closed, age: finished ? s.age : s.age + 1, sceneId: "", choiceId: null, usedActions: [] };
+  const next: GameState = { ...closed, age: finished ? s.age : s.age + 1,
+    sceneId: "", choiceId: null, usedActions: [], skippedDecisions: [] };
   const openingStart = next.history.length;
   next.history.push(...assetsYear.events);
   if (lifeSystems.family.children > s.lifeSystems.family.children) {
@@ -846,6 +859,7 @@ export function decodeSave(raw: string): GameState | null {
       } else {
         if (typeof c.id !== "string" || c.id.length > 100) return null;
         if (c.kind === "choice") next = choose(s, c.id, s.age);
+        else if (c.kind === "skip-decision") next = skipDecision(s, c.id, s.age);
         else if (c.kind === "action") next = getLifeActivityDefinition(c.id)?.replayOnly
           ? applyLifeActivity(s, c.id, s.age, true) : doAction(s, c.id, s.age);
         else if (c.kind === "path") next = doPathAction(s, c.id, s.age);
