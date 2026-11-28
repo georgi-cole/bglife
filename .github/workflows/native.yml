@@ -3,7 +3,13 @@ name: BgLife native playtest
 on:
   pull_request:
     branches: [main]
-    paths: ['mobile/**', 'src/**', 'public/art/**', '.github/workflows/native.yml']
+    paths:
+      - 'mobile/**'
+      # The native app imports the shared TypeScript engine and the Tryavna cover.
+      - 'src/**/*.ts'
+      - '!src/homeScenes.ts'
+      - 'public/art/tryavna.webp'
+      - '.github/workflows/native.yml'
 
 permissions:
   contents: read
