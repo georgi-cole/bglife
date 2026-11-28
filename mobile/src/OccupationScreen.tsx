@@ -13,6 +13,9 @@ import { gradeName, schoolView } from "../../src/school.ts";
 import type { Language } from "../../src/sessionCodec.ts";
 import { findProgram, fundingName, universityCosts, universityView } from "../../src/university.ts";
 import { workplaceView } from "../../src/workplace.ts";
+import { specialCareerIds, specialCareers } from "../../src/specialCareerCatalog.ts";
+import { specialCareerView } from "../../src/specialCareers.ts";
+import type { SpecialCard, SpecialCareerId } from "../../src/specialCareerTypes.ts";
 import { type Screens, useGame } from "./game";
 import { CityPicker } from "./NewLifeScreen";
 import { base, Button, Chip, color, money, town, translation } from "./ui";
@@ -42,11 +45,71 @@ function Meter({ title, value }: { title: string; value: number }) {
   </View>;
 }
 
+
+function CareerCards({ cards, language, onAct }: Pick<Track, "language" | "onAct"> & { cards: SpecialCard[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+  return <>{cards.map(card => {
+    const visible = !card.fold || open === card.id;
+    return <View style={base.card} key={card.id}>
+      {card.fold ? <Pressable accessibilityRole="button" accessibilityState={{ expanded: visible }}
+        onPress={() => setOpen(visible ? null : card.id)}>
+        <Text style={base.section}>{card.title[language]}</Text>
+        {card.detail && <Text style={base.muted}>{card.detail[language]}</Text>}
+      </Pressable> : <>
+        <Text accessibilityRole="header" style={base.section}>{card.title[language]}</Text>
+        {card.detail && <Text style={base.muted}>{card.detail[language]}</Text>}
+      </>}
+      {visible && <>
+        {card.facts?.map(({ label, value, money: isMoney }) => <View style={styles.fact} key={label.en}>
+          <Text style={base.muted}>{label[language]}</Text>
+          <Text style={base.body}>{typeof value !== "number" ? value[language] : isMoney ? money(value, language) : value.toLocaleString(language === "bg" ? "bg-BG" : "en-GB")}</Text>
+        </View>)}
+        {card.meters?.map(meter => <Meter key={meter.label.en} title={meter.label[language] + " · " + meter.value + "%"} value={meter.value}/>)}
+        {card.actions && <ActionList actions={card.actions} onAct={onAct}/>}
+      </>}
+    </View>;
+  })}</>;
+}
+
+function SpecialCareers({ life, language, onAct }: Track) {
+  const [selected, setSelected] = useState<SpecialCareerId | null>(null);
+  const [showAway, setShowAway] = useState(false);
+  const t = (bg: string, en: string) => translation(language, bg, en);
+  if (!selected) return <View style={base.card} testID="special-careers">
+    <Text accessibilityRole="header" style={base.section}>{t("Специални кариери", "Special careers")}</Text>
+    {!!life.path?.special?.fame && <Meter title={t("Известност", "Fame")} value={life.path.special.fame}/>}
+    {!!life.path?.special?.careerReceipts && <Text style={base.muted}>{t("Хонорари и премии общо", "Fees and prizes to date")} · {money(life.path.special.careerReceipts, language)}</Text>}
+    {specialCareerIds.map(id => {
+      const item = specialCareers[id], locked = life.age < item.minAge;
+      return <View style={styles.group} key={id}>
+        <Button label={item.title[language]} testID={"special-career-" + id} disabled={locked} secondary
+          onPress={() => { setSelected(id); setShowAway(false); }}/>
+        <Text style={base.muted}>{locked ? t("От " + item.minAge + " г.", "From age " + item.minAge) : item.summary[language]}</Text>
+      </View>;
+    })}
+  </View>;
+  const { cards } = specialCareerView(life, selected);
+  const here = cards.filter(card => !card.city || card.city === life.city || !card.fold);
+  const away = cards.filter(card => card.city && card.city !== life.city && card.fold);
+  return <>
+    <View style={[base.card, styles.highlight]}>
+      <Text accessibilityRole="header" style={base.heading}>{specialCareers[selected].title[language]}</Text>
+      <Button label={t("Към кариерите", "Back to careers")} secondary onPress={() => setSelected(null)}/>
+    </View>
+    <CareerCards key={selected} cards={here} language={language} onAct={onAct}/>
+    {away.length > 0 && <Button label={showAway ? t("Скрий други градове", "Hide other cities") : t("Други градове", "Other cities")}
+      secondary onPress={() => setShowAway(!showAway)}/>}
+    {showAway && <CareerCards cards={away} language={language} onAct={onAct}/>}
+  </>;
+}
+
 function CurrentWork({ life, language, onAct, onCareer }: Track & { onCareer: () => void }) {
   const work = workplaceView(life);
   const t = (bg: string, en: string) => translation(language, bg, en);
   const [contact, setContact] = useState<string | null>(null);
   const [contract, setContract] = useState(false);
+  const special = life.path?.work.job?.special;
+  if (special && !life.finished) return <CareerCards cards={specialCareerView(life, special.kind).work} language={language} onAct={onAct}/>;
   if (!work || life.finished) return <View style={base.card}>
     <Text style={base.section}>{t("Нямаш текуща работа", "No current job")}</Text>
     <Button label={t("Към обявите", "Browse vacancies")} secondary onPress={onCareer}/>
@@ -170,6 +233,8 @@ function Education({ life, language, onAct }: Track) {
         return <View style={base.card} key={program.id}>
           <Text style={base.section}>{program.title[language]}</Text>
           <Text style={base.muted}>{program.institution[language]}</Text>
+          {program.admission.practical && <Text style={base.muted}>{t("Практически изпит · 3 кръга", "Practical entrance exam · 3 rounds")}
+            {university.entrance[program.id]?.length ? " · " + university.entrance[program.id].map(score => mark(score, language)).join(" · ") : ""}</Text>}
           <Text style={base.muted}>{fees.join(" · ")} {t("/ год.", "/ yr")}</Text>
           {application && <Text style={base.body}>{application.outcome === "refused" ? t("Извън класирането", "No place offered") : fundingName[application.outcome][language]}
             {" · "}{t("Бал", "Score")} {mark(application.score, language)}</Text>}
@@ -184,7 +249,7 @@ export function OccupationScreen({ route, navigation }: NativeStackScreenProps<S
   const { session, language, updateSession } = useGame();
   const life = session.life;
   const t = (bg: string, en: string) => translation(language, bg, en);
-  const [panel, setPanel] = useState<"education" | "vacancies" | "insurance">(life.age < 18 || life.path?.university.student ? "education" : "vacancies");
+  const [panel, setPanel] = useState<"education" | "vacancies" | "insurance" | "special">(life.age < 18 || life.path?.university.student ? "education" : "vacancies");
   const maternity = maternityStatus(life);
   const currentWork = route.params.section === "work" && !maternity;
   function onAct(id: string) {
@@ -198,7 +263,7 @@ export function OccupationScreen({ route, navigation }: NativeStackScreenProps<S
   const props: Track = { life, language, onAct };
   const work = life.path?.work;
   const last = life.history.at(-1);
-  const workplaceAction = last?.id.startsWith("workplace.") || last?.id === "work.raise" || last?.id === "work.leave";
+  const workplaceAction = last?.id.startsWith("workplace.") || (last && /^special\.[^.]+\.work\./.test(last.id)) || last?.id === "work.raise" || last?.id === "work.leave";
   const feedback = last?.age === life.age && last.kind === "path" && !last.decision && Boolean(workplaceAction) === currentWork ? last.text[language] : null;
   return <ScrollView style={base.page} contentContainerStyle={base.scroll} testID={currentWork ? "workplace-screen" : "career-screen"}>
     <View style={base.row}>
@@ -209,9 +274,10 @@ export function OccupationScreen({ route, navigation }: NativeStackScreenProps<S
     </View>
     {feedback && <Text accessibilityLiveRegion="polite" style={styles.feedback}>{feedback}</Text>}
     {life.path && !life.finished && (currentWork ? <CurrentWork {...props} onCareer={() => { setPanel("vacancies"); navigation.setParams({ section: "career" }); }}/> : <>
-      {life.age >= 16 && <View style={base.row}>
+      {life.age >= 7 && <View style={base.row}>
         <Chip label={life.age >= 18 ? t("Образование", "Education") : t("Училище", "School")} selected={panel === "education"} onPress={() => setPanel("education")}/>
-        <Chip label={life.age >= 18 ? t("Обяви", "Vacancies") : t("Летни обяви", "Summer jobs")} selected={panel === "vacancies"} onPress={() => setPanel("vacancies")}/>
+        {life.age >= 16 && <Chip label={life.age >= 18 ? t("Обяви", "Vacancies") : t("Летни обяви", "Summer jobs")} selected={panel === "vacancies"} onPress={() => setPanel("vacancies")}/>}
+        <Chip label={t("Специални", "Special")} testID="special-tab" selected={panel === "special"} onPress={() => setPanel("special")}/>
         {life.age >= 18 && <Chip label={t("Осигуряване", "Social insurance")} selected={panel === "insurance"} onPress={() => setPanel("insurance")}/>}
       </View>}
       {panel === "education" ? <Education {...props}/> : panel === "vacancies" ? (
@@ -219,7 +285,7 @@ export function OccupationScreen({ route, navigation }: NativeStackScreenProps<S
           <Text accessibilityRole="header" style={base.section}>{maternity[language]}</Text>
           <Text style={base.body}>{t("Обезщетение за годината", "Benefit this year")} · {money(maternityPay(life), language)}</Text>
         </View> : <Vacancies {...props}/>
-      ) : <>
+      ) : panel === "special" ? <SpecialCareers {...props}/> : <>
         {work && <View style={base.card}>
           <Text accessibilityRole="header" style={base.section}>{t("Безработица и пенсия", "Unemployment and pension")}</Text>
           <Text style={base.body}>{t("Осигурителен стаж", "Insurance service")} · {insuranceView(life, work).pension.service} {t("мес.", "mo")}</Text>
@@ -236,6 +302,7 @@ const styles = StyleSheet.create({
   contact: { justifyContent: "center", minHeight: 47 },
   group: { padding: 9, backgroundColor: "#EFF2EB", borderRadius: 9, gap: 7 },
   meter: { gap: 5 },
+  fact: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 6 },
   meterTrack: { height: 5, borderRadius: 5, backgroundColor: color.line, overflow: "hidden" },
   meterFill: { height: "100%" },
   feedback: { ...base.body, color: color.green, backgroundColor: color.lightGreen, padding: 12, borderRadius: 10 },

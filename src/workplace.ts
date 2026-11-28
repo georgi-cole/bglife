@@ -10,7 +10,11 @@ export type WorkplaceProgress = {
   bonds: Partial<Record<WorkContactId, number>>;
   event?: { id: string; age: number; handled?: true };
 };
-export type WorkImpact = { performance: number; relationship?: { name: Text; delta: number } };
+export type WorkImpact = {
+  performance: number;
+  relationship?: { name: Text; delta: number };
+  career?: { label: Text; delta: number }[];
+};
 
 const names = [
   t("Анна Василева", "Anna Vasileva"), t("Борис Маринов", "Boris Marinov"), t("Гергана Димова", "Gergana Dimova"),

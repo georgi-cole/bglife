@@ -540,3 +540,66 @@ test("an independent wedding appears in the journal and its optional decision ca
   await expect(page.getByRole("button", {name: "Покана за сватба", exact: true})).toHaveCount(0);
   await expect(page.locator('[data-event-id="' + wedding.id + '"]')).toContainText("сключи брак");
 });
+
+test("special careers keep casting, the current role and side projects on distinct screens", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 730 });
+  let life;
+  for (let seed = 1; seed <= 12; seed++) {
+    let candidate = startCareerLife(newLife(seed, defaultAvatar, "sofia"));
+    while (candidate.age < 19 && !candidate.finished) {
+      if (candidate.age >= 15) {
+        candidate = doPathAction(candidate, "special.actor.drama");
+        candidate = doPathAction(candidate, "special.actor.camera");
+      }
+      candidate = playYear(candidate);
+    }
+    if (candidate.finished) continue;
+    const audition = doPathAction(candidate, "special.actor.audition.sofia-background");
+    if (audition.path.special?.actor.offer) { life = candidate; break; }
+  }
+  expect(life).toBeDefined();
+  await page.addInitScript(saved => {
+    if (sessionStorage.getItem("special-career-fixture")) return;
+    sessionStorage.setItem("special-career-fixture", "loaded");
+    localStorage.setItem("bglife.language", "en");
+    localStorage.setItem("bglife.journal.v1", saved);
+  }, serialize({ life, album: [] }));
+  await page.goto("./");
+  const resume = page.getByRole("button", { name: /^Continue/ });
+  await resume.tap();
+  const openSpecial = async () => {
+    await page.locator('[data-tab="career"]').tap();
+    const tabs = page.getByRole("group", { name: "Education and work" });
+    expect(await tabs.evaluate(element => element.scrollWidth)).toBeLessThanOrEqual(await tabs.evaluate(element => element.clientWidth));
+    await page.getByRole("button", { name: "Special", exact: true }).tap();
+  };
+  await openSpecial();
+  await expect(page.getByTestId("special-careers")).toBeVisible();
+  await expect(page.locator("[data-special-career]")).toHaveCount(4);
+  await page.locator('[data-special-career="actor"]').tap();
+  await page.locator("summary").filter({ hasText: "Under the Last Bridge" }).tap();
+  const action = id => page.locator('[data-career-action="' + id + '"]');
+  await action("special.actor.audition.sofia-background").tap();
+  await action("special.actor.sign.sofia-background.fixed").tap();
+  await page.getByTestId("open-workplace").tap();
+  const work = page.getByTestId("workplace");
+  await expect(work.getByRole("heading", { name: "Under the Last Bridge" })).toBeVisible();
+  await expect(work.getByRole("button", { name: "Send a self-tape" })).toHaveCount(0);
+  await action("special.actor.work.rehearse").tap();
+  await expect(work.getByRole("status")).toContainText("toughest scene");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+
+  await openSpecial();
+  await page.locator('[data-special-career="creator"]').tap();
+  await action("special.creator.open.tiktok").tap();
+  await action("special.creator.publish.long").tap();
+  await expect(page.locator(".career-row").filter({ hasText: "Followers" })).not.toContainText(/^Followers0$/);
+  await page.reload();
+  await resume.tap();
+  await openSpecial();
+  await page.locator('[data-special-career="creator"]').tap();
+  await expect(page.getByRole("heading", { name: "TikTok" })).toBeVisible();
+  expect(Number(await page.locator(".career-row").filter({ hasText: "Followers" }).locator("strong").textContent())).toBeGreaterThan(0);
+  await page.getByTestId("open-workplace").tap();
+  await expect(work.getByRole("heading", { name: "Under the Last Bridge" })).toBeVisible();
+});

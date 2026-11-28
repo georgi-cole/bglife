@@ -61,7 +61,8 @@ function examGrade(s: GameState, diploma: Diploma, program: Program, state: Univ
 function admission(s: GameState, diploma: Diploma, program: Program, state: UniversityState): Application {
   const entrance = state.entrance[program.id];
   const subject = marksFor(diploma, program.admission.subject);
-  const eligibility = entrance ? average(entrance) * .63 + subject * .15 + diploma.average * .22
+  const eligibility = program.admission.practical && entrance ? average(entrance)
+    : entrance ? average(entrance) * .63 + subject * .15 + diploma.average * .22
     : subject * .55 + diploma.bulgarian * .18 + diploma.average * .27;
   const score = roundMark(eligibility + (pathRoll(s, "admission." + program.id) - .5) * .3);
   const requirementsMet = !entrance || entrance.every(exam => exam >= 3);
@@ -160,6 +161,38 @@ export function universityView(s: GameState, university: UniversityState, diplom
       continue;
     }
     if (application) continue;
+    const practical = program.admission.practical;
+    const rounds = university.entrance[program.id] ?? [];
+    const round = practical?.[rounds.length];
+    if (round) {
+      if (rounds.length === 0 && university.preparation !== program.id) actions.push({
+        id: "university.prepare." + program.id, label: t("Подготви сценичен репертоар", "Prepare your audition material"),
+        blocked: university.preparation ? t("Вече избра приемен изпит за подготовка.", "You picked another exam to prepare for.") : undefined,
+        run: () => ({ state: { ...university, preparation: program.id },
+          note: t("Подготвих текстове и етюди за първия кръг.", "I prepared texts and scenes for the first round.") }),
+      });
+      const number = rounds.length + 1;
+      const cost = pathMoney(round.fee);
+      actions.push({
+        id: "university.practical-" + number + "." + program.id,
+        label: t("Кръг " + number + " · " + round.title.bg + " · " + round.fee + " €",
+          "Round " + number + " · " + round.title.en + " · €" + round.fee),
+        blocked: s.cash < cost ? t("Нямаш достатъчно пари за този кръг.", "You don't have enough cash for this round.") : undefined,
+        run: () => {
+          const preparation = university.preparation === program.id ? .6 : 0;
+          const skill = s.path?.special?.actor.skill ?? 0;
+          const score = roundMark(2 + skill * .035 + s.stats.influence * .013 + preparation
+            - (number - 1) * .16 + (pathRoll(s, program.id + ".practical." + number) - .5) * .9);
+          const entrance = { ...university.entrance, [program.id]: [...rounds, score] };
+          const applications = score >= 3 ? university.applications
+            : { ...university.applications, [program.id]: { outcome: "refused" as const, score } };
+          return { state: { ...university, entrance, applications }, cash: -cost,
+            note: t("Кръг " + number + " · " + mark(score, "bg") + (score < 3 ? ". Не продължих напред." : "."),
+              "Round " + number + " · " + mark(score, "en") + (score < 3 ? ". I did not advance." : ".")) };
+        },
+      });
+      continue;
+    }
     const exam = program.admission.exam;
     if (exam && !university.entrance[program.id]) {
       actions.push({
@@ -232,5 +265,5 @@ export function closeUniversityYear(s: GameState, university: UniversityState, d
 }
 
 export function universityCoursework(program: Program) {
-  return programSubjects[program.field];
+  return program.coursework ?? programSubjects[program.field];
 }

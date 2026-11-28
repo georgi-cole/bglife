@@ -20,6 +20,7 @@ import { cityDecision, storyDecision, weddingDecision } from "../../src/journalD
 import { familyActivityLine, journalLine } from "../../src/journalCopy.ts";
 import type { Language } from "../../src/sessionCodec.ts";
 import { getWorkDecision } from "../../src/workplace.ts";
+import { getSpecialDecision, type CareerDecision } from "../../src/specialCareers.ts";
 import { Avatar } from "./Avatar";
 import { DecisionModal } from "./DecisionModal";
 import { type Screens, useGame } from "./game";
@@ -114,6 +115,7 @@ function WorkJournalEntry({ entry, language }: { entry: Memory; language: Langua
       {impact?.relationship && <Text style={[styles.delta, impact.relationship.delta < 0 && styles.negative]}>
         {impact.relationship.name[language]} {signed(impact.relationship.delta)}
       </Text>}
+      {impact?.career?.map(effect => <Text style={styles.delta} key={effect.label.en}>{effect.label[language]} {signed(effect.delta)}</Text>)}
       {entry.cashDelta !== 0 && <Text style={[styles.delta, entry.cashDelta < 0 && styles.negative]}>
         {entry.cashDelta > 0 ? "+" : ""}{money(entry.cashDelta, language)}
       </Text>}
@@ -125,7 +127,7 @@ function WorkJournalEntry({ entry, language }: { entry: Memory; language: Langua
   </View>;
 }
 
-function WorkPrompt({ life, decision }: { life: GameState; decision: NonNullable<ReturnType<typeof getWorkDecision>> }) {
+function WorkPrompt({ life, decision }: { life: GameState; decision: CareerDecision }) {
   const { language, saving, updateSession } = useGame();
   const chooseWork = (id: string) => {
     void updateSession(current => {
@@ -212,7 +214,7 @@ export function JournalScreen({ navigation, route }: NativeStackScreenProps<Scre
   const showDecision = !archived && focused && !birth && !notice;
   const story = showDecision && !turn ? storyDecision(life) : null;
   const opportunity = archived ? null : getCityOpportunity(life);
-  const workDecision = showDecision && !story ? getWorkDecision(life) : null;
+  const workDecision = showDecision && !story ? (getWorkDecision(life) ?? getSpecialDecision(life)) : null;
   const wedding = archived ? null : weddingDecision(life);
   const optional = showDecision && !story && !workDecision && cityPrompt !== null
     ? [cityDecision(life), wedding].find(item => item?.key === cityPrompt)

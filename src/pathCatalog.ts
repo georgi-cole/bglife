@@ -56,7 +56,8 @@ export type Program = {
   field: Field;
   years: number;
   fee: { state?: number; paid?: number };
-  admission: { subject: Subject; exam?: readonly Subject[]; state?: number; paid?: number };
+  coursework?: readonly Text[];
+  admission: { subject: Subject; exam?: readonly Subject[]; practical?: readonly { title: Text; fee: number }[]; state?: number; paid?: number };
 };
 type JobRequirement = "none" | "secondary" | Field;
 export type Job = {
@@ -162,6 +163,14 @@ const expanded: Partial<Record<City, Pick<CityCatalog, "zones" | "schools" | "pr
         fee: { state: 620, paid: 6300 }, admission: { subject: "biology", exam: ["biology", "chemistry"], state: 5.1, paid: 4.45 } },
       { id: "mu-nursing", institution: mu, title: t("Медицинска сестра", "Nursing"), field: "nursing", years: 4,
         fee: { state: 390, paid: 2000 }, admission: { subject: "biology", state: 4.15, paid: 3.45 } },
+      { id: "natfiz-acting", institution: t("НАТФИЗ „Кръстьо Сарафов“", "Krastyo Sarafov National Academy for Theatre and Film Arts"),
+        title: t("Актьорство за драматичен театър", "Acting for drama theatre"), field: "art", years: 4,
+        coursework: [t("Сценична реч", "Stage speech"), t("Актьорски етюди", "Acting études"), t("Глас и движение", "Voice and movement")],
+        fee: { state: 1230, paid: 4470 }, admission: { subject: "bulgarian", practical: [
+          { title: t("Представи подготвен текст", "Perform a prepared text"), fee: 70 },
+          { title: t("Изиграй задачи на комисията", "Perform the panel's assignments"), fee: 45 },
+          { title: t("Глас, движение и непознат текст", "Voice, movement and unseen text"), fee: 40 },
+        ], state: 5.08, paid: 4.22 } },
       { id: "nbu-visual", institution: nbu, title: t("Визуални изкуства", "Visual arts"), field: "art", years: 4,
         fee: { paid: 2850 }, admission: { subject: "art", exam: ["art"], paid: 3.65 } },
     ],
