@@ -3,13 +3,22 @@ name: BgLife native playtest
 on:
   pull_request:
     branches: [main]
-    paths: ['mobile/**', 'src/**', 'public/art/**', '.github/workflows/native.yml']
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+  schedule:
+    - cron: '17 4 * * 0'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platforms to test
+        type: choice
+        default: both
+        options: [both, android, ios]
 
 permissions:
   contents: read
 
 concurrency:
-  group: bglife-native-pr-${{ github.event.pull_request.number }}
+  group: bglife-native-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -17,8 +26,46 @@ env:
   MAESTRO_CLI_NO_ANALYTICS: '1'
 
 jobs:
+  plan:
+    name: Select native checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      bundles: ${{ steps.select.outputs.bundles }}
+      android: ${{ steps.select.outputs.android }}
+      ios: ${{ steps.select.outputs.ios }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Decide which native jobs are needed
+        id: select
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          changes="$RUNNER_TEMP/native-changes"
+          if [[ "$EVENT" == pull_request ]]; then
+            git diff --name-only --no-renames -z "$BASE...$HEAD" > "$changes"
+          else
+            : > "$changes"
+          fi
+          plan=$(node .github/scripts/native-check-plan.mjs "$EVENT" "$DRAFT" "$PLATFORM" < "$changes")
+          printf '%s\n' "$plan" >> "$GITHUB_OUTPUT"
+          printf '### Native checks\n\n```text\n%s\n```\n' "$plan" >> "$GITHUB_STEP_SUMMARY"
+
   native-check:
     name: Native compatibility and bundles
+    needs: plan
+    if: needs.plan.outputs.bundles == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
@@ -40,7 +87,8 @@ jobs:
 
   android:
     name: Android APK and offline smoke
-    needs: native-check
+    needs: [plan, native-check]
+    if: needs.plan.outputs.android == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -81,6 +129,11 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - run: bash mobile/e2e/install-maestro.sh
+      - name: Enable hardware acceleration for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
       - name: Select modern Android SDK command-line tools
         run: |
           tools_dir="$ANDROID_HOME/cmdline-tools"
@@ -98,9 +151,9 @@ jobs:
       - uses: ReactiveCircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a
         with:
           api-level: 35
+          profile: pixel_7
           target: google_apis
           arch: x86_64
-          profile: pixel_7
           emulator-options: -no-window -gpu swiftshader -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: bash mobile/e2e/run-android.sh
@@ -114,7 +167,8 @@ jobs:
 
   ios:
     name: iOS simulator app and smoke
-    needs: native-check
+    needs: [plan, native-check]
+    if: needs.plan.outputs.ios == 'true'
     runs-on: xcode-27
     timeout-minutes: 50
     steps:
