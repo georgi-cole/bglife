@@ -12,3 +12,17 @@
 .special-meter>div{display:flex;justify-content:space-between;gap:8px}
 .special-meter progress{width:100%;height:7px;accent-color:#a0c490}
 .special-away{width:100%;text-align:left}
+
+@media (max-width:430px) {
+  .career-view > .career-toggles:has(> button:nth-child(4)) {
+    display:grid;
+    grid-template-columns:1.16fr .68fr .99fr 1.17fr;
+  }
+  .career-view > .career-toggles:has(> button:nth-child(4)) > button {
+    min-width:0;
+    padding-inline:.16rem;
+    font-size:.76rem;
+    line-height:1.12;
+    white-space:normal;
+  }
+}

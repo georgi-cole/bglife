@@ -499,6 +499,8 @@ test("special careers keep casting, the current role and side projects on distin
   await resume.tap();
   const openSpecial = async () => {
     await page.locator('[data-tab="career"]').tap();
+    const tabs = page.getByRole("group", { name: "Education and work" });
+    expect(await tabs.evaluate(element => element.scrollWidth)).toBeLessThanOrEqual(await tabs.evaluate(element => element.clientWidth));
     await page.getByRole("button", { name: "Special", exact: true }).tap();
   };
   await openSpecial();
